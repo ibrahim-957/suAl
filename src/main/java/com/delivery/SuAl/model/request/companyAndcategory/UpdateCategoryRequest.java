@@ -1,0 +1,13 @@
+package com.delivery.SuAl.model.request.companyAndcategory;
+
+import com.delivery.SuAl.model.CategoryType;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class UpdateCategoryRequest {
+    private CategoryType categoryType;
+}
