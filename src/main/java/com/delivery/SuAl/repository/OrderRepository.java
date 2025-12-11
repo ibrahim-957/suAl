@@ -25,4 +25,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByDriverId(Long driverId);
 
     boolean existsByDriverIdAndOrderStatusIn(Long driverId, List<OrderStatus> orderStatus);
+
+    @Query("SELECT COUNT(o) FROM Order o " +
+            "WHERE o.orderNumber LIKE :prefix%")
+    Long countByOrderNumberStartingWith(@Param("prefix")  String prefix);
+
+    @Query("SELECT COUNT(o) FROM Order o " +
+            "WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay")
+    Long countTodaysOrders(@Param("startOfDay") LocalDateTime startOfDay,
+                           @Param("endOfDay") LocalDateTime endOfDay);
+
+    @Query("SELECT SUM(o.amount) FROM Order o " +
+            "WHERE o.paymentStatus = 'PAID' AND o.createdAt " +
+            "BETWEEN :startDate AND :endDate")
+    BigDecimal calculateRevenue(@Param("startDate") LocalDateTime startDate,
+                                @Param("endDate") LocalDateTime endDate);
 }

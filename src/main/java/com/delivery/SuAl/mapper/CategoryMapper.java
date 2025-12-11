@@ -12,6 +12,7 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface CategoryMapper {
+    @Mapping(target = "categoryType", source = "categoryType")
     Category toEntity(CreateCategoryRequest createCategoryRequest);
 
     void updateEntityFromRequest(UpdateCategoryRequest updateCategoryRequest,

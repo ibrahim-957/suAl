@@ -14,29 +14,17 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ProductMapper {
-//    @Mapping(target = "company", ignore = true)
-//    @Mapping(target = "category", ignore = true)
     Product toEntity(CreateProductRequest createProductRequest);
 
-//    @Mapping(target = "company", ignore = true)
-//    @Mapping(target = "category", ignore = true)
     void updateEntityFromRequest(UpdateProductRequest updateProductRequest,
                                  @MappingTarget Product product);
 
-//    @Mapping(target = "companyName", source = "company.name")
-//    @Mapping(target = "categoryType", source = "category.categoryType")
-//    @Mapping(target = "sellPrice", ignore = true)
-//    @Mapping(target = "buyPrice", ignore = true)
-//    @Mapping(target = "profitMargin", ignore = true)
+    @Mapping(target = "companyName", source = "company.name")
+    @Mapping(target = "categoryType", source = "category.categoryType")
     ProductResponse toResponse(Product product);
 
-//    @Mapping(target = "companyName", source = "company.name")
-//    @Mapping(target = "sellPrice", ignore = true)
     ProductSummaryResponse toSummaryResponse(Product product);
 
-//    @Mapping(target = "companyName", source = "company.name")
-//    @Mapping(target = "sellPrice", ignore = true)
-//    @Mapping(target = "stockCount", ignore = true)
     ProductSearchResponse toSearchResponse(Product product);
 
     List<ProductResponse> toResponseList(List<Product> products);

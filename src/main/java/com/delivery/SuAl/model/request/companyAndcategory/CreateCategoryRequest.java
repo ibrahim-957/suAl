@@ -10,6 +10,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CreateCategoryRequest {
-    @NotNull
-    private CategoryType categoryType;
+    public CategoryType categoryType;
 }

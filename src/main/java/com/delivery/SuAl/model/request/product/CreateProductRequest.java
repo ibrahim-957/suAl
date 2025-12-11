@@ -3,6 +3,7 @@ package com.delivery.SuAl.model.request.product;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -26,6 +27,9 @@ public class CreateProductRequest {
     @NotNull
     private Long categoryId;
 
+    @NotNull
+    private Long warehouseId;
+
     @Size(max = 50)
     private String size;
 
@@ -37,4 +41,19 @@ public class CreateProductRequest {
     private BigDecimal buyPrice;
 
     private BigDecimal sellPrice;
+
+    @NotNull
+    @Min(value = 0)
+    private Integer initialFullCount;
+
+    @NotNull
+    @Min(value = 0)
+    private Integer initialEmptyCount = 0;
+
+    @NotNull
+    @Min(value = 0)
+    private Integer initialDamagedCount = 0;
+
+    @Min(value = 1)
+    private Integer minimumStockAlert = 10;
 }

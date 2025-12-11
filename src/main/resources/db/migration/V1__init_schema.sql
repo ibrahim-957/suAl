@@ -141,22 +141,32 @@ CREATE TABLE campaigns
 
 CREATE TABLE warehouses
 (
+    id                BIGSERIAL PRIMARY KEY,
+    name              VARCHAR(255) NOT NULL UNIQUE,
+    warehouse_status  VARCHAR(50) DEFAULT 'ACTIVE',
+    created_at        TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE warehouse_stocks
+(
     id                  BIGSERIAL PRIMARY KEY,
-    product_id          BIGINT NOT NULL,
-    company_id          BIGINT NOT NULL,
-    category_id         BIGINT NOT NULL,
-    full_count          INTEGER   DEFAULT 0,
-    empty_count         INTEGER   DEFAULT 0,
-    damaged_count       INTEGER   DEFAULT 0,
-    type_id             BIGINT,
-    minimum_stock_alert INTEGER   DEFAULT 10,
+    warehouse_id        BIGINT  NOT NULL,
+    product_id          BIGINT  NOT NULL,
+    company_id          BIGINT  NOT NULL,
+    category_id         BIGINT  NOT NULL,
+    full_count          INTEGER DEFAULT 0,
+    empty_count         INTEGER DEFAULT 0,
+    damaged_count       INTEGER DEFAULT 0,
+    minimum_stock_alert INTEGER DEFAULT 10,
     last_restocked      TIMESTAMP,
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_warehouses_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_warehouses_company FOREIGN KEY (company_id) REFERENCES companies (id),
-    CONSTRAINT fk_warehouses_category FOREIGN KEY (category_id) REFERENCES categories (id),
-    CONSTRAINT fk_warehouses_type FOREIGN KEY (type_id) REFERENCES types (id)
+    CONSTRAINT fk_warehouse_stocks_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_warehouse_stocks_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_warehouse_stocks_company FOREIGN KEY (company_id) REFERENCES companies (id),
+    CONSTRAINT fk_warehouse_stocks_category FOREIGN KEY (category_id) REFERENCES categories (id),
+    CONSTRAINT uk_warehouse_product UNIQUE (warehouse_id, product_id)
 );
 
 CREATE TABLE orders
