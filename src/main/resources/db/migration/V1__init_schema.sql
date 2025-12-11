@@ -141,62 +141,75 @@ CREATE TABLE campaigns
 
 CREATE TABLE warehouses
 (
+    id               BIGSERIAL PRIMARY KEY,
+    name             VARCHAR(255) NOT NULL UNIQUE,
+    warehouse_status VARCHAR(50) DEFAULT 'ACTIVE',
+    created_at       TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE warehouse_stocks
+(
     id                  BIGSERIAL PRIMARY KEY,
+    warehouse_id        BIGINT NOT NULL,
     product_id          BIGINT NOT NULL,
     company_id          BIGINT NOT NULL,
     category_id         BIGINT NOT NULL,
     full_count          INTEGER   DEFAULT 0,
     empty_count         INTEGER   DEFAULT 0,
     damaged_count       INTEGER   DEFAULT 0,
-    type_id             BIGINT,
     minimum_stock_alert INTEGER   DEFAULT 10,
     last_restocked      TIMESTAMP,
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_warehouses_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_warehouses_company FOREIGN KEY (company_id) REFERENCES companies (id),
-    CONSTRAINT fk_warehouses_category FOREIGN KEY (category_id) REFERENCES categories (id),
-    CONSTRAINT fk_warehouses_type FOREIGN KEY (type_id) REFERENCES types (id)
+    CONSTRAINT fk_warehouse_stocks_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_warehouse_stocks_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_warehouse_stocks_company FOREIGN KEY (company_id) REFERENCES companies (id),
+    CONSTRAINT fk_warehouse_stocks_category FOREIGN KEY (category_id) REFERENCES categories (id),
+    CONSTRAINT uk_warehouse_product UNIQUE (warehouse_id, product_id)
 );
 
 CREATE TABLE orders
 (
-    id                     BIGSERIAL PRIMARY KEY,
-    order_number           VARCHAR(50)    NOT NULL UNIQUE,
+    id                      BIGSERIAL PRIMARY KEY,
+    order_number            VARCHAR(50)    NOT NULL UNIQUE,
 
-    customer_name          VARCHAR(255),
-    phone_number           VARCHAR(50),
+    customer_name           VARCHAR(255),
+    phone_number            VARCHAR(50),
 
-    operator_id            BIGINT,
-    driver_id              BIGINT,
-    address_id             BIGINT         NOT NULL,
+    operator_id             BIGINT,
+    driver_id               BIGINT,
+    address_id              BIGINT         NOT NULL,
 
-    count                  INTEGER        NOT NULL,
+    count                   INTEGER        NOT NULL,
 
-    subtotal               NUMERIC(10, 2) NOT NULL,
-    promo_id               BIGINT,
-    promo_discount         NUMERIC(10, 2) DEFAULT 0,
-    campaign_discount      NUMERIC(10, 2) DEFAULT 0,
-    total_amount           NUMERIC(10, 2) NOT NULL,
+    subtotal                NUMERIC(10, 2) NOT NULL,
+    promo_id                BIGINT,
+    promo_discount          NUMERIC(10, 2) DEFAULT 0,
+    campaign_discount       NUMERIC(10, 2) DEFAULT 0,
+    total_amount            NUMERIC(10, 2) NOT NULL,
 
-    total_deposit_charged  NUMERIC(10, 2) DEFAULT 0,
-    total_deposit_refunded NUMERIC(10, 2) DEFAULT 0,
-    net_deposit            NUMERIC(10, 2) DEFAULT 0,
+    total_deposit_charged   NUMERIC(10, 2) DEFAULT 0,
+    total_deposit_refunded  NUMERIC(10, 2) DEFAULT 0,
+    net_deposit             NUMERIC(10, 2) DEFAULT 0,
 
-    amount                 NUMERIC(10, 2) NOT NULL,
+    amount                  NUMERIC(10, 2) NOT NULL,
 
-    delivery_date          DATE,
+    delivery_date           DATE,
 
-    order_status           VARCHAR(50)    DEFAULT 'PENDING',
-    payment_method         VARCHAR(50)    DEFAULT 'CASH',
-    payment_status         VARCHAR(50)    DEFAULT 'PENDING',
-    paid_at                TIMESTAMP,
+    order_status            VARCHAR(50)    DEFAULT 'PENDING',
+    payment_method          VARCHAR(50)    DEFAULT 'CASH',
+    payment_status          VARCHAR(50)    DEFAULT 'PENDING',
+    paid_at                 TIMESTAMP,
 
-    empty_bottles          INTEGER        DEFAULT 0,
-    notes                  TEXT,
+    empty_bottles_expected  INTEGER        DEFAULT 0,
+    empty_bottles_collected INTEGER        DEFAULT 0,
+    notes                   TEXT,
+    rejection_reason        TEXT,
 
-    created_at             TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
-    updated_at             TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+    created_at              TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+    completed_at            TIMESTAMP,
 
     CONSTRAINT fk_orders_operator FOREIGN KEY (operator_id) REFERENCES operators (id),
     CONSTRAINT fk_orders_driver FOREIGN KEY (driver_id) REFERENCES drivers (id),

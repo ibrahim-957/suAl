@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.request.order;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -17,6 +18,9 @@ public class UpdateOrderRequest {
 
     @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
     private String phoneNumber;
+
+    @Min(value = 0)
+    private Integer emptyBottlesExpected;
 
     private Long addressId;
 

@@ -24,7 +24,6 @@ public class ProductResponse {
     private ProductStatus productStatus;
     private BigDecimal sellPrice;
     private BigDecimal buyPrice;
-    private BigDecimal profitMargin;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

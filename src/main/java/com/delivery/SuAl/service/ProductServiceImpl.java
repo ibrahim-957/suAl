@@ -4,6 +4,8 @@ import com.delivery.SuAl.entity.Category;
 import com.delivery.SuAl.entity.Company;
 import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.Warehouse;
+import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.mapper.ProductMapper;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
 import com.delivery.SuAl.model.request.product.UpdateProductRequest;
@@ -13,6 +15,8 @@ import com.delivery.SuAl.repository.CategoryRepository;
 import com.delivery.SuAl.repository.CompanyRepository;
 import com.delivery.SuAl.repository.PriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.repository.WarehouseRepository;
+import com.delivery.SuAl.repository.WarehouseStockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,12 +37,17 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final CompanyRepository companyRepository;
     private final PriceRepository  priceRepository;
+    private final WarehouseStockRepository warehouseStockRepository;
+    private final WarehouseRepository warehouseRepository;
     private final ProductMapper productMapper;
 
     @Override
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
         log.info("Creating new product with name: {}", request.getName());
+
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new RuntimeException("Warehouse not found"));
 
         Company company = companyRepository.findById(request.getCompanyId())
                 .orElseThrow(()-> new RuntimeException("Company not found"));
@@ -64,10 +74,22 @@ public class ProductServiceImpl implements ProductService {
 
         Price savedPrice = priceRepository.save(price);
 
+        WarehouseStock warehouseStock = new WarehouseStock();
+        warehouseStock.setWarehouse(warehouse);
+        warehouseStock.setProduct(savedProduct);
+        warehouseStock.setCategory(category);
+        warehouseStock.setCompany(company);
+        warehouseStock.setFullCount(request.getInitialFullCount());
+        warehouseStock.setEmptyCount(request.getInitialEmptyCount() != null ? request.getInitialEmptyCount() : 0);
+        warehouseStock.setDamagedCount(request.getInitialDamagedCount() != null ? request.getInitialDamagedCount() : 0);
+        warehouseStock.setMinimumStockAlert(request.getMinimumStockAlert() != null ? request.getMinimumStockAlert() : 10);
+        warehouseStock.setLastRestocked(LocalDateTime.now());
+
+        warehouseStockRepository.save(warehouseStock);
+
         ProductResponse response = productMapper.toResponse(savedProduct);
         response.setBuyPrice(savedPrice.getBuyPrice());
         response.setSellPrice(savedPrice.getSellPrice());
-        response.setProfitMargin(savedPrice.getSellPrice().subtract(savedPrice.getBuyPrice()));
 
         log.info("Product created successfully with ID: {} and price", savedProduct.getId());
         return response;
@@ -149,7 +171,6 @@ public class ProductServiceImpl implements ProductService {
         priceRepository.findByProductId(productId).ifPresent(price -> {
             productResponse.setSellPrice(price.getSellPrice());
             productResponse.setBuyPrice(price.getBuyPrice());
-            productResponse.setProfitMargin(price.getSellPrice().subtract(price.getBuyPrice()));
         });
     }
 }

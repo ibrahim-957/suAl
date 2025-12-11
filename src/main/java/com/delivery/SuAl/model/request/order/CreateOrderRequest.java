@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.request.order;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -30,6 +31,10 @@ public class CreateOrderRequest {
     @NotEmpty(message = "Order must have at least one item")
     @Size(min = 1, message = "Order must have at least one item")
     private List<OrderItemRequest> items;
+
+    @NotNull
+    @Min(value = 0)
+    private Integer emptyBottlesExpected;
 
     private String promoCode;
 

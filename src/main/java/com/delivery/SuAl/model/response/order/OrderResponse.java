@@ -32,7 +32,8 @@ public class OrderResponse {
     private String driverName;
     private AddressResponse address;
     private Integer totalItems;
-    private Integer emptyBottles;
+    private Integer emptyBottlesExpected;
+    private Integer emptyBottlesCollected;
     private BigDecimal subtotal;
     private BigDecimal promoDiscount;
     private BigDecimal campaignDiscount;
@@ -46,6 +47,8 @@ public class OrderResponse {
     private PaymentStatus paymentStatus;
     private PaymentMethod paymentMethod;
     private LocalDateTime paidAt;
+    private LocalDateTime completedAt;
+    private String rejectionReason;
     private String promoCode;
     private String notes;
     private LocalDateTime createdAt;

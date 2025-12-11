@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model.request.warehouse;
+package com.delivery.SuAl.model.request.operation;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CreateWarehouseRequest {
+public class RejectOrderRequest {
     @NotBlank
-    private String name;
+    private String reason;
 }

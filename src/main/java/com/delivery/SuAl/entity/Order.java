@@ -116,12 +116,17 @@ public class Order {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Column(name = "empty_bottles_expected")
+    private int emptyBottlesExpected = 0;
 
-    @Column(name = "empty_bottles")
-    private int emptyBottles = 0;
+    @Column(name = "empty_bottles_collected")
+    private int emptyBottlesCollected;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -129,6 +134,8 @@ public class Order {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     @JsonManagedReference("order-details")
@@ -148,6 +155,7 @@ public class Order {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
 
     public void addOrderDetail(OrderDetail detail) {
         orderDetails.add(detail);

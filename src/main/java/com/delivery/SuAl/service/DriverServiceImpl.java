@@ -1,19 +1,25 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Driver;
+import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.mapper.DriverMapper;
+import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.DriverStatus;
 import com.delivery.SuAl.model.OrderStatus;
 import com.delivery.SuAl.model.request.operation.CreateDriverRequest;
 import com.delivery.SuAl.model.request.operation.UpdateDriverRequest;
 import com.delivery.SuAl.model.response.operation.DriverResponse;
+import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OrderRepository;
+import com.delivery.SuAl.repository.WarehouseStockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +34,8 @@ public class DriverServiceImpl implements DriverService {
     private final DriverRepository driverRepository;
     private final DriverMapper driverMapper;
     private final OrderRepository orderRepository;
+    private final OrderMapper orderMapper;
+    private final WarehouseStockRepository warehouseStockRepository;
 
     @Override
     @Transactional
@@ -105,9 +113,25 @@ public class DriverServiceImpl implements DriverService {
         return PageResponse.of(responses, driverPage);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getMyAssignedOrders(Long driverId, Pageable pageable) {
+        Pageable sortedPageable = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "deliveryDate", "createdAt"));
+
+        Page<Order> orderPage = orderRepository.findByDriverIdAndOrderStatus(
+                driverId, OrderStatus.APPROVED, sortedPageable);
+
+        List<OrderResponse> responses = orderPage.getContent().stream()
+                .map(orderMapper::toResponse)
+                .collect(Collectors.toList());
+        return PageResponse.of(responses, orderPage);
+    }
+
     private void enrichWithAvailability(DriverResponse driverResponse, Long driverId) {
         List<OrderStatus> activeStatuses = Arrays.asList(
-                OrderStatus.PENDING,
                 OrderStatus.APPROVED
         );
         boolean hasActiveOrders = orderRepository.existsByDriverIdAndOrderStatusIn(driverId, activeStatuses);
@@ -115,4 +139,5 @@ public class DriverServiceImpl implements DriverService {
         boolean isAvailable = !hasActiveOrders && driverResponse.getDriverStatus() == DriverStatus.ACTIVE;
         driverResponse.setAvailable(isAvailable);
     }
+
 }

@@ -88,6 +88,7 @@ public class CompanyServiceImpl implements CompanyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PageResponse<CompanyResponse> getAllCompanies(Pageable pageable) {
         log.info("Getting all companies");
 

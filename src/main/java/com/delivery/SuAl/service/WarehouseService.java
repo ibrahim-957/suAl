@@ -1,6 +1,8 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.model.request.warehouse.CreateWarehouseRequest;
 import com.delivery.SuAl.model.request.warehouse.UpdateStockRequest;
+import com.delivery.SuAl.model.response.warehouse.WarehouseResponse;
 import com.delivery.SuAl.model.response.warehouse.WarehouseStockResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import org.springframework.data.domain.Pageable;
@@ -8,15 +10,24 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface WarehouseService {
-    PageResponse<WarehouseStockResponse> getAllWarehouses(Pageable pageable);
 
-    WarehouseStockResponse getWarehouseByProductId(Long productId);
+    WarehouseResponse createWarehouse(CreateWarehouseRequest createWarehouseRequest);
 
-    WarehouseStockResponse updateStock(Long id, UpdateStockRequest updateStockRequest);
+    WarehouseResponse getWarehouseById(Long id);
 
-    List<WarehouseStockResponse> getLowStockProducts();
+    PageResponse<WarehouseResponse> getAllWarehouse(Pageable pageable);
 
-    List<WarehouseStockResponse> getOutOfStockProducts();
+    void deleteWarehouseById(Long id);
 
-    Long getTotalInventoryCount();
+    PageResponse<WarehouseStockResponse> getAllStockInWarehouse(Long warehouseId, Pageable pageable);
+
+    WarehouseStockResponse getStockByProductId(Long warehouseId, Long productId);
+
+    WarehouseStockResponse updateStock(Long warehouseId, Long productId, UpdateStockRequest updateStockRequest);
+
+    List<WarehouseStockResponse> getLowStockProducts(Long warehouseId);
+
+    List<WarehouseStockResponse> getOutOfStockProducts(Long warehouseId);
+
+    Long getTotalInventoryCount(Long warehouseId);
 }

@@ -16,6 +16,5 @@ public class CreateCompanyRequest {
 
     private String description;
 
-    @NotNull
     private CompanyStatus companyStatus;
 }
