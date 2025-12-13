@@ -9,17 +9,30 @@ import com.delivery.SuAl.model.response.search.OrderSearchResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Mappings;
 
 import java.util.List;
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {OrderDetailMapper.class})
 public interface OrderMapper {
     Order toEntity(CreateOrderRequest createOrderRequest);
 
     void updateEntityFromRequest(UpdateOrderRequest updateOrderRequest,
                                  @MappingTarget Order order);
 
-    @Mapping(target = "totalItems", source = "count")
-    @Mapping(target = "finalAmount", source = "amount")
+    @Mappings({
+            @Mapping(target = "totalItems", source = "count"),
+            @Mapping(target = "finalAmount", source = "amount"),
+
+            @Mapping(target = "operatorId", source = "operator.id"),
+            @Mapping(target = "operatorName", source = "operator.firstName"),
+
+            @Mapping(target = "driverId", source = "driver.id"),
+            @Mapping(target = "driverName", source = "driver.firstName"),
+
+            @Mapping(target = "promoCode", source = "promo.promoCode"),
+
+            @Mapping(target = "address", source = "address")
+    })
     OrderResponse toResponse(Order order);
 
     OrderSummaryResponse toSummaryResponse(Order order);
@@ -32,13 +45,5 @@ public interface OrderMapper {
 
     List<OrderSearchResponse> toSearchResponseList(List<Order> orders);
 
-    default String getOperatorName(Order order) {
-        if (order.getOperator() == null) return null;
-        return order.getOperator().getFirstName() + " " + order.getOperator().getLastName();
-    }
 
-    default String getDriverName(Order order) {
-        if (order.getDriver() == null) return null;
-        return order.getDriver().getFirstName() + " " + order.getDriver().getLastName();
-    }
 }

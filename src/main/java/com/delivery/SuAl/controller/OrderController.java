@@ -1,9 +1,9 @@
 package com.delivery.SuAl.controller;
 
 import com.delivery.SuAl.model.request.operation.AssignDriverRequest;
+import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderStatusRequest;
-import com.delivery.SuAl.model.response.operation.DriverResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.service.OrderService;
@@ -53,14 +53,7 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PatchMapping("/{id}/status")
-    public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateOrderStatusRequest updateOrderStatusRequest) {
 
-        OrderResponse response = orderService.updateOrderStatus(id, updateOrderStatusRequest);
-        return ResponseEntity.ok(ApiResponse.success("Order status updated successfully", response));
-    }
 
     @PutMapping("/{orderId}/assign-driver")
     public ResponseEntity<ApiResponse<OrderResponse>> assignDriver(
@@ -70,7 +63,28 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order assigned successfully", order));
     }
 
+    @PatchMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<OrderResponse>> approveOrder(@PathVariable Long id) {
+        OrderResponse order = orderService.approveOrder(id);
+        return ResponseEntity.ok(ApiResponse.success("Order approved successfully", order));
+    }
 
+    @PatchMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrder(
+            @PathVariable Long id, @PathVariable String reason
+    ) {
+        OrderResponse order = orderService.approveOrder(id);
+        return ResponseEntity.ok(ApiResponse.success("Order approved successfully", order));
+    }
+
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<ApiResponse<OrderResponse>> completeOrder(
+            @PathVariable Long id,
+            @Valid @RequestBody CompleteDeliveryRequest completeDeliveryRequest
+            ){
+        OrderResponse order = orderService.completeOrder(id, completeDeliveryRequest);
+        return ResponseEntity.ok(ApiResponse.success("Order completed successfully", order));
+    }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteOrder(@PathVariable Long id) {

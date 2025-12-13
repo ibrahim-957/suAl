@@ -2,7 +2,6 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
-import com.delivery.SuAl.model.request.order.UpdateOrderStatusRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 
 import java.math.BigDecimal;
@@ -12,8 +11,6 @@ public interface OrderService {
     OrderResponse createOrder(CreateOrderRequest createOrderRequest);
 
     OrderResponse getOrderById(Long id);
-
-    OrderResponse updateOrderStatus(Long id, UpdateOrderStatusRequest updateOrderStatusRequest);
 
     void deleteOrder(Long id);
 

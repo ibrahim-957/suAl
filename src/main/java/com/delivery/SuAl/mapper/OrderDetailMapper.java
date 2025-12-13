@@ -4,6 +4,7 @@ import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.response.order.OrderDetailResponse;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 import java.util.List;
 
@@ -11,6 +12,11 @@ import java.util.List;
 public interface OrderDetailMapper {
     OrderDetail toEntity(OrderItemRequest orderItemRequest);
 
+    @Mapping(target = "productName", source = "product.name")
+    @Mapping(target = "companyName", source = "company.name")
+    @Mapping(target = "size", source = "product.size")
+    @Mapping(target = "quantity", source = "count")
+    @Mapping(target = "categoryType", source = "category.categoryType")
     OrderDetailResponse toResponse(OrderDetail orderDetail);
 
     List<OrderDetailResponse> toResponseList(List<OrderDetail> orderDetails);
