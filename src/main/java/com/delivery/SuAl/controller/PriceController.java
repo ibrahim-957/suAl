@@ -27,40 +27,40 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @Validated
 public class PriceController {
-    private final PriceService priceService;
-
-    @PostMapping
-    public ResponseEntity<ApiResponse<PriceResponse>> createPrice(
-            @Valid @RequestBody CreatePriceRequest createPriceRequest) {
-        PriceResponse priceResponse = priceService.createPrice(createPriceRequest);
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Price created successfully", priceResponse));
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<PriceResponse>> getPriceById(@PathVariable Long id) {
-        PriceResponse priceResponse = priceService.getPriceById(id);
-        return ResponseEntity.ok(ApiResponse.success("Price found successfully", priceResponse));
-    }
-
-    @GetMapping("/product/{productId}")
-    public ResponseEntity<ApiResponse<PriceResponse>> getPriceByProductId(@PathVariable Long productId) {
-        PriceResponse priceResponse = priceService.getPriceByProductId(productId);
-        return ResponseEntity.ok(ApiResponse.success("Price found successfully", priceResponse));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<PriceResponse>> updatePrice(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdatePriceRequest updatePriceRequest){
-        PriceResponse priceResponse = priceService.updatePrice(id, updatePriceRequest);
-        return ResponseEntity.ok(ApiResponse.success("Price updated successfully", priceResponse));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<PriceResponse>> deletePrice(@PathVariable Long id){
-        priceService.deleteOperator(id);
-        return ResponseEntity.ok(ApiResponse.success("Price deleted successfully", null));
-    }
+//    private final PriceService priceService;
+//
+//    @PostMapping
+//    public ResponseEntity<ApiResponse<PriceResponse>> createPrice(
+//            @Valid @RequestBody CreatePriceRequest createPriceRequest) {
+//        PriceResponse priceResponse = priceService.createPrice(createPriceRequest);
+//        return ResponseEntity
+//                .status(HttpStatus.CREATED)
+//                .body(ApiResponse.success("Price created successfully", priceResponse));
+//    }
+//
+//    @GetMapping("/{id}")
+//    public ResponseEntity<ApiResponse<PriceResponse>> getPriceById(@PathVariable Long id) {
+//        PriceResponse priceResponse = priceService.getPriceById(id);
+//        return ResponseEntity.ok(ApiResponse.success("Price found successfully", priceResponse));
+//    }
+//
+//    @GetMapping("/product/{productId}")
+//    public ResponseEntity<ApiResponse<PriceResponse>> getPriceByProductId(@PathVariable Long productId) {
+//        PriceResponse priceResponse = priceService.getPriceByProductId(productId);
+//        return ResponseEntity.ok(ApiResponse.success("Price found successfully", priceResponse));
+//    }
+//
+//    @PutMapping("/{id}")
+//    public ResponseEntity<ApiResponse<PriceResponse>> updatePrice(
+//            @PathVariable Long id,
+//            @Valid @RequestBody UpdatePriceRequest updatePriceRequest){
+//        PriceResponse priceResponse = priceService.updatePrice(id, updatePriceRequest);
+//        return ResponseEntity.ok(ApiResponse.success("Price updated successfully", priceResponse));
+//    }
+//
+//    @DeleteMapping("/{id}")
+//    public ResponseEntity<ApiResponse<PriceResponse>> deletePrice(@PathVariable Long id){
+//        priceService.deleteOperator(id);
+//        return ResponseEntity.ok(ApiResponse.success("Price deleted successfully", null));
+//    }
 }

@@ -101,7 +101,10 @@ public class OperatorServiceImpl implements OperatorService {
     public PageResponse<OperatorResponse> getAllOperators(Pageable pageable) {
         log.info("Getting all operators with page: {}", pageable);
         Page<Operator> operatorPage = operatorRepository.findAll(pageable);
-        List<OperatorResponse> responses = operatorMapper.toResponseList(operatorPage.getContent());
+
+        List<OperatorResponse> responses = operatorPage.getContent().stream()
+                .map(operatorMapper::toResponse)
+                .collect(Collectors.toList());
         return PageResponse.of(responses, operatorPage);
     }
 
@@ -123,10 +126,7 @@ public class OperatorServiceImpl implements OperatorService {
     public PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable) {
         Page<Order> orderPage = orderRepository.findAll(pageable);
 
-        List<OrderResponse> responses = orderPage.getContent().stream()
-                .map(orderMapper::toResponse)
-                .collect(Collectors.toList());
-
+        List<OrderResponse> responses = orderMapper.toResponseList(orderPage.getContent());
         return PageResponse.of(responses, orderPage);
     }
 

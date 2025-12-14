@@ -32,9 +32,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     boolean existsByDriverIdAndOrderStatusIn(Long driverId, List<OrderStatus> orderStatus);
 
-    @Query("SELECT COUNT(o) FROM Order o " +
-            "WHERE o.orderNumber LIKE :prefix%")
-    Long countByOrderNumberStartingWith(@Param("prefix")  String prefix);
+    Long countByOrderNumberStartingWith(String prefix);
+
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(o.orderNumber, LENGTH(o.orderNumber) - 3, 4) AS integer)), 0) + 1 " +
+            "FROM Order o " +
+            "WHERE o.orderNumber LIKE CONCAT(:prefix, '%')")
+    Long getNextOrderSequence(@Param("prefix") String prefix);
+
+    @Query("SELECT o.orderNumber FROM Order o WHERE o.orderNumber LIKE CONCAT(:prefix, '%')")
+    List<String> findOrderNumbersByPrefix(@Param("prefix") String prefix);
 
     @Query("SELECT COUNT(o) FROM Order o " +
             "WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay")

@@ -50,7 +50,6 @@ public class Order {
     @Column(name = "phone_number")
     private String phoneNumber;
 
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "operator_id")
     private Operator operator;

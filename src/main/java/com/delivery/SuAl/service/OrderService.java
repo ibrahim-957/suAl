@@ -2,6 +2,7 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
+import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 
 import java.math.BigDecimal;
@@ -9,6 +10,8 @@ import java.time.LocalDateTime;
 
 public interface OrderService {
     OrderResponse createOrder(CreateOrderRequest createOrderRequest);
+
+    OrderResponse updateOrder(Long orderId, UpdateOrderRequest request);
 
     OrderResponse getOrderById(Long id);
 

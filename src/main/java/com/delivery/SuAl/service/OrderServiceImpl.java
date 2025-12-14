@@ -11,13 +11,14 @@ import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.mapper.OrderDetailMapper;
 import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.DiscountType;
-import com.delivery.SuAl.model.DriverStatus;
 import com.delivery.SuAl.model.OrderStatus;
 import com.delivery.SuAl.model.PaymentStatus;
+import com.delivery.SuAl.model.PromoStatus;
 import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
-import com.delivery.SuAl.model.request.order.UpdateOrderStatusRequest;
+import com.delivery.SuAl.model.request.order.UpdateOrderItemRequest;
+import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.DriverRepository;
@@ -39,6 +40,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -56,27 +61,29 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest createOrderRequest) {
-        log.info("Creating new order for customer: {}", createOrderRequest.getCustomerName());
+    public OrderResponse createOrder(CreateOrderRequest request) {
+        log.info("Creating new order for customer: {}", request.getCustomerName());
 
-        Address address = findAddress(createOrderRequest.getAddressId());
-        Order order = initializeOrder(createOrderRequest, address);
+        Address address = findAddress(request.getAddressId());
+        Order order = initializeOrder(request, address);
 
-        OrderCalculation calculation = processOrderItems(createOrderRequest.getItems(), order);
+        List<OrderDetail> orderDetails = buildOrderDetailsFromRequest(request.getItems());
+        OrderCalculation calculation = calculateFromOrderDetails(orderDetails);
 
         BigDecimal totalDepositRefunded = calculateDepositRefund(
-                createOrderRequest.getEmptyBottlesExpected(),
+                request.getEmptyBottlesExpected(),
                 calculation.getDepositPerUnit()
         );
 
         setOrderTotals(order, calculation, totalDepositRefunded);
 
-        BigDecimal promoDiscount = applyPromoCode(order, createOrderRequest.getPromoCode(), order.getSubtotal());
-
+        BigDecimal promoDiscount = applyPromoCode(order, request.getPromoCode(), order.getSubtotal());
         calculateFinalAmounts(order, promoDiscount);
 
-        Order savedOrder = saveOrderWithDetails(order, calculation.getOrderDetails());
+        order.setOrderDetails(orderDetails);
+        orderDetails.forEach(d -> d.setOrder(order));
 
+        Order savedOrder = orderRepository.save(order);
         updateWarehouseStockForOrder(savedOrder);
 
         log.info("Order created successfully - Number: {}, Amount: {}",
@@ -85,178 +92,51 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toResponse(savedOrder);
     }
 
-    private Address findAddress(Long addressId) {
-        return addressRepository.findById(addressId)
-                .orElseThrow(() -> new RuntimeException("Address not found"));
-    }
+    @Override
+    @Transactional
+    public OrderResponse updateOrder(Long orderId, UpdateOrderRequest updateRequest) {
+        log.info("Updating order: {}", orderId);
 
-    private Order initializeOrder(CreateOrderRequest request, Address address) {
-        Order order = orderMapper.toEntity(request);
-        order.setAddress(address);
-        order.setOrderNumber(generateOrderNumber());
-        order.setEmptyBottlesExpected(request.getEmptyBottlesExpected() != null ? request.getEmptyBottlesExpected() : 0);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
 
-        log.info("Generated order number: {}", order.getOrderNumber());
-        return order;
-    }
+        boolean needsRecalculation = false;
 
-    private OrderCalculation processOrderItems(List<OrderItemRequest> items, Order order) {
-        List<OrderDetail> orderDetails = new ArrayList<>();
-        BigDecimal subtotal = BigDecimal.ZERO;
-        int totalCount = 0;
-        BigDecimal totalDepositCharged = BigDecimal.ZERO;
-        BigDecimal depositPerUnit = null;
-
-        for (OrderItemRequest itemRequest : items) {
-            OrderDetail orderDetail = processOrderItem(itemRequest);
-
-            orderDetails.add(orderDetail);
-            subtotal = subtotal.add(orderDetail.getSubtotal());
-            totalCount += itemRequest.getQuantity();
-            totalDepositCharged = totalDepositCharged.add(orderDetail.getDepositCharged());
-            depositPerUnit = orderDetail.getDepositPerUnit();
+        if (updateRequest.getNotes() != null) {
+            order.setNotes(updateRequest.getNotes());
+            log.debug("Updated notes for order: {}", orderId);
         }
 
-        return new OrderCalculation(orderDetails, subtotal, totalCount, totalDepositCharged, depositPerUnit);
-    }
-
-    private OrderDetail processOrderItem(OrderItemRequest itemRequest) {
-        Product product = findProduct(itemRequest.getProductId());
-        Price price = findPrice(itemRequest.getProductId());
-
-        validateStock(product, itemRequest);
-
-        log.debug("Processing item - Product: {}, Quantity: {}, Price: {}",
-                product.getName(), itemRequest.getQuantity(), price.getSellPrice());
-
-        OrderDetail orderDetail = orderDetailMapper.toEntity(itemRequest);
-        orderDetail.setProduct(product);
-        orderDetail.setCompany(product.getCompany());
-        orderDetail.setCategory(product.getCategory());
-        orderDetail.setPricePerUnit(price.getSellPrice());
-        orderDetail.setBuyPrice(price.getBuyPrice());
-        orderDetail.setCount(itemRequest.getQuantity());
-
-        BigDecimal itemSubtotal = calculateItemSubtotal(price.getSellPrice(), itemRequest.getQuantity());
-        orderDetail.setSubtotal(itemSubtotal);
-
-        BigDecimal depositPerUnit = product.getDepositAmount();
-        orderDetail.setDepositPerUnit(depositPerUnit);
-
-        BigDecimal depositCharged = calculateDeposit(depositPerUnit, itemRequest.getQuantity());
-        orderDetail.setDepositCharged(depositCharged);
-        orderDetail.setDeposit(depositCharged);
-        orderDetail.setContainersReturned(0);
-
-        BigDecimal lineTotal = itemSubtotal.add(depositCharged);
-        orderDetail.setLineTotal(lineTotal);
-
-        return orderDetail;
-    }
-
-    private Product findProduct(Long productId) {
-        return productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-    }
-
-    private Price findPrice(Long productId) {
-        return priceRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("Price not found"));
-    }
-
-    private void validateStock(Product product, OrderItemRequest itemRequest) {
-        WarehouseStock warehouseStock = warehouseStockRepository.findByProductId(product.getId())
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Product not found in warehouse"));
-
-        if (warehouseStock.getFullCount() < itemRequest.getQuantity()) {
-            throw new RuntimeException(
-                    String.format("Insufficient stock for product: %s. Available: %d, Requested: %d",
-                            product.getName(), warehouseStock.getFullCount(), itemRequest.getQuantity())
-            );
-        }
-    }
-
-    private BigDecimal calculateItemSubtotal(BigDecimal price, int quantity) {
-        return price.multiply(BigDecimal.valueOf(quantity))
-                .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private BigDecimal calculateDeposit(BigDecimal depositPerUnit, int quantity) {
-        return depositPerUnit.multiply(BigDecimal.valueOf(quantity))
-                .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private BigDecimal calculateDepositRefund(Integer emptyBottlesExpected, BigDecimal depositPerUnit) {
-        if (emptyBottlesExpected == null || emptyBottlesExpected <= 0 || depositPerUnit == null) {
-            return BigDecimal.ZERO;
+        if (updateRequest.getDeliveryDate() != null) {
+            order.setDeliveryDate(updateRequest.getDeliveryDate());
+            log.debug("Updated delivery date for order: {}", orderId);
         }
 
-        BigDecimal refund = depositPerUnit
-                .multiply(BigDecimal.valueOf(emptyBottlesExpected))
-                .setScale(2, RoundingMode.HALF_UP);
-
-        log.debug("Total deposit refunded: {}", refund);
-        return refund;
-    }
-
-    private void setOrderTotals(Order order, OrderCalculation calculation, BigDecimal totalDepositRefunded) {
-        BigDecimal netDeposit = calculation.getTotalDepositCharged().subtract(totalDepositRefunded);
-
-        order.setCount(calculation.getTotalCount());
-        order.setSubtotal(calculation.getSubtotal());
-        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
-        order.setTotalDepositRefunded(totalDepositRefunded);
-        order.setNetDeposit(netDeposit);
-
-        log.info("Order totals - Items: {}, Subtotal: {}, Deposit Charged: {}, Deposit Refunded: {}, Net Deposit: {}",
-                calculation.getTotalCount(), calculation.getSubtotal(),
-                calculation.getTotalDepositCharged(), totalDepositRefunded, netDeposit);
-    }
-
-    private BigDecimal applyPromoCode(Order order, String promoCode, BigDecimal subtotal) {
-        if (promoCode == null || promoCode.trim().isEmpty()) {
-            return BigDecimal.ZERO;
+        if (updateRequest.getAddressId() != null) {
+            Address newAddress = findAddress(updateRequest.getAddressId());
+            order.setAddress(newAddress);
+            log.debug("Updated address for order: {}", orderId);
         }
 
-        try {
-            Promo promo = promoRepository.findByPromoCode(promoCode)
-                    .orElseThrow(() -> new RuntimeException("Promo not found"));
-
-            BigDecimal promoDiscount = calculatePromoDiscount(promo, subtotal);
-            order.setPromo(promo);
-            order.setPromoDiscount(promoDiscount);
-
-            log.info("Promo code '{}' applied - Discount: {}", promoCode, promoDiscount);
-            return promoDiscount;
-        } catch (RuntimeException e) {
-            log.warn("Invalid promo code: {}", promoCode);
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private void calculateFinalAmounts(Order order, BigDecimal promoDiscount) {
-        BigDecimal totalAmount = order.getSubtotal().subtract(promoDiscount);
-        BigDecimal finalAmount = totalAmount.add(order.getNetDeposit());
-
-        order.setTotalAmount(totalAmount);
-        order.setAmount(finalAmount);
-
-        log.info("Final order amount: {} (Total: {} + Net Deposit: {})",
-                finalAmount, totalAmount, order.getNetDeposit());
-    }
-
-    private Order saveOrderWithDetails(Order order, List<OrderDetail> orderDetails) {
-        Order savedOrder = orderRepository.save(order);
-
-        for (OrderDetail orderDetail : orderDetails) {
-            orderDetail.setOrder(savedOrder);
+        if (updateRequest.getItems() != null && !updateRequest.getItems().isEmpty()) {
+            updateOrderItems(order, updateRequest.getItems());
+            needsRecalculation = true;
         }
 
-        savedOrder.setOrderDetails(orderDetails);
-        return orderRepository.save(savedOrder);
+        if (needsRecalculation) {
+            recalculateOrderTotalsFromDetails(order);
+        }
+
+        if (updateRequest.getEmptyBottlesExpected() != null) {
+            updateEmptyBottlesAndRecalculate(order, updateRequest.getEmptyBottlesExpected());
+        }
+
+        Order updatedOrder = orderRepository.save(order);
+
+        log.info("Order updated successfully: {}", orderId);
+        return orderMapper.toResponse(updatedOrder);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -267,6 +147,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         return orderMapper.toResponse(order);
     }
+
 
     @Override
     @Transactional
@@ -291,7 +172,7 @@ public class OrderServiceImpl implements OrderService {
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new RuntimeException("Driver with id " + driverId + " not found"));
 
-        if (order.getOrderStatus() != OrderStatus.APPROVED){
+        if (order.getOrderStatus() != OrderStatus.APPROVED) {
             throw new RuntimeException("Order with id " + orderId + " is not approved");
         }
 
@@ -409,10 +290,291 @@ public class OrderServiceImpl implements OrderService {
         return calculateRevenue(startOfDay, endOfDay);
     }
 
-    private String generateOrderNumber() {
-        String prefix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        Long count = orderRepository.countByOrderNumberStartingWith(prefix);
-        return String.format("/%s-%04d", prefix, count + 1);
+    private void updateOrderItems(Order order, List<UpdateOrderItemRequest> itemUpdates) {
+        log.info("Updating order items for order: {}", order.getOrderNumber());
+
+        Map<Long, OrderDetail> detailMap = order.getOrderDetails().stream()
+                .collect(Collectors.toMap(OrderDetail::getId, d -> d));
+
+        for (UpdateOrderItemRequest itemUpdate : itemUpdates) {
+            OrderDetail detail = detailMap.get(itemUpdate.getOrderDetailId());
+
+            if (detail == null) {
+                log.warn("Order detail not found: {}", itemUpdate.getOrderDetailId());
+                continue;
+            }
+
+            boolean updated = false;
+
+            if (itemUpdate.getQuantity() != null && !itemUpdate.getQuantity().equals(detail.getCount())) {
+                int oldQuantity = detail.getCount();
+
+                int quantityDiff = itemUpdate.getQuantity() - oldQuantity;
+                if (quantityDiff > 0) {
+                    validateStock(detail.getProduct(), quantityDiff);
+                    adjustWarehouseStock(detail.getProduct().getId(), -quantityDiff);
+                } else if (quantityDiff < 0) {
+                    adjustWarehouseStock(detail.getProduct().getId(), Math.abs(quantityDiff));
+                }
+
+                detail.setCount(itemUpdate.getQuantity());
+                log.debug("Updated quantity for product {}: {} -> {}",
+                        detail.getProduct().getName(), oldQuantity, itemUpdate.getQuantity());
+                updated = true;
+            }
+
+            if (itemUpdate.getSellPrice() != null &&
+                    itemUpdate.getSellPrice().compareTo(detail.getPricePerUnit()) != 0) {
+                BigDecimal oldPrice = detail.getPricePerUnit();
+                detail.setPricePerUnit(itemUpdate.getSellPrice());
+                log.debug("Updated price for product {}: {} -> {}",
+                        detail.getProduct().getName(), oldPrice, itemUpdate.getSellPrice());
+                updated = true;
+            }
+
+            if (updated) {
+                recalculateOrderDetail(detail);
+            }
+        }
+    }
+
+    private void adjustWarehouseStock(Long productId, int quantityChange) {
+        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(productId);
+
+        if (!stocks.isEmpty()) {
+            WarehouseStock stock = stocks.getFirst();
+            int newCount = stock.getFullCount() + quantityChange;
+            stock.setFullCount(Math.max(0, newCount));
+            warehouseStockRepository.save(stock);
+
+            log.debug("Adjusted warehouse stock for product ID {}: {} -> {}",
+                    productId, stock.getFullCount() - quantityChange, stock.getFullCount());
+        }
+    }
+
+    private void updateEmptyBottlesAndRecalculate(Order order, Integer emptyBottlesExpected) {
+        int oldBottles = order.getEmptyBottlesExpected();
+        order.setEmptyBottlesExpected(emptyBottlesExpected);
+
+        BigDecimal depositPerUnit = getDepositPerUnitFromOrder(order);
+        BigDecimal newDepositRefunded = calculateDepositRefund(
+                emptyBottlesExpected,
+                depositPerUnit
+        );
+
+        order.setTotalDepositRefunded(newDepositRefunded);
+
+        BigDecimal netDeposit = order.getTotalDepositCharged().subtract(newDepositRefunded);
+        order.setNetDeposit(netDeposit);
+
+        BigDecimal finalAmount = order.getTotalAmount().add(netDeposit);
+        order.setAmount(finalAmount);
+
+        log.info("Updated empty bottles expected: {} -> {}, New deposit refunded: {}",
+                oldBottles, emptyBottlesExpected, newDepositRefunded);
+    }
+
+    private void recalculateOrderTotalsFromDetails(Order order) {
+        log.debug("Recalculating order totals from details for order: {}", order.getOrderNumber());
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+        BigDecimal totalDepositCharged = BigDecimal.ZERO;
+        int totalCount = 0;
+
+        for (OrderDetail detail : order.getOrderDetails()) {
+            subtotal = subtotal.add(detail.getSubtotal());
+            totalDepositCharged = totalDepositCharged.add(detail.getDepositCharged());
+            totalCount += detail.getCount();
+        }
+
+        order.setSubtotal(subtotal);
+        order.setTotalDepositCharged(totalDepositCharged);
+        order.setCount(totalCount);
+
+        BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
+                .orElse(BigDecimal.ZERO);
+
+        BigDecimal totalAmount = subtotal.subtract(promoDiscount);
+        order.setTotalAmount(totalAmount);
+
+        BigDecimal totalDepositRefunded = Optional.ofNullable(order.getTotalDepositRefunded())
+                .orElse(BigDecimal.ZERO);
+        BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
+        order.setNetDeposit(netDeposit);
+
+
+        BigDecimal finalAmount = totalAmount.add(netDeposit);
+        order.setAmount(finalAmount);
+
+        log.info("Recalculated totals - Items: {}, Subtotal: {}, Total: {}, Final: {}",
+                totalCount, subtotal, totalAmount, finalAmount);
+    }
+
+    private BigDecimal getDepositPerUnitFromOrder(Order order) {
+        return order.getOrderDetails().stream()
+                .map(OrderDetail::getDepositPerUnit)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private Address findAddress(Long id) {
+        return addressRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Address not found with id: " + id));
+    }
+
+    private Product findProduct(Long id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+    }
+
+    private Price findPrice(Long productId) {
+        return priceRepository.findByProductId(productId)
+                .orElseThrow(() -> new RuntimeException("Price not found for product id: " + productId));
+    }
+
+    private BigDecimal calculateAmount(BigDecimal price, int qty) {
+        return price.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateDepositRefund(Integer emptyBottlesExpected, BigDecimal depositPerUnit) {
+        if (emptyBottlesExpected == null || emptyBottlesExpected <= 0 || depositPerUnit == null) {
+            return BigDecimal.ZERO;
+        }
+        return depositPerUnit.multiply(BigDecimal.valueOf(emptyBottlesExpected))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void validateStock(Product product, int quantity) {
+        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(product.getId());
+        if (stocks.isEmpty()) {
+            throw new RuntimeException("Product not found in warehouse: " + product.getName());
+        }
+
+        WarehouseStock stock = stocks.getFirst();
+
+        if (stock.getFullCount() < quantity) {
+            throw new RuntimeException(
+                    String.format("Insufficient stock for product: %s. Available: %d, Requested: %d",
+                            product.getName(), stock.getFullCount(), quantity)
+            );
+        }
+    }
+
+    private List<OrderDetail> buildOrderDetailsFromRequest(List<OrderItemRequest> items) {
+        List<OrderDetail> details = new ArrayList<>();
+        for (OrderItemRequest item : items) {
+            Product product = findProduct(item.getProductId());
+            Price price = findPrice(item.getProductId());
+
+            validateStock(product, item.getQuantity());
+
+            OrderDetail detail = orderDetailMapper.toEntity(item);
+            detail.setProduct(product);
+            detail.setCompany(product.getCompany());
+            detail.setCategory(product.getCategory());
+            detail.setPricePerUnit(price.getSellPrice());
+            detail.setBuyPrice(price.getBuyPrice());
+            detail.setCount(item.getQuantity());
+            detail.setDepositPerUnit(product.getDepositAmount());
+            detail.setContainersReturned(0);
+
+            recalculateOrderDetail(detail);
+            details.add(detail);
+        }
+        return details;
+    }
+
+    private void recalculateOrderDetail(OrderDetail detail) {
+        BigDecimal subtotal = calculateAmount(detail.getPricePerUnit(), detail.getCount());
+        BigDecimal depositCharged = calculateAmount(detail.getDepositPerUnit(), detail.getCount());
+
+        detail.setSubtotal(subtotal);
+        detail.setDepositCharged(depositCharged);
+        detail.setDeposit(depositCharged);
+        detail.setLineTotal(subtotal.add(depositCharged));
+    }
+
+    private OrderCalculation calculateFromOrderDetails(List<OrderDetail> details) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        BigDecimal totalDepositCharged = BigDecimal.ZERO;
+        int totalCount = 0;
+        BigDecimal depositPerUnit = null;
+
+        for (OrderDetail detail : details) {
+            subtotal = subtotal.add(detail.getSubtotal());
+            totalDepositCharged = totalDepositCharged.add(detail.getDepositCharged());
+            totalCount += detail.getCount();
+
+            if (depositPerUnit == null) {
+                depositPerUnit = detail.getDepositPerUnit();
+            }
+        }
+
+        return new OrderCalculation(details, subtotal, totalCount, totalDepositCharged, depositPerUnit);
+    }
+
+    private Order initializeOrder(CreateOrderRequest request, Address address) {
+        Order order = orderMapper.toEntity(request);
+        order.setAddress(address);
+        order.setOrderNumber(generateOrderNumber());
+        order.setEmptyBottlesExpected(
+                request.getEmptyBottlesExpected() != null ? request.getEmptyBottlesExpected() : 0
+        );
+
+        log.info("Generated order number: {}", order.getOrderNumber());
+        return order;
+    }
+
+    private void setOrderTotals(Order order, OrderCalculation calculation,
+                                BigDecimal totalDepositRefunded) {
+        BigDecimal netDeposit = calculation.getTotalDepositCharged()
+                .subtract(totalDepositRefunded);
+
+        order.setCount(calculation.getTotalCount());
+        order.setSubtotal(calculation.getSubtotal());
+        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
+        order.setTotalDepositRefunded(totalDepositRefunded);
+        order.setNetDeposit(netDeposit);
+
+        log.info("Order totals - Items: {}, Subtotal: {}, Deposit Charged: {}, " +
+                        "Deposit Refunded: {}, Net Deposit: {}",
+                calculation.getTotalCount(), calculation.getSubtotal(),
+                calculation.getTotalDepositCharged(), totalDepositRefunded, netDeposit);
+    }
+
+    private BigDecimal applyPromoCode(Order order, String promoCode, BigDecimal subtotal) {
+        if (promoCode == null || promoCode.trim().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        try {
+            Promo promo = promoRepository.findByPromoCode(promoCode.trim())
+                    .orElseThrow(() -> new RuntimeException("Promo not found: " + promoCode));
+
+            if (!isPromoValid(promo)) {
+                log.warn("Promo code is expired or inactive: {}", promoCode);
+                return BigDecimal.ZERO;
+            }
+
+            BigDecimal promoDiscount = calculatePromoDiscount(promo, subtotal);
+            order.setPromo(promo);
+            order.setPromoDiscount(promoDiscount);
+
+            log.info("Promo code '{}' applied - Discount: {}", promoCode, promoDiscount);
+            return promoDiscount;
+        } catch (RuntimeException e) {
+            log.warn("Invalid promo code '{}': {}", promoCode, e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private boolean isPromoValid(Promo promo) {
+        LocalDate now = LocalDate.now();
+        if (promo.getPromoStatus() != PromoStatus.ACTIVE) {
+            return false;
+        }
+        return promo.getValidFrom().isBefore(now) && promo.getValidTo().isAfter(now);
     }
 
     private BigDecimal calculatePromoDiscount(Promo promo, BigDecimal subtotal) {
@@ -430,10 +592,21 @@ public class OrderServiceImpl implements OrderService {
             discount = promo.getDiscountValue();
         }
 
-        if (promo.getMaxDiscount() != null && subtotal.compareTo(promo.getMaxDiscount()) > 0) {
+        if (promo.getMaxDiscount() != null && discount.compareTo(promo.getMaxDiscount()) > 0) {
             discount = promo.getMaxDiscount();
         }
         return discount;
+    }
+
+    private void calculateFinalAmounts(Order order, BigDecimal promoDiscount) {
+        BigDecimal totalAmount = order.getSubtotal().subtract(promoDiscount);
+        BigDecimal finalAmount = totalAmount.add(order.getNetDeposit());
+
+        order.setTotalAmount(totalAmount);
+        order.setAmount(finalAmount);
+
+        log.info("Final order amount: {} (Total: {} + Net Deposit: {})",
+                finalAmount, totalAmount, order.getNetDeposit());
     }
 
     private void updateWarehouseStockForOrder(Order order) {
@@ -443,7 +616,7 @@ public class OrderServiceImpl implements OrderService {
                     warehouseStockRepository.findByProductId(detail.getProduct().getId());
 
             if (!stocks.isEmpty()) {
-                WarehouseStock stock = stocks.get(0);
+                WarehouseStock stock = stocks.getFirst();
                 int newFullCount = stock.getFullCount() - detail.getCount();
 
                 stock.setFullCount(Math.max(0, newFullCount));
@@ -456,6 +629,26 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private synchronized String generateOrderNumber() {
+        String prefix = "/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        List<String> existingNumbers = orderRepository.findOrderNumbersByPrefix(prefix);
+
+        int maxSequence = existingNumbers.stream()
+                .map(orderNum -> {
+                    try {
+                        String numberPart = orderNum.substring(orderNum.lastIndexOf('-') + 1);
+                        return Integer.parseInt(numberPart);
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .max(Integer::compareTo)
+                .orElse(0);
+
+        return String.format("%s-%04d", prefix, maxSequence + 1);
+    }
+
     private void restoreWarehouseStockForOrder(Order order) {
         log.debug("Restoring warehouse stock for order: {}", order.getOrderNumber());
         for (OrderDetail detail : order.getOrderDetails()) {
@@ -463,7 +656,7 @@ public class OrderServiceImpl implements OrderService {
                     warehouseStockRepository.findByProductId(detail.getProduct().getId());
 
             if (!stocks.isEmpty()) {
-                WarehouseStock stock = stocks.get(0);
+                WarehouseStock stock = stocks.getFirst();
                 stock.setFullCount(stock.getFullCount() + detail.getCount());
 
                 warehouseStockRepository.save(stock);
@@ -476,14 +669,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void updateWarehouseStockFromCompletedOrder(Order order, int emptyBottlesCollected) {
-        OrderDetail detail = order.getOrderDetails().get(0);
+        OrderDetail detail = order.getOrderDetails().getFirst();
         Product product = detail.getProduct();
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(product.getId());
 
-        WarehouseStock stock = stocks.get(0);
+        WarehouseStock stock = stocks.getFirst();
 
-        int currentEmptyCount = stock.getEmptyCount();
         stock.setEmptyCount(stock.getEmptyCount() + emptyBottlesCollected);
 
         warehouseStockRepository.save(stock);

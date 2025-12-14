@@ -12,6 +12,10 @@ public interface WarehouseStockMapper {
     @Mapping(target = "totalCount", expression = "java(calculateTotalCount(warehouseStock))")
     @Mapping(target = "lowStock", expression = "java(isLowStock(warehouseStock))")
     @Mapping(target = "outOfStock", expression = "java(isOutOfStock(warehouseStock))")
+    @Mapping(target = "productId", source = "product.id")
+    @Mapping(target = "productName", source = "product.name")
+    @Mapping(target = "size", source = "product.size")
+    @Mapping(target = "companyName", source = "company.name")
     WarehouseStockResponse toResponse(WarehouseStock warehouseStock);
 
     List<WarehouseStockResponse> toResponseList(List<WarehouseStock> warehouseStocks);

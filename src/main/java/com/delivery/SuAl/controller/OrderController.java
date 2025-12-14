@@ -3,6 +3,7 @@ package com.delivery.SuAl.controller;
 import com.delivery.SuAl.model.request.operation.AssignDriverRequest;
 import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
+import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderStatusRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
@@ -53,7 +54,14 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<OrderResponse>> updateOrder(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOrderRequest updateOrderRequest
+            ){
+        OrderResponse response = orderService.updateOrder(id, updateOrderRequest);
+        return ResponseEntity.ok(ApiResponse.success("Order updated successfully", response));
+    }
 
     @PutMapping("/{orderId}/assign-driver")
     public ResponseEntity<ApiResponse<OrderResponse>> assignDriver(
@@ -71,9 +79,9 @@ public class OrderController {
 
     @PatchMapping("/{id}/reject")
     public ResponseEntity<ApiResponse<OrderResponse>> rejectOrder(
-            @PathVariable Long id, @PathVariable String reason
+            @PathVariable Long id, String reason
     ) {
-        OrderResponse order = orderService.approveOrder(id);
+        OrderResponse order = orderService.rejectOrder(id, reason);
         return ResponseEntity.ok(ApiResponse.success("Order approved successfully", order));
     }
 

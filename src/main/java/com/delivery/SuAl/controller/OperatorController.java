@@ -10,9 +10,9 @@ import com.delivery.SuAl.service.OperatorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -63,17 +64,46 @@ public class OperatorController {
         return ResponseEntity.ok(ApiResponse.success("Operator deleted successfully", null));
     }
 
+    @GetMapping
+    public ResponseEntity<ApiResponse<PageResponse<OperatorResponse>>> getAllOperators(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction
+    ){
+        Sort.Direction sortDirection = Sort.Direction.fromString(direction);
+        Pageable pageable = PageRequest.of(page, size, sortDirection, sortBy);
+
+        PageResponse<OperatorResponse> pageResponse = operatorService.getAllOperators(pageable);
+        return ResponseEntity.ok(ApiResponse.success(pageResponse));
+    }
+
     @GetMapping("/pending")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getPendingOrders(
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction
+    ) {
 
-        PageResponse<OrderResponse> orders = operatorService.getPendingOrders(pageable);
-        return ResponseEntity.ok(ApiResponse.success(orders));
+        Sort.Direction sortDirection = Sort.Direction.fromString(direction);
+        Pageable pageable = PageRequest.of(page, size, sortDirection, sortBy);
+
+        PageResponse<OrderResponse> pageResponse = operatorService.getPendingOrders(pageable);
+        return ResponseEntity.ok(ApiResponse.success(pageResponse));
     }
 
     @GetMapping("/orders")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllOrders(
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction
+    ) {
+
+        Sort.Direction sortDirection = Sort.Direction.fromString(direction);
+        Pageable pageable = PageRequest.of(page, size, sortDirection, sortBy);
+
         PageResponse<OrderResponse> orders = operatorService.getAllOrdersForManagement(pageable);
 
         return ResponseEntity.ok(ApiResponse.success(orders));
