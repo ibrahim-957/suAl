@@ -21,7 +21,6 @@ public class PriceResponse {
     private CategoryType categoryType;
     private BigDecimal buyPrice;
     private BigDecimal sellPrice;
-    private BigDecimal profitMargin;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

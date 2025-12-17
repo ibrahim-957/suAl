@@ -2,7 +2,6 @@ package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.model.OrderStatus;
-import com.delivery.SuAl.model.PaymentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,7 +10,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -34,12 +32,20 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Long countByOrderNumberStartingWith(String prefix);
 
-    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(o.orderNumber, LENGTH(o.orderNumber) - 3, 4) AS integer)), 0) + 1 " +
-            "FROM Order o " +
-            "WHERE o.orderNumber LIKE CONCAT(:prefix, '%')")
-    Long getNextOrderSequence(@Param("prefix") String prefix);
+    @Query("""
+        SELECT o
+        FROM Order o
+        LEFT JOIN FETCH o.orderDetails
+        LEFT JOIN FETCH o.address
+        LEFT JOIN FETCH o.operator
+        LEFT JOIN FETCH o.driver
+        LEFT JOIN FETCH o.promo
+        WHERE o.id = :id
+    """)
+    Optional<Order> findByIdWithDetails(@Param("id") Long id);
 
-    @Query("SELECT o.orderNumber FROM Order o WHERE o.orderNumber LIKE CONCAT(:prefix, '%')")
+    @Query("SELECT o.orderNumber FROM Order o " +
+            "WHERE o.orderNumber LIKE CONCAT(:prefix, '%')")
     List<String> findOrderNumbersByPrefix(@Param("prefix") String prefix);
 
     @Query("SELECT COUNT(o) FROM Order o " +

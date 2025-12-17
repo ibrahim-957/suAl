@@ -4,16 +4,9 @@ import com.delivery.SuAl.entity.Address;
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
-import com.delivery.SuAl.entity.Price;
-import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.entity.Promo;
-import com.delivery.SuAl.entity.WarehouseStock;
-import com.delivery.SuAl.mapper.OrderDetailMapper;
 import com.delivery.SuAl.mapper.OrderMapper;
-import com.delivery.SuAl.model.DiscountType;
 import com.delivery.SuAl.model.OrderStatus;
 import com.delivery.SuAl.model.PaymentStatus;
-import com.delivery.SuAl.model.PromoStatus;
 import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
@@ -23,25 +16,18 @@ import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OrderRepository;
-import com.delivery.SuAl.repository.PriceRepository;
-import com.delivery.SuAl.repository.ProductRepository;
-import com.delivery.SuAl.repository.PromoRepository;
-import com.delivery.SuAl.repository.WarehouseStockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -52,70 +38,56 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final AddressRepository addressRepository;
     private final DriverRepository driverRepository;
-    private final ProductRepository productRepository;
-    private final PriceRepository priceRepository;
-    private final PromoRepository promoRepository;
-    private final WarehouseStockRepository warehouseStockRepository;
+    private final OrderCalculationService orderCalculationService;
+    private final PromoCodeService promoCodeService;
+    private final InventoryService  inventoryService;
+    private final OrderNumberGenerator  orderNumberGenerator;
+    private final OrderDetailFactory  orderDetailFactory;
     private final OrderMapper orderMapper;
-    private final OrderDetailMapper orderDetailMapper;
 
     @Override
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
-        log.info("Creating new order for customer: {}", request.getCustomerName());
+    public OrderResponse createOrder(CreateOrderRequest createOrderRequest) {
+        log.info("Creating new order for Customer {}", createOrderRequest.getCustomerName());
 
-        Address address = findAddress(request.getAddressId());
-        Order order = initializeOrder(request, address);
+        Address address = findAddress(createOrderRequest.getAddressId());
 
-        List<OrderDetail> orderDetails = buildOrderDetailsFromRequest(request.getItems());
-        OrderCalculation calculation = calculateFromOrderDetails(orderDetails);
+        List<OrderDetail>  orderDetails = createOrderDetails(createOrderRequest.getItems());
 
-        BigDecimal totalDepositRefunded = calculateDepositRefund(
-                request.getEmptyBottlesExpected(),
-                calculation.getDepositPerUnit()
+        Order order = initializeOrder(createOrderRequest, address, orderDetails);
+
+        OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(
+                orderDetails, createOrderRequest.getEmptyBottlesExpected()
         );
 
-        setOrderTotals(order, calculation, totalDepositRefunded);
+        PromoDiscountResult promoDiscountResult = promoCodeService.applyPromoCode(
+                createOrderRequest.getPromoCode(), calculation.getSubtotal()
+        );
 
-        BigDecimal promoDiscount = applyPromoCode(order, request.getPromoCode(), order.getSubtotal());
-        calculateFinalAmounts(order, promoDiscount);
-
-        order.setOrderDetails(orderDetails);
-        orderDetails.forEach(d -> d.setOrder(order));
+        applyCalculationToOrder(order, calculation, promoDiscountResult);
 
         Order savedOrder = orderRepository.save(order);
-        updateWarehouseStockForOrder(savedOrder);
-
-        log.info("Order created successfully - Number: {}, Amount: {}",
-                savedOrder.getOrderNumber(), savedOrder.getAmount());
-
         return orderMapper.toResponse(savedOrder);
     }
 
     @Override
     @Transactional
     public OrderResponse updateOrder(Long orderId, UpdateOrderRequest updateRequest) {
-        log.info("Updating order: {}", orderId);
+        log.info("Updating order for Customer {}", orderId);
 
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+        Order order = findOrderById(orderId);
+        boolean needsRecalculation  = false;
 
-        boolean needsRecalculation = false;
-
-        if (updateRequest.getNotes() != null) {
+        if (updateRequest.getNotes() != null){
             order.setNotes(updateRequest.getNotes());
-            log.debug("Updated notes for order: {}", orderId);
         }
 
         if (updateRequest.getDeliveryDate() != null) {
             order.setDeliveryDate(updateRequest.getDeliveryDate());
-            log.debug("Updated delivery date for order: {}", orderId);
         }
 
         if (updateRequest.getAddressId() != null) {
-            Address newAddress = findAddress(updateRequest.getAddressId());
-            order.setAddress(newAddress);
-            log.debug("Updated address for order: {}", orderId);
+            order.setAddress(findAddress(updateRequest.getAddressId()));
         }
 
         if (updateRequest.getItems() != null && !updateRequest.getItems().isEmpty()) {
@@ -123,40 +95,31 @@ public class OrderServiceImpl implements OrderService {
             needsRecalculation = true;
         }
 
-        if (needsRecalculation) {
-            recalculateOrderTotalsFromDetails(order);
+        if (needsRecalculation || updateRequest.getEmptyBottlesExpected() != null) {
+            recalculateOrder(order, updateRequest.getEmptyBottlesExpected());
         }
 
-        if (updateRequest.getEmptyBottlesExpected() != null) {
-            updateEmptyBottlesAndRecalculate(order, updateRequest.getEmptyBottlesExpected());
-        }
+        Order savedOrder = orderRepository.save(order);
 
-        Order updatedOrder = orderRepository.save(order);
-
-        log.info("Order updated successfully: {}", orderId);
-        return orderMapper.toResponse(updatedOrder);
+        return orderMapper.toResponse(savedOrder);
     }
-
 
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id) {
-        log.info("Getting order by id: {}", id);
-
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+        log.info("Getting order for Customer {}", id);
+        Order order = findOrderById(id);
         return orderMapper.toResponse(order);
     }
-
 
     @Override
     @Transactional
     public void deleteOrder(Long id) {
+        Order order = findOrderById(id);
 
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-
-        restoreWarehouseStockForOrder(order);
+        order.getOrderDetails().forEach(detail ->
+                inventoryService.releaseStock(detail.getProduct().getId(), detail.getCount())
+        );
 
         orderRepository.deleteById(id);
     }
@@ -164,18 +127,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse assignDriver(Long orderId, Long driverId) {
-        log.info("Assigning driver {} to order {}", driverId, orderId);
-
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order with id " + orderId + " not found"));
-
-        Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new RuntimeException("Driver with id " + driverId + " not found"));
+        Order order = findOrderById(orderId);
+        Driver driver = findDriverById(driverId);
 
         if (order.getOrderStatus() != OrderStatus.APPROVED) {
-            throw new RuntimeException("Order with id " + orderId + " is not approved");
+            throw new RuntimeException("Order must be approved before assigning driver");
         }
-
         order.setDriver(driver);
         orderRepository.save(order);
         return orderMapper.toResponse(order);
@@ -184,14 +141,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse approveOrder(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order with id " + orderId + " not found"));
+        Order order = findOrderById(orderId);
 
-        if (order.getOrderStatus() != OrderStatus.PENDING)
-            throw new RuntimeException("Order status is not PENDING");
-
+        if(order.getOrderStatus() != OrderStatus.PENDING){
+            throw new RuntimeException("Order must be pending before approving order");
+        }
         order.setOrderStatus(OrderStatus.APPROVED);
-
         orderRepository.save(order);
         return orderMapper.toResponse(order);
     }
@@ -199,15 +154,14 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse rejectOrder(Long orderId, String reason) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order with id " + orderId + " not found"));
+        Order order = findOrderById(orderId);
 
-        if (order.getOrderStatus() != OrderStatus.PENDING)
-            throw new RuntimeException("Order status is not PENDING");
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new RuntimeException("Order must be pending before rejecting order");
+        }
 
         order.setOrderStatus(OrderStatus.REJECTED);
         order.setRejectionReason(reason);
-
         orderRepository.save(order);
         return orderMapper.toResponse(order);
     }
@@ -215,496 +169,180 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest) {
-        log.info("Fetching order with id {}", orderId);
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order with id " + orderId + " not found"));
+        Order order = findOrderById(orderId);
 
         if (order.getOrderStatus() != OrderStatus.APPROVED) {
-            throw new RuntimeException("Order status is not APPROVED");
+            throw new RuntimeException("Order must be approved before completing order");
         }
 
         if (order.getDriver() == null) {
-            throw new RuntimeException("Order has no driver assigned");
+            throw new RuntimeException("Order must have a driver assigned");
         }
+
+        order.setOrderStatus(OrderStatus.COMPLETED);
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setCompletedAt(LocalDateTime.now());
+
         if (order.getPaidAt() == null) {
             order.setPaidAt(LocalDateTime.now());
         }
 
         int emptyBottlesCollected = order.getEmptyBottlesCollected();
-
-        order.setOrderStatus(OrderStatus.COMPLETED);
         order.setEmptyBottlesCollected(emptyBottlesCollected);
-        order.setCompletedAt(LocalDateTime.now());
-        order.setPaymentStatus(PaymentStatus.PAID);
 
-        if (completeDeliveryRequest.getNotes() != null && !completeDeliveryRequest.getNotes().trim().isEmpty()) {
-            String existingNotes = order.getNotes();
-            if (existingNotes != null && !existingNotes.trim().isEmpty()) {
-                order.setNotes(existingNotes + " /// " + completeDeliveryRequest.getNotes());
-            } else
-                order.setNotes(completeDeliveryRequest.getNotes());
+        if (emptyBottlesCollected > 0) {
+            OrderDetail firstDetail = order.getOrderDetails().getFirst();
+            inventoryService.addEmptyBottles(
+                    firstDetail.getProduct().getId(),
+                    emptyBottlesCollected
+            );
         }
 
-        updateWarehouseStockFromCompletedOrder(order, emptyBottlesCollected);
+        if (completeDeliveryRequest.getNotes() != null && !completeDeliveryRequest.getNotes().trim().isEmpty()) {
+            appendNotes(order, completeDeliveryRequest.getNotes());
+        }
 
         orderRepository.save(order);
-
         return orderMapper.toResponse(order);
     }
-
 
     @Override
     @Transactional(readOnly = true)
     public Long countTodaysOrders() {
-        log.info("Getting Today's orders count");
-
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
-
-        Long count = orderRepository.countTodaysOrders(startOfDay, endOfDay);
-
-        log.info("Today's orders count: {}", count);
-        return count;
+        return orderRepository.countTodaysOrders(startOfDay, endOfDay);
     }
 
     @Override
     @Transactional(readOnly = true)
     public BigDecimal calculateRevenue(LocalDateTime startDate, LocalDateTime endDate) {
-        log.info("Calculating revenue from {} to {}", startDate, endDate);
-
         BigDecimal revenue = orderRepository.calculateRevenue(startDate, endDate);
-        BigDecimal result = revenue != null ? revenue : BigDecimal.ZERO;
-
-        log.info("Revenue: {}", result);
-        return result;
+        return revenue != null ? revenue : BigDecimal.ZERO;
     }
 
     @Override
     @Transactional(readOnly = true)
     public BigDecimal calculateTodaysRevenue() {
-        log.info("Calculating today's revenue");
-
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
-
         return calculateRevenue(startOfDay, endOfDay);
     }
 
-    private void updateOrderItems(Order order, List<UpdateOrderItemRequest> itemUpdates) {
-        log.info("Updating order items for order: {}", order.getOrderNumber());
-
-        Map<Long, OrderDetail> detailMap = order.getOrderDetails().stream()
-                .collect(Collectors.toMap(OrderDetail::getId, d -> d));
-
-        for (UpdateOrderItemRequest itemUpdate : itemUpdates) {
-            OrderDetail detail = detailMap.get(itemUpdate.getOrderDetailId());
-
-            if (detail == null) {
-                log.warn("Order detail not found: {}", itemUpdate.getOrderDetailId());
-                continue;
-            }
-
-            boolean updated = false;
-
-            if (itemUpdate.getQuantity() != null && !itemUpdate.getQuantity().equals(detail.getCount())) {
-                int oldQuantity = detail.getCount();
-
-                int quantityDiff = itemUpdate.getQuantity() - oldQuantity;
-                if (quantityDiff > 0) {
-                    validateStock(detail.getProduct(), quantityDiff);
-                    adjustWarehouseStock(detail.getProduct().getId(), -quantityDiff);
-                } else if (quantityDiff < 0) {
-                    adjustWarehouseStock(detail.getProduct().getId(), Math.abs(quantityDiff));
-                }
-
-                detail.setCount(itemUpdate.getQuantity());
-                log.debug("Updated quantity for product {}: {} -> {}",
-                        detail.getProduct().getName(), oldQuantity, itemUpdate.getQuantity());
-                updated = true;
-            }
-
-            if (itemUpdate.getSellPrice() != null &&
-                    itemUpdate.getSellPrice().compareTo(detail.getPricePerUnit()) != 0) {
-                BigDecimal oldPrice = detail.getPricePerUnit();
-                detail.setPricePerUnit(itemUpdate.getSellPrice());
-                log.debug("Updated price for product {}: {} -> {}",
-                        detail.getProduct().getName(), oldPrice, itemUpdate.getSellPrice());
-                updated = true;
-            }
-
-            if (updated) {
-                recalculateOrderDetail(detail);
-            }
-        }
-    }
-
-    private void adjustWarehouseStock(Long productId, int quantityChange) {
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(productId);
-
-        if (!stocks.isEmpty()) {
-            WarehouseStock stock = stocks.getFirst();
-            int newCount = stock.getFullCount() + quantityChange;
-            stock.setFullCount(Math.max(0, newCount));
-            warehouseStockRepository.save(stock);
-
-            log.debug("Adjusted warehouse stock for product ID {}: {} -> {}",
-                    productId, stock.getFullCount() - quantityChange, stock.getFullCount());
-        }
-    }
-
-    private void updateEmptyBottlesAndRecalculate(Order order, Integer emptyBottlesExpected) {
-        int oldBottles = order.getEmptyBottlesExpected();
-        order.setEmptyBottlesExpected(emptyBottlesExpected);
-
-        BigDecimal depositPerUnit = getDepositPerUnitFromOrder(order);
-        BigDecimal newDepositRefunded = calculateDepositRefund(
-                emptyBottlesExpected,
-                depositPerUnit
-        );
-
-        order.setTotalDepositRefunded(newDepositRefunded);
-
-        BigDecimal netDeposit = order.getTotalDepositCharged().subtract(newDepositRefunded);
-        order.setNetDeposit(netDeposit);
-
-        BigDecimal finalAmount = order.getTotalAmount().add(netDeposit);
-        order.setAmount(finalAmount);
-
-        log.info("Updated empty bottles expected: {} -> {}, New deposit refunded: {}",
-                oldBottles, emptyBottlesExpected, newDepositRefunded);
-    }
-
-    private void recalculateOrderTotalsFromDetails(Order order) {
-        log.debug("Recalculating order totals from details for order: {}", order.getOrderNumber());
-
-        BigDecimal subtotal = BigDecimal.ZERO;
-        BigDecimal totalDepositCharged = BigDecimal.ZERO;
-        int totalCount = 0;
-
-        for (OrderDetail detail : order.getOrderDetails()) {
-            subtotal = subtotal.add(detail.getSubtotal());
-            totalDepositCharged = totalDepositCharged.add(detail.getDepositCharged());
-            totalCount += detail.getCount();
-        }
-
-        order.setSubtotal(subtotal);
-        order.setTotalDepositCharged(totalDepositCharged);
-        order.setCount(totalCount);
-
-        BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
-                .orElse(BigDecimal.ZERO);
-
-        BigDecimal totalAmount = subtotal.subtract(promoDiscount);
-        order.setTotalAmount(totalAmount);
-
-        BigDecimal totalDepositRefunded = Optional.ofNullable(order.getTotalDepositRefunded())
-                .orElse(BigDecimal.ZERO);
-        BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
-        order.setNetDeposit(netDeposit);
-
-
-        BigDecimal finalAmount = totalAmount.add(netDeposit);
-        order.setAmount(finalAmount);
-
-        log.info("Recalculated totals - Items: {}, Subtotal: {}, Total: {}, Final: {}",
-                totalCount, subtotal, totalAmount, finalAmount);
-    }
-
-    private BigDecimal getDepositPerUnitFromOrder(Order order) {
-        return order.getOrderDetails().stream()
-                .map(OrderDetail::getDepositPerUnit)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(BigDecimal.ZERO);
+    private Order findOrderById(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order Not Found"));
     }
 
     private Address findAddress(Long id) {
         return addressRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Address not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Address Not Found"));
     }
 
-    private Product findProduct(Long id) {
-        return productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+    private Driver findDriverById(Long id) {
+        return driverRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Driver Not Found"));
     }
 
-    private Price findPrice(Long productId) {
-        return priceRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("Price not found for product id: " + productId));
+    private List<OrderDetail> createOrderDetails(List<OrderItemRequest> orderItemRequests) {
+       List<OrderDetail> orderDetails = new ArrayList<>();
+
+       for(OrderItemRequest orderItemRequest : orderItemRequests) {
+           inventoryService.validateAndReserveStock(orderItemRequest.getProductId(), orderItemRequest.getQuantity());
+           OrderDetail orderDetail = orderDetailFactory.createOrderDetail(orderItemRequest);
+           orderDetails.add(orderDetail);
+       }
+       return orderDetails;
     }
 
-    private BigDecimal calculateAmount(BigDecimal price, int qty) {
-        return price.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private BigDecimal calculateDepositRefund(Integer emptyBottlesExpected, BigDecimal depositPerUnit) {
-        if (emptyBottlesExpected == null || emptyBottlesExpected <= 0 || depositPerUnit == null) {
-            return BigDecimal.ZERO;
-        }
-        return depositPerUnit.multiply(BigDecimal.valueOf(emptyBottlesExpected))
-                .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private void validateStock(Product product, int quantity) {
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(product.getId());
-        if (stocks.isEmpty()) {
-            throw new RuntimeException("Product not found in warehouse: " + product.getName());
-        }
-
-        WarehouseStock stock = stocks.getFirst();
-
-        if (stock.getFullCount() < quantity) {
-            throw new RuntimeException(
-                    String.format("Insufficient stock for product: %s. Available: %d, Requested: %d",
-                            product.getName(), stock.getFullCount(), quantity)
-            );
-        }
-    }
-
-    private List<OrderDetail> buildOrderDetailsFromRequest(List<OrderItemRequest> items) {
-        List<OrderDetail> details = new ArrayList<>();
-        for (OrderItemRequest item : items) {
-            Product product = findProduct(item.getProductId());
-            Price price = findPrice(item.getProductId());
-
-            validateStock(product, item.getQuantity());
-
-            OrderDetail detail = orderDetailMapper.toEntity(item);
-            detail.setProduct(product);
-            detail.setCompany(product.getCompany());
-            detail.setCategory(product.getCategory());
-            detail.setPricePerUnit(price.getSellPrice());
-            detail.setBuyPrice(price.getBuyPrice());
-            detail.setCount(item.getQuantity());
-            detail.setDepositPerUnit(product.getDepositAmount());
-            detail.setContainersReturned(0);
-
-            recalculateOrderDetail(detail);
-            details.add(detail);
-        }
-        return details;
-    }
-
-    private void recalculateOrderDetail(OrderDetail detail) {
-        BigDecimal subtotal = calculateAmount(detail.getPricePerUnit(), detail.getCount());
-        BigDecimal depositCharged = calculateAmount(detail.getDepositPerUnit(), detail.getCount());
-
-        detail.setSubtotal(subtotal);
-        detail.setDepositCharged(depositCharged);
-        detail.setDeposit(depositCharged);
-        detail.setLineTotal(subtotal.add(depositCharged));
-    }
-
-    private OrderCalculation calculateFromOrderDetails(List<OrderDetail> details) {
-        BigDecimal subtotal = BigDecimal.ZERO;
-        BigDecimal totalDepositCharged = BigDecimal.ZERO;
-        int totalCount = 0;
-        BigDecimal depositPerUnit = null;
-
-        for (OrderDetail detail : details) {
-            subtotal = subtotal.add(detail.getSubtotal());
-            totalDepositCharged = totalDepositCharged.add(detail.getDepositCharged());
-            totalCount += detail.getCount();
-
-            if (depositPerUnit == null) {
-                depositPerUnit = detail.getDepositPerUnit();
-            }
-        }
-
-        return new OrderCalculation(details, subtotal, totalCount, totalDepositCharged, depositPerUnit);
-    }
-
-    private Order initializeOrder(CreateOrderRequest request, Address address) {
-        Order order = orderMapper.toEntity(request);
+    private Order initializeOrder(CreateOrderRequest createOrderRequest, Address address, List<OrderDetail> orderDetails) {
+        Order order = orderMapper.toEntity(createOrderRequest);
         order.setAddress(address);
-        order.setOrderNumber(generateOrderNumber());
-        order.setEmptyBottlesExpected(
-                request.getEmptyBottlesExpected() != null ? request.getEmptyBottlesExpected() : 0
+        order.setOrderNumber(orderNumberGenerator.generateOrderNumber());
+        order.setEmptyBottlesCollected(
+                createOrderRequest.getEmptyBottlesExpected() != null ?  createOrderRequest.getEmptyBottlesExpected() : 0
         );
+        order.setOrderDetails(orderDetails);
+        orderDetails.forEach(orderDetail -> orderDetail.setOrder(order));
 
-        log.info("Generated order number: {}", order.getOrderNumber());
         return order;
     }
 
-    private void setOrderTotals(Order order, OrderCalculation calculation,
-                                BigDecimal totalDepositRefunded) {
-        BigDecimal netDeposit = calculation.getTotalDepositCharged()
-                .subtract(totalDepositRefunded);
+    private void applyCalculationToOrder(Order order, OrderCalculationResult calculation, PromoDiscountResult promoResult){
+        order.setCount(calculation.getTotalCount());
+        order.setSubtotal(calculation.getSubtotal());
+        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
+        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
+        order.setNetDeposit(calculation.getNetDeposit());
+
+        if (promoResult.hasPromo()) {
+            order.setPromo(promoResult.getPromo());
+            order.setPromoDiscount(promoResult.getDiscount());
+        }
+
+        BigDecimal totalAmount = calculation.getSubtotal()
+                .subtract(promoResult.getDiscount());
+        BigDecimal finalAmount = totalAmount.add(calculation.getNetDeposit());
+
+        order.setTotalAmount(totalAmount);
+        order.setAmount(finalAmount);
+    }
+
+    private void updateOrderItems(Order order, List<UpdateOrderItemRequest> itemUpdates) {
+        Map<Long, OrderDetail> detailMap = order.getOrderDetails().stream()
+                .collect(Collectors.toMap(OrderDetail::getId, d -> d));
+
+        for (UpdateOrderItemRequest update : itemUpdates) {
+            OrderDetail detail = detailMap.get(update.getOrderDetailId());
+            if (detail == null) continue;
+
+            if (update.getQuantity() != null) {
+                int quantityDiff = update.getQuantity() - detail.getCount();
+                inventoryService.adjustStock(detail.getProduct().getId(), -quantityDiff);
+                detail.setCount(update.getQuantity());
+            }
+
+            if (update.getSellPrice() != null) {
+                detail.setPricePerUnit(update.getSellPrice());
+            }
+
+            orderCalculationService.recalculateOrderDetail(detail);
+        }
+    }
+
+    private void recalculateOrder(Order order, Integer newEmptyBottlesExpected) {
+        if (newEmptyBottlesExpected != null) {
+            order.setEmptyBottlesExpected(newEmptyBottlesExpected);
+        }
+
+        OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(
+                order.getOrderDetails(), order.getEmptyBottlesExpected()
+        );
+
+        BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
+                .orElse(BigDecimal.ZERO);
 
         order.setCount(calculation.getTotalCount());
         order.setSubtotal(calculation.getSubtotal());
         order.setTotalDepositCharged(calculation.getTotalDepositCharged());
-        order.setTotalDepositRefunded(totalDepositRefunded);
-        order.setNetDeposit(netDeposit);
+        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
+        order.setNetDeposit(calculation.getNetDeposit());
 
-        log.info("Order totals - Items: {}, Subtotal: {}, Deposit Charged: {}, " +
-                        "Deposit Refunded: {}, Net Deposit: {}",
-                calculation.getTotalCount(), calculation.getSubtotal(),
-                calculation.getTotalDepositCharged(), totalDepositRefunded, netDeposit);
-    }
-
-    private BigDecimal applyPromoCode(Order order, String promoCode, BigDecimal subtotal) {
-        if (promoCode == null || promoCode.trim().isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-
-        try {
-            Promo promo = promoRepository.findByPromoCode(promoCode.trim())
-                    .orElseThrow(() -> new RuntimeException("Promo not found: " + promoCode));
-
-            if (!isPromoValid(promo)) {
-                log.warn("Promo code is expired or inactive: {}", promoCode);
-                return BigDecimal.ZERO;
-            }
-
-            BigDecimal promoDiscount = calculatePromoDiscount(promo, subtotal);
-            order.setPromo(promo);
-            order.setPromoDiscount(promoDiscount);
-
-            log.info("Promo code '{}' applied - Discount: {}", promoCode, promoDiscount);
-            return promoDiscount;
-        } catch (RuntimeException e) {
-            log.warn("Invalid promo code '{}': {}", promoCode, e.getMessage());
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private boolean isPromoValid(Promo promo) {
-        LocalDate now = LocalDate.now();
-        if (promo.getPromoStatus() != PromoStatus.ACTIVE) {
-            return false;
-        }
-        return promo.getValidFrom().isBefore(now) && promo.getValidTo().isAfter(now);
-    }
-
-    private BigDecimal calculatePromoDiscount(Promo promo, BigDecimal subtotal) {
-        if (promo.getMinOrderAmount() != null && subtotal.compareTo(promo.getMinOrderAmount()) < 0) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal discount;
-
-        if (promo.getDiscountType() == DiscountType.PERCENTAGE) {
-            discount = subtotal
-                    .multiply(promo.getDiscountValue())
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        } else {
-            discount = promo.getDiscountValue();
-        }
-
-        if (promo.getMaxDiscount() != null && discount.compareTo(promo.getMaxDiscount()) > 0) {
-            discount = promo.getMaxDiscount();
-        }
-        return discount;
-    }
-
-    private void calculateFinalAmounts(Order order, BigDecimal promoDiscount) {
-        BigDecimal totalAmount = order.getSubtotal().subtract(promoDiscount);
-        BigDecimal finalAmount = totalAmount.add(order.getNetDeposit());
+        BigDecimal totalAmount = calculation.getSubtotal().subtract(promoDiscount);
+        BigDecimal finalAmount = totalAmount.add(calculation.getNetDeposit());
 
         order.setTotalAmount(totalAmount);
         order.setAmount(finalAmount);
-
-        log.info("Final order amount: {} (Total: {} + Net Deposit: {})",
-                finalAmount, totalAmount, order.getNetDeposit());
     }
 
-    private void updateWarehouseStockForOrder(Order order) {
-        log.debug("Updating warehouse stock for order: {}", order.getOrderNumber());
-        for (OrderDetail detail : order.getOrderDetails()) {
-            List<WarehouseStock> stocks =
-                    warehouseStockRepository.findByProductId(detail.getProduct().getId());
-
-            if (!stocks.isEmpty()) {
-                WarehouseStock stock = stocks.getFirst();
-                int newFullCount = stock.getFullCount() - detail.getCount();
-
-                stock.setFullCount(Math.max(0, newFullCount));
-
-                warehouseStockRepository.save(stock);
-                log.debug("Stock updated for product {}: Full {} -> {}",
-                        detail.getProduct().getName(),
-                        stock.getFullCount() + detail.getCount(), stock.getFullCount());
-            }
+    private void appendNotes(Order order, String newNotes) {
+        String existingNotes = order.getNotes();
+        if (existingNotes != null && !existingNotes.trim().isEmpty()) {
+            order.setNotes(existingNotes + " /// " + newNotes);
+        } else {
+            order.setNotes(newNotes);
         }
     }
-
-    private synchronized String generateOrderNumber() {
-        String prefix = "/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-
-        List<String> existingNumbers = orderRepository.findOrderNumbersByPrefix(prefix);
-
-        int maxSequence = existingNumbers.stream()
-                .map(orderNum -> {
-                    try {
-                        String numberPart = orderNum.substring(orderNum.lastIndexOf('-') + 1);
-                        return Integer.parseInt(numberPart);
-                    } catch (Exception e) {
-                        return 0;
-                    }
-                })
-                .max(Integer::compareTo)
-                .orElse(0);
-
-        return String.format("%s-%04d", prefix, maxSequence + 1);
-    }
-
-    private void restoreWarehouseStockForOrder(Order order) {
-        log.debug("Restoring warehouse stock for order: {}", order.getOrderNumber());
-        for (OrderDetail detail : order.getOrderDetails()) {
-            List<WarehouseStock> stocks =
-                    warehouseStockRepository.findByProductId(detail.getProduct().getId());
-
-            if (!stocks.isEmpty()) {
-                WarehouseStock stock = stocks.getFirst();
-                stock.setFullCount(stock.getFullCount() + detail.getCount());
-
-                warehouseStockRepository.save(stock);
-
-                log.debug("Stock restored for product {}: Full {} -> {}",
-                        detail.getProduct().getName(),
-                        stock.getFullCount() - detail.getCount(), stock.getFullCount());
-            }
-        }
-    }
-
-    private void updateWarehouseStockFromCompletedOrder(Order order, int emptyBottlesCollected) {
-        OrderDetail detail = order.getOrderDetails().getFirst();
-        Product product = detail.getProduct();
-
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(product.getId());
-
-        WarehouseStock stock = stocks.getFirst();
-
-        stock.setEmptyCount(stock.getEmptyCount() + emptyBottlesCollected);
-
-        warehouseStockRepository.save(stock);
-    }
-
-    private static class OrderCalculation {
-        private final List<OrderDetail> orderDetails;
-        private final BigDecimal subtotal;
-        private final int totalCount;
-        private final BigDecimal totalDepositCharged;
-        private final BigDecimal depositPerUnit;
-
-        public OrderCalculation(List<OrderDetail> orderDetails, BigDecimal subtotal,
-                                int totalCount, BigDecimal totalDepositCharged,
-                                BigDecimal depositPerUnit) {
-            this.orderDetails = orderDetails;
-            this.subtotal = subtotal;
-            this.totalCount = totalCount;
-            this.totalDepositCharged = totalDepositCharged;
-            this.depositPerUnit = depositPerUnit;
-        }
-
-        public List<OrderDetail> getOrderDetails() { return orderDetails; }
-        public BigDecimal getSubtotal() { return subtotal; }
-        public int getTotalCount() { return totalCount; }
-        public BigDecimal getTotalDepositCharged() { return totalDepositCharged; }
-        public BigDecimal getDepositPerUnit() { return depositPerUnit; }
-    }
-
 }
 
 

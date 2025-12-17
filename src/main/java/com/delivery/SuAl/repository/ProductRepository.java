@@ -12,6 +12,7 @@ import java.util.Optional;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product,Long> {
+
     List<Product> findByProductStatus(ProductStatus productStatus);
 
     List<Product> findByCompanyId(Long companyId);
@@ -46,4 +47,8 @@ public interface ProductRepository extends JpaRepository<Product,Long> {
     @Query("SELECT COUNT(p) FROM Product p " +
             "WHERE p.category.id = :categoryId")
     Long countByCategoryId(@Param("categoryId")  Long categoryId);
+
+    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.prices " +
+            "WHERE p.id IN : ids")
+    List<Product> findAllWithPricesByIds(@Param("ids") List<Long> ids);
 }

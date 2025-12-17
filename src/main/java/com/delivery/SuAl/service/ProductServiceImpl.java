@@ -2,18 +2,19 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Category;
 import com.delivery.SuAl.entity.Company;
-import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.mapper.ProductMapper;
+import com.delivery.SuAl.model.request.product.CreatePriceRequest;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
+import com.delivery.SuAl.model.request.product.UpdatePriceRequest;
 import com.delivery.SuAl.model.request.product.UpdateProductRequest;
+import com.delivery.SuAl.model.response.product.PriceResponse;
 import com.delivery.SuAl.model.response.product.ProductResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.CategoryRepository;
 import com.delivery.SuAl.repository.CompanyRepository;
-import com.delivery.SuAl.repository.PriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.WarehouseRepository;
 import com.delivery.SuAl.repository.WarehouseStockRepository;
@@ -26,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -36,7 +37,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final CompanyRepository companyRepository;
-    private final PriceRepository  priceRepository;
+    private final PriceService priceService;
     private final WarehouseStockRepository warehouseStockRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductMapper productMapper;
@@ -50,10 +51,10 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Warehouse not found"));
 
         Company company = companyRepository.findById(request.getCompanyId())
-                .orElseThrow(()-> new RuntimeException("Company not found"));
+                .orElseThrow(() -> new RuntimeException("Company not found"));
 
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(()-> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new RuntimeException("Category not found"));
 
         if (productRepository.findByNameAndCompanyId(request.getName(), request.getCompanyId()).isPresent()) {
             throw new RuntimeException("Product already exists");
@@ -65,14 +66,16 @@ public class ProductServiceImpl implements ProductService {
 
         Product savedProduct = productRepository.save(product);
 
-        Price price = new Price();
-        price.setProduct(savedProduct);
-        price.setCategory(category);
-        price.setCompany(company);
-        price.setBuyPrice(request.getBuyPrice());
-        price.setSellPrice(request.getSellPrice());
+        if (request.getBuyPrice() != null || request.getSellPrice() != null) {
+            CreatePriceRequest priceRequest = new CreatePriceRequest();
+            priceRequest.setProductId(savedProduct.getId());
+            priceRequest.setCategoryId(category.getId());
+            priceRequest.setCompanyId(company.getId());
+            priceRequest.setSellPrice(request.getSellPrice());
+            priceRequest.setBuyPrice(request.getBuyPrice());
 
-        Price savedPrice = priceRepository.save(price);
+            priceService.createPrice(priceRequest);
+        }
 
         WarehouseStock warehouseStock = new WarehouseStock();
         warehouseStock.setWarehouse(warehouse);
@@ -80,16 +83,15 @@ public class ProductServiceImpl implements ProductService {
         warehouseStock.setCategory(category);
         warehouseStock.setCompany(company);
         warehouseStock.setFullCount(request.getInitialFullCount());
-        warehouseStock.setEmptyCount(request.getInitialEmptyCount() != null ? request.getInitialEmptyCount() : 0);
-        warehouseStock.setDamagedCount(request.getInitialDamagedCount() != null ? request.getInitialDamagedCount() : 0);
-        warehouseStock.setMinimumStockAlert(request.getMinimumStockAlert() != null ? request.getMinimumStockAlert() : 10);
+        warehouseStock.setEmptyCount(defaultValue(request.getInitialEmptyCount(), 0));
+        warehouseStock.setDamagedCount(defaultValue(request.getInitialDamagedCount(), 0));
+        warehouseStock.setMinimumStockAlert(defaultValue(request.getMinimumStockAlert(), 10));
         warehouseStock.setLastRestocked(LocalDateTime.now());
 
         warehouseStockRepository.save(warehouseStock);
 
         ProductResponse response = productMapper.toResponse(savedProduct);
-        response.setBuyPrice(savedPrice.getBuyPrice());
-        response.setSellPrice(savedPrice.getSellPrice());
+        enrichWithPriceData(response, savedProduct.getId());
 
         log.info("Product created successfully with ID: {} and price", savedProduct.getId());
         return response;
@@ -101,20 +103,19 @@ public class ProductServiceImpl implements ProductService {
         log.info("Getting product by ID: {}", id);
 
         Product product = productRepository.findById(id)
-                .orElseThrow(()-> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new RuntimeException("Product not found"));
 
         ProductResponse response = productMapper.toResponse(product);
-        enrichWithPriceData(response, id);
+        enrichWithPriceData(response, product.getId());
         return response;
     }
 
     @Override
-    @Transactional
     public ProductResponse updateProduct(Long id, UpdateProductRequest request) {
         log.info("Updating product with name: {}", request.getName());
 
         Product product = productRepository.findById(id)
-                .orElseThrow(()-> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new RuntimeException("Product not found"));
 
         if (request.getCompanyId() != null && !request.getCompanyId().equals(product.getCompany().getId())) {
             Company company = companyRepository.findById(request.getCompanyId())
@@ -137,6 +138,24 @@ public class ProductServiceImpl implements ProductService {
         productMapper.updateEntityFromRequest(request, product);
         Product updatedProduct = productRepository.save(product);
 
+        if (request.getBuyPrice() != null || request.getSellPrice() != null) {
+            try {
+                PriceResponse existingPrice = priceService.getPriceByProductId(updatedProduct.getId());
+                UpdatePriceRequest priceRequest = new UpdatePriceRequest();
+                priceRequest.setBuyPrice(request.getBuyPrice());
+                priceRequest.setSellPrice(request.getSellPrice());
+                priceService.updatePrice(existingPrice.getId(), priceRequest);
+            } catch (RuntimeException e) {
+                CreatePriceRequest priceRequest = new CreatePriceRequest();
+                priceRequest.setProductId(updatedProduct.getId());
+                priceRequest.setCategoryId(updatedProduct.getCategory().getId());
+                priceRequest.setCompanyId(updatedProduct.getCompany().getId());
+                priceRequest.setSellPrice(request.getSellPrice());
+                priceRequest.setBuyPrice(request.getBuyPrice());
+                priceService.createPrice(priceRequest);
+            }
+        }
+
         ProductResponse response = productMapper.toResponse(updatedProduct);
         enrichWithPriceData(response, id);
 
@@ -156,21 +175,41 @@ public class ProductServiceImpl implements ProductService {
 
         Page<Product> productPage = productRepository.findAll(pageable);
 
-        List<ProductResponse> responses = productPage.getContent().stream()
+        List<Product> products = productPage.getContent();
+
+        List<Long> productIds = products
+                .stream()
+                .map(Product::getId)
+                .toList();
+
+
+        Map<Long, PriceResponse> priceMap = priceService.getPricesByProductIds(productIds);
+        List<ProductResponse> responses = products.stream()
                 .map(product -> {
                     ProductResponse response = productMapper.toResponse(product);
-                    enrichWithPriceData(response, product.getId());
+
+                    PriceResponse price = priceMap.get(product.getId());
+                    if (price != null) {
+                        response.setSellPrice(price.getSellPrice());
+                        response.setBuyPrice(price.getBuyPrice());
+                    }
                     return response;
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         return PageResponse.of(responses, productPage);
     }
 
     private void enrichWithPriceData(ProductResponse productResponse, Long productId) {
-        priceRepository.findByProductId(productId).ifPresent(price -> {
-            productResponse.setSellPrice(price.getSellPrice());
-            productResponse.setBuyPrice(price.getBuyPrice());
-        });
+        try {
+            PriceResponse priceResponse = priceService.getPriceByProductId(productId);
+            productResponse.setSellPrice(priceResponse.getSellPrice());
+            productResponse.setBuyPrice(priceResponse.getBuyPrice());
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private <T> T defaultValue(T value, T defaultValue) {
+        return value != null ? value : defaultValue;
     }
 }

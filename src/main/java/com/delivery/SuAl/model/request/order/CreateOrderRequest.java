@@ -32,7 +32,6 @@ public class CreateOrderRequest {
     @Size(min = 1, message = "Order must have at least one item")
     private List<OrderItemRequest> items;
 
-    @NotNull
     @Min(value = 0)
     private Integer emptyBottlesExpected;
 

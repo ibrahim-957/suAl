@@ -30,6 +30,4 @@ public interface OrderService {
     BigDecimal calculateRevenue(LocalDateTime startDate, LocalDateTime endDate);
 
     BigDecimal calculateTodaysRevenue();
-
-
 }

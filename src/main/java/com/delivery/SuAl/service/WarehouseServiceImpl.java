@@ -21,7 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -68,9 +70,7 @@ public class WarehouseServiceImpl implements WarehouseService {
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByWarehouseId(id);
         response.setTotalProducts(stocks.size());
-        response.setTotalStockCount(stocks.stream()
-                .mapToInt(s -> s.getFullCount() + s.getEmptyCount() + s.getDamagedCount())
-                .sum());
+        response.setTotalStockCount(calculateTotalStockCount(stocks));
         return response;
     }
 
@@ -81,14 +81,21 @@ public class WarehouseServiceImpl implements WarehouseService {
 
         Page<Warehouse> warehousePage = warehouseRepository.findAll(pageable);
 
+        List<Long> warehouseIds = warehousePage.getContent().stream()
+                .map(Warehouse::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, List<WarehouseStock>> stocksByWarehouse =
+                warehouseStockRepository.findByWarehouseIdIn(warehouseIds).stream()
+                        .collect(Collectors.groupingBy(stock -> stock.getWarehouse().getId()));
+
         List<WarehouseResponse> responses = warehousePage.getContent().stream()
                 .map(warehouse -> {
                     WarehouseResponse warehouseResponse = warehouseMapper.toResponse(warehouse);
-                    List<WarehouseStock> stocks = warehouseStockRepository.findByWarehouseId(warehouse.getId());
+                    List<WarehouseStock> stocks = stocksByWarehouse.getOrDefault(
+                            warehouse.getId(), Collections.emptyList());
                     warehouseResponse.setTotalProducts(stocks.size());
-                    warehouseResponse.setTotalStockCount(stocks.stream()
-                            .mapToInt(s -> s.getFullCount() + s.getEmptyCount() + s.getDamagedCount())
-                            .sum());
+                    warehouseResponse.setTotalStockCount(calculateTotalStockCount(stocks));
                     return warehouseResponse;
                 })
                 .collect(Collectors.toList());
@@ -111,17 +118,13 @@ public class WarehouseServiceImpl implements WarehouseService {
             throw new RuntimeException("Warehouse not found with ID: " + warehouseId);
         }
 
-        List<WarehouseStock> stocks = warehouseStockRepository.findByWarehouseId(warehouseId);
+        Page<WarehouseStock> stockPage = warehouseStockRepository
+                .findByWarehouseIdPageable(warehouseId, pageable);
 
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), stocks.size());
-
-        List<WarehouseStockResponse> responses = stocks.subList(start, end).stream()
-                .map(warehouseStockMapper::toResponse)
+        List<WarehouseStockResponse> responses = stockPage.getContent().stream()
+                .map(warehouseStockMapper ::toResponse)
                 .collect(Collectors.toList());
-
-        Page<WarehouseStockResponse> page = new PageImpl<>(responses, pageable, stocks.size());
-        return PageResponse.of(responses, page);
+        return PageResponse.of(responses, stockPage);
     }
 
     @Override
@@ -147,7 +150,6 @@ public class WarehouseServiceImpl implements WarehouseService {
         if (updateStockRequest.getFullCount() != null) {
             stock.setFullCount(updateStockRequest.getFullCount());
         }
-
         if (updateStockRequest.getEmptyCount() != null) {
             stock.setEmptyCount(updateStockRequest.getEmptyCount());
         }
@@ -166,11 +168,9 @@ public class WarehouseServiceImpl implements WarehouseService {
     public List<WarehouseStockResponse> getLowStockProducts(Long warehouseId) {
         log.info("Getting low stock stock products for warehouse ID: {}", warehouseId);
 
-        List<WarehouseStock> stocks = warehouseStockRepository.findLowStockProducts();
-        return stocks.stream()
-                .filter(stock -> stock.getWarehouse().getId().equals(warehouseId))
-                .map(warehouseStockMapper::toResponse)
-                .collect(Collectors.toList());
+        List<WarehouseStock> stocks = warehouseStockRepository
+                .findLowStockProductsByWarehouseId(warehouseId);
+        return stocks.stream().map(warehouseStockMapper::toResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -178,12 +178,9 @@ public class WarehouseServiceImpl implements WarehouseService {
     public List<WarehouseStockResponse> getOutOfStockProducts(Long warehouseId) {
         log.info("Getting out of  stock stock products for warehouse ID: {}", warehouseId);
 
-        List<WarehouseStock> stocks = warehouseStockRepository.findOutOfStockProducts();
-
-        return stocks.stream()
-                .filter(stock -> stock.getWarehouse().getId().equals(warehouseId))
-                .map(warehouseStockMapper::toResponse)
-                .collect(Collectors.toList());
+        List<WarehouseStock> stocks = warehouseStockRepository
+                .findOutOfStockProductsByWarehouseId(warehouseId);
+        return stocks.stream().map(warehouseStockMapper::toResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -193,5 +190,11 @@ public class WarehouseServiceImpl implements WarehouseService {
 
         Long total = warehouseStockRepository.getTotalInventoryByWarehouse(warehouseId);
         return total != null ? total : 0L;
+    }
+
+    private int calculateTotalStockCount(List<WarehouseStock> stocks) {
+        return stocks.stream()
+                .mapToInt(s -> s.getFullCount() + s.getEmptyCount() + s.getDamagedCount())
+                .sum();
     }
 }

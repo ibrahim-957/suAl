@@ -20,9 +20,6 @@ public interface OrderMapper {
                                  @MappingTarget Order order);
 
     @Mappings({
-            @Mapping(target = "totalItems", source = "count"),
-            @Mapping(target = "finalAmount", source = "amount"),
-
             @Mapping(target = "operatorId", source = "operator.id"),
             @Mapping(target = "operatorName", source = "operator.firstName"),
 
@@ -44,6 +41,4 @@ public interface OrderMapper {
     List<OrderSummaryResponse> toSummaryResponseList(List<Order> orders);
 
     List<OrderSearchResponse> toSearchResponseList(List<Order> orders);
-
-
 }

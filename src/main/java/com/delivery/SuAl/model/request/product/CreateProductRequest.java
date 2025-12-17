@@ -48,12 +48,12 @@ public class CreateProductRequest {
 
     @NotNull
     @Min(value = 0)
-    private Integer initialEmptyCount = 0;
+    private Integer initialEmptyCount;
 
     @NotNull
     @Min(value = 0)
-    private Integer initialDamagedCount = 0;
+    private Integer initialDamagedCount;
 
     @Min(value = 1)
-    private Integer minimumStockAlert = 10;
+    private Integer minimumStockAlert;
 }

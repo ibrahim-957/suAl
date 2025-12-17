@@ -17,6 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -90,5 +94,14 @@ public class PriceServiceImpl implements PriceService {
                 .orElseThrow(() -> new RuntimeException("Price not found"));
 
         return priceMapper.toResponse(price);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, PriceResponse> getPricesByProductIds(List<Long> productIds) {
+        return priceRepository.findAllByProductIdIn(productIds)
+                .stream()
+                .map(priceMapper::toResponse)
+                .collect(Collectors.toMap(p -> p.getProductId(), p -> p));
     }
 }
