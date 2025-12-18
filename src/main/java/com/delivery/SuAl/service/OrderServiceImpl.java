@@ -6,6 +6,7 @@ import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.OrderStatus;
+import com.delivery.SuAl.model.PaymentMethod;
 import com.delivery.SuAl.model.PaymentStatus;
 import com.delivery.SuAl.model.request.operation.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -51,20 +53,19 @@ public class OrderServiceImpl implements OrderService {
         log.info("Creating new order for Customer {}", createOrderRequest.getCustomerName());
 
         Address address = findAddress(createOrderRequest.getAddressId());
-
-        List<OrderDetail>  orderDetails = createOrderDetails(createOrderRequest.getItems());
-
+        List<OrderDetail> orderDetails = createOrderDetails(createOrderRequest.getItems());
         Order order = initializeOrder(createOrderRequest, address, orderDetails);
 
         OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(
                 orderDetails, createOrderRequest.getEmptyBottlesExpected()
         );
 
-        PromoDiscountResult promoDiscountResult = promoCodeService.applyPromoCode(
-                createOrderRequest.getPromoCode(), calculation.getSubtotal()
+        PromoDiscountResult promoResult = promoCodeService.applyPromoCode(
+                createOrderRequest.getPromoCode(),
+                calculation.getSubtotal()
         );
 
-        applyCalculationToOrder(order, calculation, promoDiscountResult);
+        applyCalculationToOrder(order, calculation, promoResult);
 
         Order savedOrder = orderRepository.save(order);
         return orderMapper.toResponse(savedOrder);
@@ -179,32 +180,35 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Order must have a driver assigned");
         }
 
+        order.setEmptyBottlesCollected(completeDeliveryRequest.getEmptyBottlesCollected());
+
+        OrderCalculationResult recalculation = orderCalculationService.calculateOrderTotals(
+                order.getOrderDetails(), completeDeliveryRequest.getEmptyBottlesCollected()
+        );
+
+        order.setTotalDepositRefunded(recalculation.getTotalDepositRefunded());
+        order.setNetDeposit(recalculation.getNetDeposit());
+
+        BigDecimal amount = order.getSubtotal().subtract(
+                order.getPromoDiscount() != null ? order.getPromoDiscount() :  BigDecimal.ZERO
+         );
+
+        BigDecimal totalAmount = amount.add(recalculation.getNetDeposit());
+
+        order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
+
         order.setOrderStatus(OrderStatus.COMPLETED);
-        order.setPaymentStatus(PaymentStatus.PAID);
         order.setCompletedAt(LocalDateTime.now());
 
-        if (order.getPaidAt() == null) {
+        if (order.getPaymentMethod() == PaymentMethod.CASH && order.getPaymentStatus() == PaymentStatus.PENDING) {
+            order.setPaymentStatus(PaymentStatus.PAID);
             order.setPaidAt(LocalDateTime.now());
         }
-
-        int emptyBottlesCollected = order.getEmptyBottlesCollected();
-        order.setEmptyBottlesCollected(emptyBottlesCollected);
-
-        if (emptyBottlesCollected > 0) {
-            OrderDetail firstDetail = order.getOrderDetails().getFirst();
-            inventoryService.addEmptyBottles(
-                    firstDetail.getProduct().getId(),
-                    emptyBottlesCollected
-            );
-        }
-
-        if (completeDeliveryRequest.getNotes() != null && !completeDeliveryRequest.getNotes().trim().isEmpty()) {
-            appendNotes(order, completeDeliveryRequest.getNotes());
-        }
-
         orderRepository.save(order);
         return orderMapper.toResponse(order);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -259,9 +263,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderMapper.toEntity(createOrderRequest);
         order.setAddress(address);
         order.setOrderNumber(orderNumberGenerator.generateOrderNumber());
-        order.setEmptyBottlesCollected(
-                createOrderRequest.getEmptyBottlesExpected() != null ?  createOrderRequest.getEmptyBottlesExpected() : 0
-        );
+        order.setEmptyBottlesCollected(0);
         order.setOrderDetails(orderDetails);
         orderDetails.forEach(orderDetail -> orderDetail.setOrder(order));
 
@@ -269,7 +271,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void applyCalculationToOrder(Order order, OrderCalculationResult calculation, PromoDiscountResult promoResult){
-        order.setCount(calculation.getTotalCount());
+        order.setTotalItems(calculation.getTotalCount());
         order.setSubtotal(calculation.getSubtotal());
         order.setTotalDepositCharged(calculation.getTotalDepositCharged());
         order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
@@ -280,12 +282,13 @@ public class OrderServiceImpl implements OrderService {
             order.setPromoDiscount(promoResult.getDiscount());
         }
 
-        BigDecimal totalAmount = calculation.getSubtotal()
+        BigDecimal amount = calculation.getSubtotal()
                 .subtract(promoResult.getDiscount());
-        BigDecimal finalAmount = totalAmount.add(calculation.getNetDeposit());
 
+        BigDecimal totalAmount = amount.add(calculation.getNetDeposit());
+
+        order.setAmount(amount);
         order.setTotalAmount(totalAmount);
-        order.setAmount(finalAmount);
     }
 
     private void updateOrderItems(Order order, List<UpdateOrderItemRequest> itemUpdates) {
@@ -314,26 +317,48 @@ public class OrderServiceImpl implements OrderService {
         if (newEmptyBottlesExpected != null) {
             order.setEmptyBottlesExpected(newEmptyBottlesExpected);
         }
+        int emptyBottles = order.getEmptyBottlesExpected();
 
         OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(
-                order.getOrderDetails(), order.getEmptyBottlesExpected()
+                order.getOrderDetails(), emptyBottles
         );
+
+        for (OrderDetail detail : order.getOrderDetails()) {
+            int refundableBottles = Math.min(emptyBottles, detail.getCount());
+            BigDecimal depositRefunded = detail.getDepositPerUnit()
+                    .multiply(BigDecimal.valueOf(refundableBottles))
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            detail.setDepositRefunded(depositRefunded);
+            detail.setLineTotal(
+                    detail.getSubtotal()
+                            .add(detail.getDepositCharged())
+                            .subtract(depositRefunded)
+            );
+        }
+
+        BigDecimal totalDepositRefunded = order.getOrderDetails()
+                .stream()
+                .map(OrderDetail::getDepositRefunded)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netDeposit = calculation.getTotalDepositCharged().subtract(totalDepositRefunded);
 
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
-        order.setCount(calculation.getTotalCount());
+        BigDecimal totalAmount = calculation.getSubtotal().subtract(promoDiscount);
+        BigDecimal finalAmount = totalAmount.add(netDeposit);
+
+        order.setTotalItems(calculation.getTotalCount());
         order.setSubtotal(calculation.getSubtotal());
         order.setTotalDepositCharged(calculation.getTotalDepositCharged());
-        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
-        order.setNetDeposit(calculation.getNetDeposit());
-
-        BigDecimal totalAmount = calculation.getSubtotal().subtract(promoDiscount);
-        BigDecimal finalAmount = totalAmount.add(calculation.getNetDeposit());
-
+        order.setTotalDepositRefunded(totalDepositRefunded);
+        order.setNetDeposit(netDeposit);
         order.setTotalAmount(totalAmount);
         order.setAmount(finalAmount);
     }
+
 
     private void appendNotes(Order order, String newNotes) {
         String existingNotes = order.getNotes();

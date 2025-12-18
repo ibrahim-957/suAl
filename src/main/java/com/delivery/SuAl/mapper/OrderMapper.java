@@ -28,7 +28,8 @@ public interface OrderMapper {
 
             @Mapping(target = "promoCode", source = "promo.promoCode"),
 
-            @Mapping(target = "address", source = "address")
+            @Mapping(target = "address", source = "address"),
+            @Mapping(target = "finalAmount", source = "amount")
     })
     OrderResponse toResponse(Order order);
 

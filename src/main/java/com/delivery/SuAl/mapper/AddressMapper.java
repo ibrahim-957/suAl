@@ -17,19 +17,8 @@ public interface AddressMapper {
     void updateEntityFromRequest(UpdateAddressRequest updateAddressRequest,
                                  @MappingTarget Address address);
 
-//    @Mapping(target = "fullAddress", expression = "java(buildFullAddress(address))")
     AddressResponse toResponse(Address address);
 
     List<AddressResponse> toResponseList(List<Address> addresses);
 
-    default String buildFullAddress(Address address) {
-        StringBuilder sb = new StringBuilder();
-        if (address.getCity() != null) sb.append(address.getCity());
-        if(address.getStreet() != null) sb.append(", ").append(address.getStreet());
-        if (address.getBuildingNumber() != null) sb.append(", ").append(address.getBuildingNumber());
-        if (address.getApartmentNumber() != null) sb.append(", ").append(address.getApartmentNumber());
-        if (address.getPostalCode() != null) sb.append(", ").append(address.getPostalCode());
-        return sb.toString().trim();
-
-    }
 }

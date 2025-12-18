@@ -62,9 +62,8 @@ public class Order {
     @JoinColumn(name = "address_id", nullable = false)
     private Address address;
 
-
-    @Column(nullable = false)
-    private int count;
+    @Column(nullable = false, name = "total_items")
+    private Integer totalItems;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;

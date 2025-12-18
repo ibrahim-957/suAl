@@ -181,7 +181,7 @@ CREATE TABLE orders
     driver_id               BIGINT,
     address_id              BIGINT         NOT NULL,
 
-    count                   INTEGER        NOT NULL,
+    total_items             INTEGER        NOT NULL,
 
     subtotal                NUMERIC(10, 2) NOT NULL,
     promo_id                BIGINT,

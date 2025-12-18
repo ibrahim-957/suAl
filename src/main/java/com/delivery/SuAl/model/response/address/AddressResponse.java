@@ -22,7 +22,6 @@ public class AddressResponse {
     private String postalCode;
     private BigDecimal latitude;
     private BigDecimal longitude;
-    private String fullAddress;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

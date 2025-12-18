@@ -29,7 +29,7 @@ public class OrderCalculationService {
         }
 
         BigDecimal totalDepositRefunder = calculateDepositRefund(
-                emptyBottlesExpected, depositPerUnit
+                emptyBottlesExpected, depositPerUnit, totalCount
         );
 
         BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunder);
@@ -39,11 +39,14 @@ public class OrderCalculationService {
         );
     }
 
-    private BigDecimal calculateDepositRefund(Integer emptyBottlesExpected, BigDecimal depositPerUnit) {
+    private BigDecimal calculateDepositRefund(Integer emptyBottlesExpected, BigDecimal depositPerUnit, int totalCount) {
         if(emptyBottlesExpected == null || emptyBottlesExpected <= 0 || depositPerUnit == null) {
             return BigDecimal.ZERO;
         }
-        return depositPerUnit.multiply(BigDecimal.valueOf(emptyBottlesExpected))
+
+        int refundable = Math.min(emptyBottlesExpected, totalCount);
+
+        return depositPerUnit.multiply(BigDecimal.valueOf(refundable))
                 .setScale(2, RoundingMode.HALF_UP);
 
     }

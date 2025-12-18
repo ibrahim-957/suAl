@@ -10,6 +10,7 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface OrderDetailMapper {
+    @Mapping(target = "count", source = "quantity")
     OrderDetail toEntity(OrderItemRequest orderItemRequest);
 
     @Mapping(target = "productName", source = "product.name")
