@@ -18,8 +18,6 @@ public interface CategoryMapper {
     void updateEntityFromRequest(UpdateCategoryRequest updateCategoryRequest,
                                  @MappingTarget Category category);
 
-    //@Mapping(target = "productCount", ignore = true)
     CategoryResponse toResponse(Category category);
 
-    //List<CategoryResponse> toResponseList(List<Category> categoryList);
 }

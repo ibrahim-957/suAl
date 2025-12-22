@@ -36,7 +36,7 @@ public class Company {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "company_status", nullable = false)
-    private CompanyStatus companyStatus;
+    private CompanyStatus companyStatus = CompanyStatus.ACTIVE;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime  createdAt;

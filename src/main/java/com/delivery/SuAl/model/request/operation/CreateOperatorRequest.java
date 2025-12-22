@@ -26,7 +26,4 @@ public class CreateOperatorRequest {
     @NotBlank
     @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
     private String phoneNumber;
-
-    @NotNull
-    private OperatorStatus operatorStatus;
 }

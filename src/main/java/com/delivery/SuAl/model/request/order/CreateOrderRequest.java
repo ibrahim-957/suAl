@@ -1,10 +1,7 @@
 package com.delivery.SuAl.model.request.order;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,13 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CreateOrderRequest {
-    @NotBlank(message = "Customer name is required")
-    @Size(max = 255, message = "Customer name must not exceed 255 characters")
-    private String customerName;
-
-    @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
-    private String phoneNumber;
+    private Long userId;
 
     @NotNull(message = "Address ID is required")
     private Long addressId;
@@ -31,9 +22,6 @@ public class CreateOrderRequest {
     @NotEmpty(message = "Order must have at least one item")
     @Size(min = 1, message = "Order must have at least one item")
     private List<OrderItemRequest> items;
-
-    @Min(value = 0)
-    private Integer emptyBottlesExpected;
 
     private String promoCode;
 

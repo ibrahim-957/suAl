@@ -77,35 +77,4 @@ public class OperatorController {
         PageResponse<OperatorResponse> pageResponse = operatorService.getAllOperators(pageable);
         return ResponseEntity.ok(ApiResponse.success(pageResponse));
     }
-
-    @GetMapping("/pending")
-    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getPendingOrders(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
-            @RequestParam(defaultValue = "ASC") String direction
-    ) {
-
-        Sort.Direction sortDirection = Sort.Direction.fromString(direction);
-        Pageable pageable = PageRequest.of(page, size, sortDirection, sortBy);
-
-        PageResponse<OrderResponse> pageResponse = operatorService.getPendingOrders(pageable);
-        return ResponseEntity.ok(ApiResponse.success(pageResponse));
-    }
-
-    @GetMapping("/orders")
-    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllOrders(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
-            @RequestParam(defaultValue = "ASC") String direction
-    ) {
-
-        Sort.Direction sortDirection = Sort.Direction.fromString(direction);
-        Pageable pageable = PageRequest.of(page, size, sortDirection, sortBy);
-
-        PageResponse<OrderResponse> orders = operatorService.getAllOrdersForManagement(pageable);
-
-        return ResponseEntity.ok(ApiResponse.success(orders));
-    }
 }

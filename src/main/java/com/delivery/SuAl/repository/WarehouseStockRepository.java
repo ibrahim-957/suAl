@@ -1,14 +1,15 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.WarehouseStock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,13 +21,17 @@ public interface WarehouseStockRepository extends JpaRepository<WarehouseStock, 
 
     List<WarehouseStock> findByProductId(Long productId);
 
-    @Query("SELECT ws FROM WarehouseStock ws " +
-            "WHERE ws.fullCount < ws.minimumStockAlert")
-    List<WarehouseStock> findLowStockProducts();
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id = :productId")
+    List<WarehouseStock> findByProductIdWithLock(@Param("productId") Long productId);
 
-    @Query("SELECT ws FROM WarehouseStock ws " +
-            "WHERE ws.fullCount = 0")
-    List<WarehouseStock> findOutOfStockProducts();
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id IN :productIds")
+    List<WarehouseStock> findByProductIdsWithLock(@Param("productIds") List<Long> productIds);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ws FROM WarehouseStock ws WHERE ws.id = :id")
+    Optional<WarehouseStock> findByIdWithLock(@Param("id") Long id);
 
     @Query("SELECT COALESCE(SUM(ws.fullCount + ws.emptyCount + ws.damagedCount), 0) " +
             "FROM WarehouseStock ws WHERE ws.warehouse.id = :warehouseId")

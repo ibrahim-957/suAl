@@ -17,48 +17,29 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "addresses")
+@Table(name = "user_containers")
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Address {
+public class UserContainer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String description;
-
-    private String city;
-    private String street;
-
-    @Column(name = "building_number")
-    private String buildingNumber;
-
-    @Column(name = "apartment_number")
-    private String apartmentNumber;
-
-    @Column(name = "postal_code")
-    private String postalCode;
-
-    @Column(precision = 10, scale = 8)
-    private BigDecimal latitude;
-
-    @Column(precision = 11, scale = 8)
-    private BigDecimal longitude;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonBackReference("addresses")
+    @JsonBackReference("user-containers")
     private User user;
 
-    @Column(name = "is_active")
-    private Boolean isActive = true;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+    private Integer quantity = 0;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

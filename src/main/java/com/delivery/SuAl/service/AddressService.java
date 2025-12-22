@@ -3,17 +3,17 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.model.request.address.CreateAddressRequest;
 import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
-import com.delivery.SuAl.model.response.wrapper.PageResponse;
-import org.springframework.data.domain.Pageable;
+
+import java.util.List;
 
 public interface AddressService {
-    AddressResponse createAddress(CreateAddressRequest createAddressRequest);
+    AddressResponse createAddress(Long userId, CreateAddressRequest createAddressRequest);
 
-    AddressResponse getAddressById(Long id);
+    AddressResponse getAddressById(Long userId, Long addressId);
 
-    AddressResponse updateAddress(Long id, UpdateAddressRequest updateAddressRequest);
+    AddressResponse updateAddress(Long userId, Long addressId, UpdateAddressRequest updateAddressRequest);
 
     void deleteAddress(Long id);
 
-    PageResponse<AddressResponse> getAllAddresses(Pageable pageable);
+    List<AddressResponse> getUserAddresses(Long userId);
 }

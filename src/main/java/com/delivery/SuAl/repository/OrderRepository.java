@@ -44,9 +44,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     """)
     Optional<Order> findByIdWithDetails(@Param("id") Long id);
 
-    @Query("SELECT o.orderNumber FROM Order o " +
-            "WHERE o.orderNumber LIKE CONCAT(:prefix, '%')")
-    List<String> findOrderNumbersByPrefix(@Param("prefix") String prefix);
+    @Query(value = "SELECT nextval('order_number_seq')",  nativeQuery = true)
+    Long getNextOrderSequence();
 
     @Query("SELECT COUNT(o) FROM Order o " +
             "WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay")

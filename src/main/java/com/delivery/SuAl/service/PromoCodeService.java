@@ -1,11 +1,11 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Promo;
+import com.delivery.SuAl.helper.PromoDiscountResult;
 import com.delivery.SuAl.model.DiscountType;
 import com.delivery.SuAl.model.PromoStatus;
 import com.delivery.SuAl.repository.PromoRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -27,26 +27,26 @@ public class PromoCodeService {
             Promo promo = promoRepository.findByPromoCode(promoCode.trim())
                     .orElseThrow(() -> new RuntimeException("Promo code not found"));
 
-            if (!isPromoValid(promo)){
+            if (!isPromoValid(promo)) {
                 return PromoDiscountResult.noDiscount();
             }
 
             BigDecimal discount = calculateDiscount(promo, subtotal);
             return new PromoDiscountResult(promo, discount);
-        }catch (Exception e){
+        } catch (Exception e) {
             return PromoDiscountResult.noDiscount();
         }
     }
 
-    private boolean isPromoValid(Promo promo){
+    private boolean isPromoValid(Promo promo) {
         LocalDate now = LocalDate.now();
         return promo.getPromoStatus() == PromoStatus.ACTIVE
-                && promo.getValidFrom().isBefore(now)
-                && promo.getValidTo().isAfter(now);
+                && !promo.getValidFrom().isAfter(now)
+                && !promo.getValidTo().isBefore(now);
     }
 
-    private BigDecimal calculateDiscount(Promo promo, BigDecimal subtotal){
-        if (promo.getMinOrderAmount() != null && subtotal.compareTo(promo.getMinOrderAmount()) < 0){
+    private BigDecimal calculateDiscount(Promo promo, BigDecimal subtotal) {
+        if (promo.getMinOrderAmount() != null && subtotal.compareTo(promo.getMinOrderAmount()) < 0) {
             return BigDecimal.ZERO;
         }
 
@@ -55,24 +55,10 @@ public class PromoCodeService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
                 : promo.getDiscountValue();
 
-        if (promo.getMaxDiscount() != null && discount.compareTo(promo.getMaxDiscount()) > 0){
+        if (promo.getMaxDiscount() != null && discount.compareTo(promo.getMaxDiscount()) > 0) {
             discount = promo.getMaxDiscount();
         }
 
         return discount;
-    }
-}
-
-@Value
-class PromoDiscountResult{
-    Promo promo;
-    BigDecimal discount;
-
-    public static PromoDiscountResult noDiscount(){
-        return new PromoDiscountResult(null,BigDecimal.ZERO);
-    }
-
-    public boolean hasPromo(){
-        return promo != null;
     }
 }

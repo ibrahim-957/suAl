@@ -17,7 +17,6 @@ public interface CompanyMapper {
     void updateEntityFromRequest(UpdateCompanyRequest updateCompanyRequest,
                                  @MappingTarget Company company);
 
-//    @Mapping(target = "productCount", ignore = true)
     CompanyResponse toResponse(Company company);
 
     List<CompanyResponse> toResponseList(List<Company> companyList);

@@ -4,14 +4,10 @@ import com.delivery.SuAl.model.request.address.CreateAddressRequest;
 import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
-import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.AddressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -22,11 +18,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/v1/api/addresses")
+@RequestMapping("/v1/api/users/{userId}/addresses")
 @RequiredArgsConstructor
 @Slf4j
 @Validated
@@ -35,43 +32,49 @@ public class AddressController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
-          @Valid @RequestBody CreateAddressRequest createAddressRequest){
-
-        AddressResponse addressResponse = addressService.createAddress(createAddressRequest);
+            @PathVariable Long userId,
+            @Valid @RequestBody CreateAddressRequest createAddressRequest
+    ) {
+        log.info("POST /api/users/{}/addresses - Creating address", userId);
+        AddressResponse addressResponse = addressService.createAddress(userId, createAddressRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(addressResponse));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(@PathVariable Long id){
-        AddressResponse addressResponse = addressService.getAddressById(id);
+    @GetMapping("/{addressId}")
+    public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(
+            @PathVariable Long userId,
+            @PathVariable Long addressId
+    ) {
+        log.info("GET /api/users/{}/addresses/{}", userId, addressId);
+        AddressResponse addressResponse = addressService.getAddressById(userId, addressId);
         return ResponseEntity.ok(ApiResponse.success(addressResponse));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{addressId}")
     public ResponseEntity<ApiResponse<AddressResponse>> updateAddress(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateAddressRequest updateAddressRequest){
-        AddressResponse addressResponse = addressService.updateAddress(id, updateAddressRequest);
+            @PathVariable Long userId,
+            @PathVariable Long addressId,
+            @Valid @RequestBody UpdateAddressRequest updateAddressRequest
+    ) {
+        log.info("PUT /api/users/{}/addresses/{}", userId, addressId);
+        AddressResponse addressResponse = addressService.updateAddress(userId, addressId, updateAddressRequest);
         return ResponseEntity.ok(ApiResponse.success("Address updated successfully", addressResponse));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<AddressResponse>> deleteAddress(@PathVariable Long id){
-        addressService.deleteAddress(id);
-        return ResponseEntity.ok(ApiResponse.success("Address deleted successfully", null));
+    @DeleteMapping("/{addressId}")
+    public ResponseEntity<Void> deleteAddress(
+            @PathVariable Long userId,
+            @PathVariable Long addressId
+    ) {
+        log.info("DELETE /api/users/{}/addresses/{} - Deleting address", userId, addressId);
+        addressService.deleteAddress(addressId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<AddressResponse>>> getAllAddresses(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
-            @RequestParam(defaultValue = "ASC") String direction){
-
-        Sort.Direction sortDirection = Sort.Direction.fromString(direction);
-        Pageable  pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-
-        PageResponse<AddressResponse> pageResponse = addressService.getAllAddresses(pageable);
-        return ResponseEntity.ok(ApiResponse.success(pageResponse));
+    public ResponseEntity<ApiResponse<List<AddressResponse>>> getUserAddresses(@PathVariable Long userId) {
+        log.info("GET /api/users/{}/addresses", userId);
+        List<AddressResponse> addressResponseList = addressService.getUserAddresses(userId);
+        return ResponseEntity.ok(ApiResponse.success(addressResponseList));
     }
 }

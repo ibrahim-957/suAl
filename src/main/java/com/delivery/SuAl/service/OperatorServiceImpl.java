@@ -38,11 +38,11 @@ public class OperatorServiceImpl implements OperatorService {
         log.info("Creating new operator with email: {}", createOperatorRequest.getEmail());
 
         if (operatorRepository.findByEmail(createOperatorRequest.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already exists");
+            throw new RuntimeException("Email already exists: " + createOperatorRequest.getEmail());
         }
 
         if (operatorRepository.findByPhoneNumber(createOperatorRequest.getPhoneNumber()).isPresent()) {
-            throw new RuntimeException("Phone number already exists");
+            throw new RuntimeException("Phone number already exists: " + createOperatorRequest.getPhoneNumber());
         }
 
         Operator operator = operatorMapper.toEntity(createOperatorRequest);
@@ -106,28 +106,6 @@ public class OperatorServiceImpl implements OperatorService {
                 .map(operatorMapper::toResponse)
                 .collect(Collectors.toList());
         return PageResponse.of(responses, operatorPage);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getPendingOrders(Pageable pageable) {
-        log.info("Getting pending orders with page: {}", pageable);
-        Page<Order> orderPage = orderRepository.findByOrderStatus(OrderStatus.PENDING, pageable);
-
-        List<OrderResponse> responses = orderPage.getContent().stream()
-                .map(orderMapper::toResponse)
-                .collect(Collectors.toList());
-
-        return PageResponse.of(responses, orderPage);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable) {
-        Page<Order> orderPage = orderRepository.findAll(pageable);
-
-        List<OrderResponse> responses = orderMapper.toResponseList(orderPage.getContent());
-        return PageResponse.of(responses, orderPage);
     }
 
     @Override

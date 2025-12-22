@@ -21,9 +21,5 @@ public interface OperatorService {
 
     PageResponse<OperatorResponse> getAllOperators(Pageable pageable);
 
-    PageResponse<OrderResponse> getPendingOrders(Pageable pageable);
-
-    PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable);
-
     List<DriverResponse> getAvailableDrivers();
 }
