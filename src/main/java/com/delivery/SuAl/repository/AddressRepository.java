@@ -13,7 +13,7 @@ public interface AddressRepository extends JpaRepository<Address, Long> {
 
     List<Address> findByIdAndIsActiveTrue(Long userId);
 
-    Optional<Address> findByIdAndUserIdAndIsActiveTrue(Long id, Long userId);
+    Optional<Address> findByIdAndUserIdAndIsActiveTrue(Long userId, Long id);
 
     Optional<Address> findByIdAndUserId(Long id, Long userId);
 }
