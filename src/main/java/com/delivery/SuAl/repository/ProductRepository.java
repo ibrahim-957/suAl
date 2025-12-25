@@ -34,10 +34,6 @@ public interface ProductRepository extends JpaRepository<Product,Long> {
             "WHERE p.id = :id")
     Optional<Product> findByIdWithPrices(@Param("id") Long id);
 
-    @Query("SELECT p FROM Product p " +
-            "WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) AND p.productStatus = 'ACTIVE'")
-    List<Product> searchProducts(@Param("search")  String search);
-
     Optional<Product> findByNameAndCompanyId(String name, Long companyId);
 
     @Query("SELECT COUNT(p) FROM Product p " +
@@ -48,7 +44,4 @@ public interface ProductRepository extends JpaRepository<Product,Long> {
             "WHERE p.category.id = :categoryId")
     Long countByCategoryId(@Param("categoryId")  Long categoryId);
 
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.prices " +
-            "WHERE p.id IN : ids")
-    List<Product> findAllWithPricesByIds(@Param("ids") List<Long> ids);
 }

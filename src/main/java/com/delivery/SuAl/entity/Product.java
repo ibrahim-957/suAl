@@ -16,6 +16,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "products")
+@Table(name = "products", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "name"}))
 @Getter
 @Setter
 @AllArgsConstructor
@@ -50,7 +51,7 @@ public class Product {
 
     private String size;
 
-    @Column(name = "deposit_amount", precision = 10, scale = 2)
+    @Column(name = "deposit_amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal depositAmount = BigDecimal.ZERO;
 
     @Column(name = "product_status", nullable = false)
@@ -60,10 +61,10 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Price> prices = new ArrayList<>();
 
-    @Column(name = "created_at",  nullable = false)
+    @Column(name = "created_at",  nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -75,15 +76,5 @@ public class Product {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    public void addPrice(Price price) {
-        prices.add(price);
-        price.setProduct(this);
-    }
-
-    public void removePrice(Price price) {
-        prices.remove(price);
-        price.setProduct(null);
     }
 }

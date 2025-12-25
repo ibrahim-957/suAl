@@ -290,7 +290,7 @@ public class OrderServiceImpl implements OrderService {
 
             if (order.getPaymentMethod() == PaymentMethod.CASH &&
                     order.getPaymentStatus() == PaymentStatus.PENDING) {
-                order.setPaymentStatus(PaymentStatus.PAID);
+                order.setPaymentStatus(PaymentStatus.SUCCESS);
                 order.setPaidAt(LocalDateTime.now());
             }
 
@@ -316,7 +316,7 @@ public class OrderServiceImpl implements OrderService {
     public Long countTodayOrders() {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
-        return orderRepository.countTodaysOrders(startOfDay, endOfDay);
+        return orderRepository.countTodayOrders(startOfDay, endOfDay);
     }
 
     @Override

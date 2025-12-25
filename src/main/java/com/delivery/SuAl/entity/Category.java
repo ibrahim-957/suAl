@@ -29,14 +29,17 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "category_type")
+    @Column(name = "category_type",  nullable = false, unique = true)
     @Enumerated(EnumType.STRING)
     private CategoryType categoryType;
 
-    @Column(name = "created_at",  updatable = false)
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    @Column(name = "created_at",  updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist

@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class OrderDetail {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -36,7 +38,7 @@ public class OrderDetail {
     private Order order;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id",  nullable = false)
+    @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -46,7 +48,6 @@ public class OrderDetail {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
-
 
     @Column(name = "price_per_unit", nullable = false, precision = 10, scale = 2)
     private BigDecimal pricePerUnit;
@@ -60,7 +61,6 @@ public class OrderDetail {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 
-
     @Column(name = "deposit_per_unit", nullable = false, precision = 10, scale = 2)
     private BigDecimal depositPerUnit;
 
@@ -68,7 +68,7 @@ public class OrderDetail {
     private int containersReturned = 0;
 
     @Column(name = "deposit_charged", precision = 10, scale = 2)
-    private BigDecimal depositCharged =  BigDecimal.ZERO;
+    private BigDecimal depositCharged = BigDecimal.ZERO;
 
     @Column(name = "deposit_refunded", precision = 10, scale = 2)
     private BigDecimal depositRefunded = BigDecimal.ZERO;
@@ -82,8 +82,17 @@ public class OrderDetail {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate(){
         createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate(){
+        updatedAt = LocalDateTime.now();
     }
 }

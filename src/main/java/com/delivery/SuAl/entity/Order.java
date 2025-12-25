@@ -38,6 +38,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Order {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -46,7 +47,7 @@ public class Order {
     private String orderNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id",  nullable = false)
+    @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference("orders")
     private User user;
 
@@ -81,7 +82,6 @@ public class Order {
     @Column(name = "total_amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal totalAmount;
 
-
     @Column(name = "total_deposit_charged", precision = 10, scale = 2)
     private BigDecimal totalDepositCharged = BigDecimal.ZERO;
 
@@ -94,24 +94,20 @@ public class Order {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 
-
-    @Column(name = "delivery_date")
     private LocalDate deliveryDate;
 
-
-    @Column(name = "order_status")
     @Enumerated(EnumType.STRING)
+    @Column(name = "order_status")
     private OrderStatus orderStatus = OrderStatus.PENDING;
 
-    @Column(name = "payment_method")
     @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method")
     private PaymentMethod paymentMethod = PaymentMethod.CASH;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status")
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
 
-    @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
     @Column(name = "empty_bottles_expected")
@@ -123,25 +119,26 @@ public class Order {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @Column(name = "rejection_reason")
     private String rejectionReason;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference("order-details")
     private List<OrderDetail> orderDetails = new ArrayList<>();
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference("order-campaign-bonus")
     private List<OrderCampaignBonus> campaignBonuses = new ArrayList<>();
+
+    @OneToMany(mappedBy = "order")
+    private List<Payment> payments = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
@@ -152,16 +149,5 @@ public class Order {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-
-    public void addOrderDetail(OrderDetail detail) {
-        orderDetails.add(detail);
-        detail.setOrder(this);
-    }
-
-    public void addCampaignBonus(OrderCampaignBonus bonus) {
-        campaignBonuses.add(bonus);
-        bonus.setOrder(this);
     }
 }

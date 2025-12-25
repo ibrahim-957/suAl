@@ -49,7 +49,7 @@ public class OrderCampaignBonus {
     @Column(name = "original_value", nullable = false, precision = 10, scale = 2)
     private BigDecimal originalValue;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist

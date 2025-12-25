@@ -2,6 +2,8 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Order;
+import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.DriverMapper;
 import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.DriverStatus;
@@ -42,7 +44,7 @@ public class DriverServiceImpl implements DriverService {
     public DriverResponse createDriver(CreateDriverRequest createDriverRequest) {
         log.info("Creating new driver with phone number {}", createDriverRequest.getPhoneNumber());
         if (driverRepository.findByPhoneNumber(createDriverRequest.getPhoneNumber()).isPresent()) {
-            throw new RuntimeException("Driver already exists with phone number " + createDriverRequest.getPhoneNumber());
+            throw new AlreadyExistsException("Driver already exists with phone number " + createDriverRequest.getPhoneNumber());
         }
         Driver driver = driverMapper.toEntity(createDriverRequest);
         Driver savedDriver = driverRepository.save(driver);
@@ -58,7 +60,7 @@ public class DriverServiceImpl implements DriverService {
     public DriverResponse getDriverById(Long id) {
         log.info("Fetching driver with id {}", id);
         Driver driver = driverRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Driver with id " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Driver with id " + id + " not found"));
 
         DriverResponse driverResponse = driverMapper.toResponse(driver);
         enrichWithAvailability(driverResponse, id);
@@ -71,11 +73,11 @@ public class DriverServiceImpl implements DriverService {
     public DriverResponse updateDriver(Long id, UpdateDriverRequest updateDriverRequest) {
         log.info("Updating driver with id {}", id);
         Driver driver = driverRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Driver with id " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Driver with id " + id + " not found"));
 
         if (updateDriverRequest.getPhoneNumber() != null && !updateDriverRequest.getPhoneNumber().equals(driver.getPhoneNumber())) {
             driverRepository.findByPhoneNumber(updateDriverRequest.getPhoneNumber()).ifPresent(existing -> {
-                throw new RuntimeException("Driver already exists with phone number: " + updateDriverRequest.getPhoneNumber());
+                throw new AlreadyExistsException("Driver already exists with phone number: " + updateDriverRequest.getPhoneNumber());
             });
         }
 
@@ -92,7 +94,11 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public void deleteDriver(Long id) {
-        driverRepository.deleteById(id);
+        Driver driver = driverRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Driver with id " + id + " not found"));
+
+        driver.setDriverStatus(DriverStatus.INACTIVE);
+        driverRepository.save(driver);
         log.info("Driver deleted successfully");
     }
 

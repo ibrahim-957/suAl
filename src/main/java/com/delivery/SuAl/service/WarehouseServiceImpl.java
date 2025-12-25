@@ -2,6 +2,8 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
+import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.WarehouseMapper;
 import com.delivery.SuAl.mapper.WarehouseStockMapper;
 import com.delivery.SuAl.model.WarehouseStatus;
@@ -41,7 +43,7 @@ public class WarehouseServiceImpl implements WarehouseService {
         log.info("Creating new warehouse with name: {}", createWarehouseRequest.getName());
 
         if (warehouseRepository.findByName(createWarehouseRequest.getName()).isPresent()) {
-            throw new RuntimeException("Warehouse already exists");
+            throw new AlreadyExistsException("Warehouse already exists");
         }
 
         Warehouse warehouse = new Warehouse();
@@ -64,7 +66,7 @@ public class WarehouseServiceImpl implements WarehouseService {
         log.info("Getting warehouse with ID: {}", id);
 
         Warehouse warehouse = warehouseRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Warehouse not found with ID: " + id));
+                .orElseThrow(() -> new NotFoundException("Warehouse not found with ID: " + id));
 
         WarehouseResponse response = warehouseMapper.toResponse(warehouse);
 
@@ -115,7 +117,7 @@ public class WarehouseServiceImpl implements WarehouseService {
         log.info("Getting all stock in warehouse with ID: {}", warehouseId);
 
         if (!warehouseRepository.existsById(warehouseId)) {
-            throw new RuntimeException("Warehouse not found with ID: " + warehouseId);
+            throw new NotFoundException("Warehouse not found with ID: " + warehouseId);
         }
 
         Page<WarehouseStock> stockPage = warehouseStockRepository
@@ -133,7 +135,7 @@ public class WarehouseServiceImpl implements WarehouseService {
         log.info("Getting stock for warehouse ID: {} and product ID: {}", warehouseId, productId);
 
         WarehouseStock stock = warehouseStockRepository.findByWarehouseIdAndProductId(warehouseId, productId)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new NotFoundException(
                         "Stock not found for warehouse ID: " + warehouseId + " and product ID: " + productId));
         return warehouseStockMapper.toResponse(stock);
     }
@@ -144,7 +146,7 @@ public class WarehouseServiceImpl implements WarehouseService {
         log.info("Updating stock for warehouse ID: {} and product ID: {}", warehouseId, productId);
 
         WarehouseStock stock = warehouseStockRepository.findByWarehouseIdAndProductId(warehouseId, productId)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new NotFoundException(
                         "Stock not found for warehouse ID: " + warehouseId + " and product ID: " + productId));
 
         if (updateStockRequest.getFullCount() != null) {

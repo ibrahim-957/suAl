@@ -5,6 +5,8 @@ import com.delivery.SuAl.entity.Company;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
+import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.ProductMapper;
 import com.delivery.SuAl.model.request.product.CreatePriceRequest;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
@@ -48,16 +50,16 @@ public class ProductServiceImpl implements ProductService {
         log.info("Creating new product with name: {}", request.getName());
 
         Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
-                .orElseThrow(() -> new RuntimeException("Warehouse not found"));
+                .orElseThrow(() -> new NotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
 
         Company company = companyRepository.findById(request.getCompanyId())
-                .orElseThrow(() -> new RuntimeException("Company not found"));
+                .orElseThrow(() -> new NotFoundException("Company not found with id: " + request.getCompanyId()));
 
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new NotFoundException("Category not found with id: " + request.getCategoryId()));
 
         if (productRepository.findByNameAndCompanyId(request.getName(), request.getCompanyId()).isPresent()) {
-            throw new RuntimeException("Product already exists");
+            throw new AlreadyExistsException("Product already exists with name " + request.getName());
         }
 
         Product product = productMapper.toEntity(request);
@@ -80,8 +82,6 @@ public class ProductServiceImpl implements ProductService {
         WarehouseStock warehouseStock = new WarehouseStock();
         warehouseStock.setWarehouse(warehouse);
         warehouseStock.setProduct(savedProduct);
-        warehouseStock.setCategory(category);
-        warehouseStock.setCompany(company);
         warehouseStock.setFullCount(request.getInitialFullCount());
         warehouseStock.setEmptyCount(defaultValue(request.getInitialEmptyCount(), 0));
         warehouseStock.setDamagedCount(defaultValue(request.getInitialDamagedCount(), 0));
@@ -103,7 +103,7 @@ public class ProductServiceImpl implements ProductService {
         log.info("Getting product by ID: {}", id);
 
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
         ProductResponse response = productMapper.toResponse(product);
         enrichWithPriceData(response, product.getId());
@@ -115,23 +115,23 @@ public class ProductServiceImpl implements ProductService {
         log.info("Updating product with name: {}", request.getName());
 
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
         if (request.getCompanyId() != null && !request.getCompanyId().equals(product.getCompany().getId())) {
             Company company = companyRepository.findById(request.getCompanyId())
-                    .orElseThrow(() -> new RuntimeException("Company not found with ID: " + request.getCompanyId()));
+                    .orElseThrow(() -> new NotFoundException("Company not found with ID: " + request.getCompanyId()));
             product.setCompany(company);
         }
 
         if (request.getCategoryId() != null && !request.getCategoryId().equals(product.getCategory().getId())) {
             Category category = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("Category not found with ID: " + request.getCategoryId()));
+                    .orElseThrow(() -> new NotFoundException("Category not found with ID: " + request.getCategoryId()));
             product.setCategory(category);
         }
         if (request.getName() != null && !request.getName().equals(product.getName())) {
             productRepository.findByNameAndCompanyId(request.getName(), product.getCompany().getId())
                     .ifPresent(existing -> {
-                        throw new RuntimeException("Product already exists with name: " + request.getName() + " for this company");
+                        throw new AlreadyExistsException("Product already exists with name: " + request.getName() + " for this company");
                     });
         }
 

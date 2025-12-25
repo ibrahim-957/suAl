@@ -36,6 +36,9 @@ public class Campaign {
     @Column(name = "campaign_id", nullable = false, unique = true, updatable = false)
     private String campaignId;
 
+    @Column(nullable = false)
+    private String name;
+
     private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -52,6 +55,15 @@ public class Campaign {
     @Column(name = "free_quantity", nullable = false)
     private int freeQuantity;
 
+    @Column(name = "max_uses_per_user")
+    private Integer maxUsesPerUser;
+
+    @Column(name = "max_total_uses")
+    private Integer maxTotalUses;
+
+    @Column(name = "current_total_uses", nullable = false)
+    private int currentTotalUses = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "campaign_status", nullable = false)
     private CampaignStatus campaignStatus = CampaignStatus.ACTIVE;
@@ -62,10 +74,10 @@ public class Campaign {
     @Column(name = "valid_to")
     private LocalDate validTo;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -77,5 +89,20 @@ public class Campaign {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isActive(){
+        LocalDate now = LocalDate.now();
+        return campaignStatus == CampaignStatus.ACTIVE
+                && !now.isAfter(validFrom)
+                && !now.isBefore(validTo);
+    }
+
+    public boolean hasReachedTotalLimit(){
+        return maxTotalUses != null && currentTotalUses > maxTotalUses;
+    }
+
+    public void incrementUses(){
+        this.currentTotalUses++;
     }
 }

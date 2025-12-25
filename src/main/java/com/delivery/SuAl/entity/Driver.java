@@ -35,19 +35,20 @@ public class Driver {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
+    @Column(name = "email", unique = true)
     private String email;
 
-    @Column(name = "phone_number", nullable = false)
+    @Column(name = "phone_number", nullable = false, unique = true)
     private String phoneNumber;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "driver_status", nullable = false)
     private DriverStatus driverStatus = DriverStatus.ACTIVE;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist

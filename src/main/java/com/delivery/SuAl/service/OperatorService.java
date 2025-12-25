@@ -2,13 +2,9 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.model.request.operation.CreateOperatorRequest;
 import com.delivery.SuAl.model.request.operation.UpdateOperatorRequest;
-import com.delivery.SuAl.model.response.operation.DriverResponse;
 import com.delivery.SuAl.model.response.operation.OperatorResponse;
-import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import org.springframework.data.domain.Pageable;
-
-import java.util.List;
 
 public interface OperatorService {
     OperatorResponse createOperator(CreateOperatorRequest createOperatorRequest);
@@ -21,5 +17,4 @@ public interface OperatorService {
 
     PageResponse<OperatorResponse> getAllOperators(Pageable pageable);
 
-    List<DriverResponse> getAvailableDrivers();
 }

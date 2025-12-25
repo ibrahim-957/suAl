@@ -33,7 +33,6 @@ public class Address {
 
     @Column(nullable = false)
     private String description;
-
     private String city;
     private String street;
 
@@ -57,13 +56,13 @@ public class Address {
     @JsonBackReference("addresses")
     private User user;
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist

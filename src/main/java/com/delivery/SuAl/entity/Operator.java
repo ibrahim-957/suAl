@@ -35,19 +35,20 @@ public class Operator {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
+    @Column(name = "email", unique = true)
     private String email;
 
-    @Column(name = "phone_number")
+    @Column(name = "phone_number", unique = true)
     private String phoneNumber;
 
     @Column(name = "operator_status", nullable = false)
     @Enumerated(EnumType.STRING)
     private OperatorStatus operatorStatus = OperatorStatus.ACTIVE;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist

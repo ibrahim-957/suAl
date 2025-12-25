@@ -1,7 +1,10 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Company;
+import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.CompanyMapper;
+import com.delivery.SuAl.model.CompanyStatus;
 import com.delivery.SuAl.model.request.companyAndcategory.CreateCompanyRequest;
 import com.delivery.SuAl.model.request.companyAndcategory.UpdateCompanyRequest;
 import com.delivery.SuAl.model.response.companyAndcategory.CompanyResponse;
@@ -32,7 +35,7 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Creating new company with name: {}", createCompanyRequest.getName());
 
         if (companyRepository.findByName(createCompanyRequest.getName()).isPresent())
-            throw new RuntimeException("Company with name " + createCompanyRequest.getName() + " already exists");
+            throw new AlreadyExistsException("Company with name " + createCompanyRequest.getName() + " already exists");
 
         Company company = companyMapper.toEntity(createCompanyRequest);
         Company savedCompany = companyRepository.save(company);
@@ -50,7 +53,7 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Getting company with ID: {}", id);
 
         Company company = companyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Company with ID: " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Company with ID: " + id + " not found"));
 
         CompanyResponse companyResponse = companyMapper.toResponse(company);
         companyResponse.setProductCount(productRepository.countByCompanyId(id));
@@ -63,11 +66,11 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Updating company with ID: {}", id);
 
         Company company = companyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Company with ID: " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Company with ID: " + id + " not found"));
 
         if (updateCompanyRequest.getName() != null && !updateCompanyRequest.getName().equals(company.getName())) {
             companyRepository.findByName(updateCompanyRequest.getName()).ifPresent(existing -> {
-                throw new RuntimeException("Company with name " + updateCompanyRequest.getName() + " already exists");
+                throw new AlreadyExistsException("Company with name " + updateCompanyRequest.getName() + " already exists");
             });
         }
 
@@ -83,7 +86,11 @@ public class CompanyServiceImpl implements CompanyService {
 
     @Override
     public void deleteCompany(Long id) {
-        companyRepository.deleteById(id);
+        Company company = companyRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Company with ID: " + id + " not found"));
+
+        company.setCompanyStatus(CompanyStatus.DEACTIVATED);
+        companyRepository.save(company);
         log.info("Company deleted successfully with ID: {}", id);
     }
 

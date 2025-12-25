@@ -1,6 +1,9 @@
 package com.delivery.SuAl.model;
 
 public enum PaymentStatus {
+    CREATED,
     PENDING,
-    PAID
+    SUCCESS,
+    FAILED,
+    CANCELED
 }

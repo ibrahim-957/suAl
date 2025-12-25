@@ -22,16 +22,8 @@ public interface WarehouseStockRepository extends JpaRepository<WarehouseStock, 
     List<WarehouseStock> findByProductId(Long productId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id = :productId")
-    List<WarehouseStock> findByProductIdWithLock(@Param("productId") Long productId);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id IN :productIds")
     List<WarehouseStock> findByProductIdsWithLock(@Param("productIds") List<Long> productIds);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT ws FROM WarehouseStock ws WHERE ws.id = :id")
-    Optional<WarehouseStock> findByIdWithLock(@Param("id") Long id);
 
     @Query("SELECT COALESCE(SUM(ws.fullCount + ws.emptyCount + ws.damagedCount), 0) " +
             "FROM WarehouseStock ws WHERE ws.warehouse.id = :warehouseId")

@@ -1,18 +1,15 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Operator;
-import com.delivery.SuAl.entity.Order;
+import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.OperatorMapper;
-import com.delivery.SuAl.mapper.OrderMapper;
-import com.delivery.SuAl.model.OrderStatus;
+import com.delivery.SuAl.model.OperatorStatus;
 import com.delivery.SuAl.model.request.operation.CreateOperatorRequest;
 import com.delivery.SuAl.model.request.operation.UpdateOperatorRequest;
-import com.delivery.SuAl.model.response.operation.DriverResponse;
 import com.delivery.SuAl.model.response.operation.OperatorResponse;
-import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.OperatorRepository;
-import com.delivery.SuAl.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,9 +25,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OperatorServiceImpl implements OperatorService {
     private final OperatorRepository operatorRepository;
-    private final OrderRepository orderRepository;
     private final OperatorMapper operatorMapper;
-    private final OrderMapper orderMapper;
 
     @Override
     @Transactional
@@ -38,11 +33,11 @@ public class OperatorServiceImpl implements OperatorService {
         log.info("Creating new operator with email: {}", createOperatorRequest.getEmail());
 
         if (operatorRepository.findByEmail(createOperatorRequest.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already exists: " + createOperatorRequest.getEmail());
+            throw new AlreadyExistsException("Email already exists: " + createOperatorRequest.getEmail());
         }
 
         if (operatorRepository.findByPhoneNumber(createOperatorRequest.getPhoneNumber()).isPresent()) {
-            throw new RuntimeException("Phone number already exists: " + createOperatorRequest.getPhoneNumber());
+            throw new AlreadyExistsException("Phone number already exists: " + createOperatorRequest.getPhoneNumber());
         }
 
         Operator operator = operatorMapper.toEntity(createOperatorRequest);
@@ -58,7 +53,7 @@ public class OperatorServiceImpl implements OperatorService {
         log.info("Getting operator with id: {}", id);
 
         Operator operator = operatorRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Operator with id " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Operator with id " + id + " not found"));
 
         return operatorMapper.toResponse(operator);
     }
@@ -69,31 +64,35 @@ public class OperatorServiceImpl implements OperatorService {
         log.info("Updating operator with id: {}", id);
 
         Operator operator = operatorRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Operator with id " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Operator with id " + id + " not found"));
 
         if (updateOperatorRequest.getPhoneNumber() != null && !updateOperatorRequest.getPhoneNumber().equals(operator.getPhoneNumber())) {
             operatorRepository.findByPhoneNumber(updateOperatorRequest.getPhoneNumber()).ifPresent(existing -> {
-                throw new RuntimeException("Operator already exists with phone number: " + updateOperatorRequest.getPhoneNumber());
+                throw new AlreadyExistsException("Operator already exists with phone number: " + updateOperatorRequest.getPhoneNumber());
             });
         }
 
         if (updateOperatorRequest.getEmail() != null && !updateOperatorRequest.getEmail().equals(operator.getEmail())) {
             operatorRepository.findByEmail(updateOperatorRequest.getEmail()).ifPresent(existing -> {
-                throw new RuntimeException("Operator already exists with email: " + updateOperatorRequest.getEmail());
+                throw new AlreadyExistsException("Operator already exists with email: " + updateOperatorRequest.getEmail());
             });
         }
 
         operatorMapper.updateEntityFromRequest(updateOperatorRequest, operator);
         Operator updatedOperator = operatorRepository.save(operator);
-        log.info("Operator updated: {}", updatedOperator);
+        log.info("Operator updated with id: {}", updatedOperator.getId());
         return operatorMapper.toResponse(updatedOperator);
     }
 
     @Override
     @Transactional
     public void deleteOperator(Long id) {
-        operatorRepository.deleteById(id);
-        log.info("Operator deleted: {}", id);
+        Operator operator = operatorRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Operator with id " + id + " not found"));
+
+        operator.setOperatorStatus(OperatorStatus.INACTIVE);
+        operatorRepository.save(operator);
+        log.info("Operator deleted with id: {}", id);
     }
 
     @Override
@@ -106,10 +105,5 @@ public class OperatorServiceImpl implements OperatorService {
                 .map(operatorMapper::toResponse)
                 .collect(Collectors.toList());
         return PageResponse.of(responses, operatorPage);
-    }
-
-    @Override
-    public List<DriverResponse> getAvailableDrivers() {
-        return List.of();
     }
 }

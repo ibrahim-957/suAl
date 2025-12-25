@@ -12,44 +12,23 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
-    Optional<Order> findByOrderNumber(String orderNumber);
-
     List<Order> findByOrderStatus(OrderStatus orderStatus);
 
     Page<Order> findByOrderStatus(OrderStatus orderStatus, Pageable pageable);
 
-    List<Order> findByOperatorId(Long operatorId);
-
-    List<Order> findByDriverId(Long driverId);
-
     Page<Order> findByDriverIdAndOrderStatus(Long driverId, OrderStatus orderStatus, Pageable pageable);
 
     boolean existsByDriverIdAndOrderStatusIn(Long driverId, List<OrderStatus> orderStatus);
-
-    Long countByOrderNumberStartingWith(String prefix);
-
-    @Query("""
-        SELECT o
-        FROM Order o
-        LEFT JOIN FETCH o.orderDetails
-        LEFT JOIN FETCH o.address
-        LEFT JOIN FETCH o.operator
-        LEFT JOIN FETCH o.driver
-        LEFT JOIN FETCH o.promo
-        WHERE o.id = :id
-    """)
-    Optional<Order> findByIdWithDetails(@Param("id") Long id);
 
     @Query(value = "SELECT nextval('order_number_seq')",  nativeQuery = true)
     Long getNextOrderSequence();
 
     @Query("SELECT COUNT(o) FROM Order o " +
             "WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay")
-    Long countTodaysOrders(@Param("startOfDay") LocalDateTime startOfDay,
+    Long countTodayOrders(@Param("startOfDay") LocalDateTime startOfDay,
                            @Param("endOfDay") LocalDateTime endOfDay);
 
     @Query("SELECT SUM(o.amount) FROM Order o " +

@@ -1,6 +1,8 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.UserMapper;
 import com.delivery.SuAl.model.request.user.CreateUserRequest;
 import com.delivery.SuAl.model.request.user.UpdateUserRequest;
@@ -32,7 +34,7 @@ public class UserServiceImpl implements UserService {
         if (existingUser.isPresent()) {
             User user = existingUser.get();
             if (user.getIsActive())
-                throw new RuntimeException("User already exists: " + createUserRequest.getPhoneNumber());
+                throw new AlreadyExistsException("User already exists: " + createUserRequest.getPhoneNumber());
             else {
                 log.info("Reactivating user with phone number {}", createUserRequest.getPhoneNumber());
                 user.setFirstName(createUserRequest.getFirstName());
@@ -57,12 +59,12 @@ public class UserServiceImpl implements UserService {
         log.info("Updating user with id {}", id);
 
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id " + id));
+                .orElseThrow(() -> new NotFoundException("User not found with id " + id));
 
         if (updateUserRequest.getPhoneNumber() != null &&
                 !updateUserRequest.getPhoneNumber().equals(user.getPhoneNumber()) &&
                 userRepository.existsByPhoneNumber(updateUserRequest.getPhoneNumber())) {
-            throw new RuntimeException("Phone number already exists: " + updateUserRequest.getPhoneNumber());
+            throw new AlreadyExistsException("Phone number already exists: " + updateUserRequest.getPhoneNumber());
         }
 
         userMapper.updateEntityFromRequest(updateUserRequest, user);
@@ -75,7 +77,7 @@ public class UserServiceImpl implements UserService {
     public UserResponse getUserById(Long id) {
         log.info("Getting user with id {}", id);
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id " + id));
+                .orElseThrow(() -> new NotFoundException("User not found with id " + id));
         return userMapper.toResponse(user);
     }
 
@@ -83,7 +85,7 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(Long id) {
         log.info("Deleting user with id {}", id);
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id " + id));
+                .orElseThrow(() -> new NotFoundException("User not found with id " + id));
         user.setIsActive(false);
         userRepository.save(user);
         log.info("User deleted successfully with id: {}", id);

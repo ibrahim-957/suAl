@@ -33,16 +33,17 @@ public class Warehouse {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true)
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "warehouse_status")
+    @Column(name = "warehouse_status", nullable = false)
     private WarehouseStatus warehouseStatus = WarehouseStatus.ACTIVE;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "warehouse", cascade = CascadeType.ALL)

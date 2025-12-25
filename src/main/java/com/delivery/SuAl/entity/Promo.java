@@ -50,6 +50,15 @@ public class Promo {
     @Column(name = "max_discount", precision = 10, scale = 2)
     private BigDecimal maxDiscount;
 
+    @Column(name = "max_uses_per_user")
+    private Integer maxUsesPerUser;
+
+    @Column(name = "max_total_uses")
+    private Integer maxTotalUses;
+
+    @Column(name = "current_total_uses", nullable = false)
+    private int currentTotalUses = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "promo_status", nullable = false)
     private PromoStatus promoStatus = PromoStatus.ACTIVE;
@@ -60,10 +69,10 @@ public class Promo {
     @Column(name = "valid_to")
     private LocalDate validTo;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -75,5 +84,38 @@ public class Promo {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isActive(){
+        LocalDate now = LocalDate.now();
+        return promoStatus == PromoStatus.ACTIVE
+                && !now.isAfter(validFrom)
+                && !now.isBefore(validTo);
+    }
+
+    public boolean hasReachedTotalLimit(){
+        return maxTotalUses != null && currentTotalUses > maxTotalUses;
+    }
+
+    public void incrementUses(){
+        this.currentTotalUses++;
+    }
+
+    public BigDecimal calculateDiscount(BigDecimal orderAmount){
+        if (orderAmount.compareTo(minOrderAmount) < 0){
+            throw  new IllegalArgumentException("Order amount must be greater than minimum amount");
+        }
+
+        BigDecimal discount;
+        if (discountType == DiscountType.PERCENTAGE){
+            discount = orderAmount.multiply(discountValue).divide(BigDecimal.valueOf(100));
+
+            if (maxDiscount != null && discount.compareTo(maxDiscount) > 0){
+                discount = maxDiscount;
+            }
+        } else {
+            discount = discountValue;
+        }
+        return discount;
     }
 }
