@@ -360,7 +360,7 @@ public class OrderServiceImpl implements OrderService {
 
     private Address findUserAddress(Long userId, Long addressId) {
         return addressRepository
-                .findByIdAndUserIdAndIsActiveTrue(addressId, userId)
+                .findByIdAndUserIdAndIsActiveTrue(userId, addressId)
                 .orElseThrow(() -> new RuntimeException("Address Not Found with id: " + addressId + " for user: " + userId));
     }
 
