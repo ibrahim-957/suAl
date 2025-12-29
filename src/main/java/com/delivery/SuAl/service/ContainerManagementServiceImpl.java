@@ -5,6 +5,7 @@ import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.entity.UserContainer;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
@@ -142,6 +143,10 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             Long userId,
             List<OrderDetail> orderDetails,
             List<BottleCollectionItem> bottlesCollected) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
         if (bottlesCollected == null || bottlesCollected.isEmpty()) {
             log.info("No bottles collected for user {}", userId);
             for (OrderDetail detail : orderDetails) {
@@ -150,7 +155,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             return;
         }
 
-        log.info("Processing {} collected bottles for user {}", bottlesCollected, userId);
+        log.info("Processing {} collected bottles for user {}", bottlesCollected.size(), userId);
 
         Map<Long, Integer> collectedByProduct = bottlesCollected.stream()
                 .collect(Collectors.toMap(
@@ -166,18 +171,14 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             detail.setContainersReturned(actualCollected);
 
             if (actualCollected > 0) {
-                UserContainer container = getOrCreateContainer(userId, productId);
-                int previousQuantity = container.getQuantity();
-                container.setQuantity(container.getQuantity() + actualCollected);
-                userContainerRepository.save(container);
-
-
-                log.debug("User {}: Added {} containers of product {}. Previous: {}, New: {}",
-                        userId, actualCollected, productId, previousQuantity, container.getQuantity());
+                addOrUpdateUserContainer(user, detail.getProduct(), actualCollected);
             } else {
                 log.debug("User {}: No containers collected for product {}", userId, productId);
             }
         }
+
+        userRepository.save(user);
+
         Map<Long, Integer> bottlesToAddToWarehouse = collectedByProduct.entrySet().stream()
                 .filter(entry -> entry.getValue() > 0)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -192,6 +193,28 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
         log.info("Completed bottle collection for user {}: {} bottles across {} products",
                 userId, totalCollected, collectedByProduct.size());
+    }
+
+    private void addOrUpdateUserContainer(User user, Product product, Integer quantity) {
+        UserContainer existing = user.getUserContainers().stream()
+                .filter(uc -> uc.getProduct().getId().equals(product.getId()))
+                .findFirst()
+                .orElse(null);
+
+        if (existing != null) {
+            int previousQuantity = existing.getQuantity();
+            existing.setQuantity(previousQuantity + quantity);
+            log.debug("User {}: Updated container for product {}. Previous: {}, New: {}",
+                    user.getId(), product.getId(), previousQuantity, existing.getQuantity());
+        } else {
+            UserContainer newContainer = new UserContainer();
+            newContainer.setUser(user);
+            newContainer.setProduct(product);
+            newContainer.setQuantity(quantity);
+            user.getUserContainers().add(newContainer);
+            log.debug("User {}: Created new container for product {} with quantity {}",
+                    user.getId(), product.getId(), quantity);
+        }
     }
 
     @Override

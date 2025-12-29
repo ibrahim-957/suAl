@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model.response.order;
+package com.delivery.SuAl.model.response.marketing;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,16 +12,16 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class OrderCampaignBonusResponse {
+public class PromoUsageResponse {
     private Long id;
+    private Long userId;
+    private String userName;
+    private Long promoId;
+    private String promoCode;
     private Long orderId;
     private String orderNumber;
     private Long campaignId;
-    private String campaignCode;
-    private String campaignName;
-    private Long productId;
-    private String productName;
-    private Integer quantity;
-    private BigDecimal originalValue;
-    private LocalDateTime createdAt;
+    private BigDecimal discountApplied;
+    private BigDecimal orderAmount;
+    private LocalDateTime usedAt;
 }

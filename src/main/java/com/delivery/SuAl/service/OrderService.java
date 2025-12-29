@@ -19,8 +19,6 @@ public interface OrderService {
 
     OrderResponse getOrderById(Long id);
 
-    void deleteOrder(Long id);
-
     OrderResponse assignDriver(Long orderId, Long driverId);
 
     OrderResponse approveOrder(String operatorEmail, Long orderId);

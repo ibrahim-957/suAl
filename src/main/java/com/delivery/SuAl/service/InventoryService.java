@@ -110,36 +110,7 @@ public class InventoryService {
         log.info("Successfully reserved stock for {} products", productQuantities.size());
     }
 
-    @Transactional
-    public void releaseStockBatch(Map<Long, Integer> productQuantities) {
-        if (productQuantities == null || productQuantities.isEmpty()) {
-            log.debug("No products to release");
-            return;
-        }
-        log.info("Batch releasing stock for {} products", productQuantities.size());
 
-        List<Long> productIds = new ArrayList<>(productQuantities.keySet());
-
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
-
-        Map<Long, WarehouseStock> stockMap = stocks.stream()
-                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
-
-        for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
-            Long productId = entry.getKey();
-            Integer quantity = entry.getValue();
-            WarehouseStock stock = stockMap.get(productId);
-            if (stock != null) {
-                stock.setFullCount(stock.getFullCount() + quantity);
-                log.debug("Released {} units of product {}. New count: {}",
-                        quantity, productId, stock.getFullCount());
-            } else
-                log.warn("Cannot release stock - product {} not found in warehouse", productId);
-
-        }
-        warehouseStockRepository.saveAll(stocks);
-        log.info("Successfully released stock for {} products", productQuantities.size());
-    }
 
     @Transactional
     public void releaseStock(Long productId, int quantity) {
@@ -204,26 +175,5 @@ public class InventoryService {
         warehouseStockRepository.saveAll(stocks);
         log.info("Successfully added {} total empty bottles across {} products",
                 totalBottlesAdded, emptyBottlesByProduct.size());
-    }
-
-    @Transactional
-    public int getStockLevel(Long productId) {
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(productId);
-        if (!stocks.isEmpty()) {
-            return stocks.getFirst().getFullCount();
-        }
-        return 0;
-    }
-
-    @Transactional
-    public Map<Long, Integer> getStockLevels(List<Long> productIds) {
-        if (productIds == null || productIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<WarehouseStock> stocks = warehouseStockRepository.findByWarehouseIdIn(productIds);
-        return stocks.stream().collect(Collectors.toMap(
-                s -> s.getProduct().getId(),
-                WarehouseStock::getFullCount
-        ));
     }
 }

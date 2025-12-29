@@ -2,7 +2,10 @@ package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.model.CampaignStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,22 +16,34 @@ import java.util.Optional;
 
 @Repository
 public interface CampaignRepository extends JpaRepository<Campaign, Long> {
-    Optional<Campaign> findByCampaignId(String campaignId);
+    Optional<Campaign> findByCampaignId(String  campaignId);
 
     List<Campaign> findByCampaignStatus(CampaignStatus campaignStatus);
 
+    Page<Campaign> findByCampaignStatus(CampaignStatus campaignStatus, Pageable pageable);
+
+    @Query("SELECT c FROM Campaign c " +
+            "WHERE c.campaignId = :campaignId " +
+            "AND c.campaignStatus = 'ACTIVE' " +
+            "AND :now BETWEEN c.validFrom AND c.validTo")
+    Optional<Campaign> findActiveByCampaignId(@Param("campaignId") Long campaignId,
+                                              @Param("now") LocalDate now);
+
     @Query("SELECT c FROM Campaign c " +
             "WHERE c.campaignStatus = 'ACTIVE' " +
-            "AND (c.validFrom IS NULL OR c.validFrom <= CURRENT_DATE) " +
-            "AND (c.validTo IS NULL OR c.validTo >= CURRENT_DATE)")
-    List<Campaign> findActiveCampaigns();
+            "AND :now BETWEEN c.validFrom AND c.validTo")
+    List<Campaign> findActiveCampaigns(@Param("now") LocalDate now);
 
-    List<Campaign> findByBuyProductId(Long buyProductId);
+    @Query("SELECT c FROM Campaign c WHERE c.validTo < :now")
+    List<Campaign> findExpiredCampaigns(@Param("now") LocalDate now);
 
-    List<Campaign> findByFreeProductId(Long freeProductId);
+    @Modifying
+    @Query("UPDATE Campaign c SET c.currentTotalUses = c.currentTotalUses + 1 WHERE c.id = :id")
+    void incrementUsageCount(@Param("id") Long id);
 
-    @Query("SELECT c FROM Campaign c " +
-            "WHERE c.campaignStatus = 'ACTIVE' AND c.validTo BETWEEN CURRENT_DATE AND :endDate " +
-            "ORDER BY c.validTo ASC")
-    List<Campaign> findExpiringSoon(@Param("endDate") LocalDate endDate);
+    @Query("SELECT CASE WHEN (c.maxTotalUses IS NULL OR c.currentTotalUses < c.maxTotalUses) " +
+            "THEN true ELSE false END FROM Campaign c WHERE c.id = :id")
+    Boolean hasUsageAvailable(@Param("id") Long id);
+
+    Boolean existsByCampaignId(String campaignId);
 }

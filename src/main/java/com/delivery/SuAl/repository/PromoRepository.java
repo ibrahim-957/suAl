@@ -27,4 +27,6 @@ public interface PromoRepository extends JpaRepository<Promo, Long> {
             "WHERE p.promoStatus = 'ACTIVE' AND p.validTo BETWEEN CURRENT_DATE AND :endDate " +
             "ORDER BY p.validTo ASC ")
     List<Promo> findExpiringSoon(@Param("endDate") LocalDate endDate);
+
+    boolean existsByPromoCode(String promoCode);
 }

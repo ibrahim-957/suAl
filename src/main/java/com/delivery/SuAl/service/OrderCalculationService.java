@@ -3,7 +3,6 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.helper.OrderCalculationResult;
-import com.delivery.SuAl.helper.PromoDiscountResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -60,35 +59,6 @@ public class OrderCalculationService {
         orderDetail.setLineTotal(subtotal.add(depositCharged).subtract(
                 orderDetail.getDepositRefunded() != null ? orderDetail.getDepositRefunded() : BigDecimal.ZERO
         ));
-    }
-
-    public void applyCalculationAndPromoToOrder(
-            Order order,
-            OrderCalculationResult calculation,
-            PromoDiscountResult promoResult
-    ) {
-        order.setTotalItems(calculation.getTotalCount());
-        order.setSubtotal(calculation.getSubtotal());
-        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
-        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
-        order.setNetDeposit(calculation.getNetDeposit());
-
-        if (promoResult.hasPromo()) {
-            order.setPromo(promoResult.getPromo());
-            order.setPromoDiscount(promoResult.getDiscount());
-        }
-
-        BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
-                .orElse(BigDecimal.ZERO);
-
-        BigDecimal amount = order.getSubtotal().subtract(promoDiscount);
-        BigDecimal totalAmount = amount.add(order.getNetDeposit());
-
-        order.setAmount(amount);
-        order.setTotalAmount(totalAmount);
-
-        log.debug("Applied calculation to order: subtotal={}, deposit={}, promo={}, total={}",
-                order.getSubtotal(), order.getNetDeposit(), promoDiscount, totalAmount);
     }
 
     public void recalculateOrderFinancials(Order order) {

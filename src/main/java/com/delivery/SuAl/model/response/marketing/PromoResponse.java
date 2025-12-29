@@ -23,6 +23,10 @@ public class PromoResponse {
     private BigDecimal discountValue;
     private BigDecimal minOrderAmount;
     private BigDecimal maxDiscount;
+    private Integer maxUsesPerUser;
+    private Integer maxTotalUses;
+    private Integer currentTotalUses;
+    private Integer usageRemaining;
     private PromoStatus promoStatus;
     private LocalDate validFrom;
     private LocalDate validTo;

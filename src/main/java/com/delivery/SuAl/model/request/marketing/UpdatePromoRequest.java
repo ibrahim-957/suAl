@@ -33,6 +33,10 @@ public class UpdatePromoRequest {
     @Digits(integer = 3, fraction = 2)
     private BigDecimal maxDiscount;
 
+    private Integer maxUsesPerUser;
+
+    private Integer maxTotalUses;
+
     private PromoStatus  promoStatus;
 
     private LocalDate validFrom;

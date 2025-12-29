@@ -26,16 +26,6 @@ public class OrderDetailFactory {
     private final OrderCalculationService orderCalculationService;
     private final OrderDetailMapper orderDetailMapper;
 
-    public OrderDetail createOrderDetail(OrderItemRequest item) {
-        Product product = productRepository.findById(item.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-
-        Price price = priceRepository.findByProductId(item.getProductId())
-                .orElseThrow(() -> new RuntimeException("Price not found"));
-
-        return buildOrderDetail(item, product, price);
-    }
-
     public List<OrderDetail> createOrderDetails(List<OrderItemRequest> items) {
         if (items == null || items.isEmpty()) return Collections.emptyList();
 

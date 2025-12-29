@@ -1,26 +1,33 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Address;
+import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.entity.Order;
+import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
+import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.OrderCalculationResult;
 import com.delivery.SuAl.helper.ProductDepositInfo;
-import com.delivery.SuAl.helper.PromoDiscountResult;
 import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.OperatorStatus;
 import com.delivery.SuAl.model.OrderStatus;
 import com.delivery.SuAl.model.PaymentMethod;
 import com.delivery.SuAl.model.PaymentStatus;
+import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
+import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderItemRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
+import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
+import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AddressRepository;
@@ -55,7 +62,8 @@ public class OrderServiceImpl implements OrderService {
     private final OperatorRepository operatorRepository;
 
     private final OrderCalculationService orderCalculationService;
-    private final PromoCodeService promoCodeService;
+    private final PromoService promoService;
+    private final CampaignService campaignService;
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
 
@@ -69,7 +77,7 @@ public class OrderServiceImpl implements OrderService {
         log.info("User with phone {} creating their own order", phoneNumber);
 
         User user = userRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new RuntimeException("User with phone number " + phoneNumber + " not found"));
+                .orElseThrow(() -> new NotFoundException("User with phone number " + phoneNumber + " not found"));
 
 
         createOrderRequest.setUserId(user.getId());
@@ -84,13 +92,13 @@ public class OrderServiceImpl implements OrderService {
         log.info("Operator {} creating order for user ID: {}", operatorEmail, createOrderRequest.getUserId());
 
         Operator operator = operatorRepository.findByEmail(operatorEmail)
-                .orElseThrow(() -> new RuntimeException("Operator " + operatorEmail + " not found"));
+                .orElseThrow(() -> new NotFoundException("Operator " + operatorEmail + " not found"));
 
         if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
             throw new RuntimeException("Operator is not active with email: " + operatorEmail);
         }
 
-        if (createOrderRequest.getUserId() == null){
+        if (createOrderRequest.getUserId() == null) {
             throw new RuntimeException("User ID is required when operator creates order");
         }
 
@@ -143,28 +151,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id) {
-        log.info("Getting order for Customer {}", id);
+        log.info("Getting order {}", id);
         Order order = findOrderById(id);
         return orderMapper.toResponse(order);
-    }
-
-    @Override
-    @Transactional
-    public void deleteOrder(Long id) {
-        Order order = findOrderById(id);
-
-        Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
-                .collect(Collectors.toMap(
-                        detail -> detail.getProduct().getId(),
-                        OrderDetail::getCount
-                ));
-
-        inventoryService.releaseStockBatch(productQuantities);
-
-        containerManagementService.releaseReservedContainers(order);
-
-        orderRepository.deleteById(id);
-        log.info("Deleted order for Customer {}", id);
     }
 
     @Override
@@ -172,22 +161,17 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse assignDriver(Long orderId, Long driverId) {
         log.info("Assigning driver {} to order {}", driverId, orderId);
 
-        try {
-            Order order = findOrderById(orderId);
-            Driver driver = findDriverById(driverId);
+        Order order = findOrderById(orderId);
+        Driver driver = findDriverById(driverId);
 
-            if (order.getOrderStatus() != OrderStatus.APPROVED) {
-                throw new RuntimeException("Order must be approved before assigning driver");
-            }
-            order.setDriver(driver);
-            orderRepository.save(order);
-
-            log.info("Driver assigned successfully to order {}", orderId);
-            return orderMapper.toResponse(order);
-        } catch (RuntimeException e) {
-            log.error("Failed to assign driver to order {}: {}", orderId, e.getMessage());
-            throw new RuntimeException(e);
+        if (order.getOrderStatus() != OrderStatus.APPROVED) {
+            throw new RuntimeException("Order must be approved before assigning driver");
         }
+        order.setDriver(driver);
+        orderRepository.save(order);
+
+        log.info("Driver assigned successfully to order {}", orderId);
+        return orderMapper.toResponse(order);
     }
 
     @Override
@@ -200,22 +184,37 @@ public class OrderServiceImpl implements OrderService {
         if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
             throw new RuntimeException("Operator is not active with email: " + operatorEmail);
         }
-        try {
-            Order order = findOrderById(orderId);
+        Order order = findOrderById(orderId);
 
-            if (order.getOrderStatus() != OrderStatus.PENDING) {
-                throw new RuntimeException("Order must be pending before approving order");
-            }
-            order.setOrderStatus(OrderStatus.APPROVED);
-            order.setOperator(operator);
-            orderRepository.save(order);
-
-            log.info("Order approved successfully: {}", orderId);
-            return orderMapper.toResponse(order);
-        } catch (RuntimeException e) {
-            log.error("Failed to approve order {}: {}", orderId, e.getMessage());
-            throw new RuntimeException(e);
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new RuntimeException("Order must be pending before approving order");
         }
+
+        Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
+                .collect(Collectors.toMap(
+                        detail -> detail.getProduct().getId(),
+                        OrderDetail::getCount,
+                        Integer::sum
+                ));
+
+        if (!order.getCampaignBonuses().isEmpty()) {
+            for (OrderCampaignBonus bonus : order.getCampaignBonuses()) {
+                productQuantities.merge(
+                        bonus.getProduct().getId(),
+                        bonus.getQuantity(),
+                        Integer::sum
+                );
+            }
+        }
+
+        inventoryService.validateAndReserveStockBatch(productQuantities);
+
+        order.setOrderStatus(OrderStatus.APPROVED);
+        order.setOperator(operator);
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Order approved successfully: {}", orderId);
+        return orderMapper.toResponse(savedOrder);
     }
 
     @Override
@@ -228,33 +227,21 @@ public class OrderServiceImpl implements OrderService {
         if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
             throw new RuntimeException("Operator is not active with email: " + operatorEmail);
         }
-        try {
-            Order order = findOrderById(orderId);
+        Order order = findOrderById(orderId);
 
-            if (order.getOrderStatus() != OrderStatus.PENDING) {
-                throw new RuntimeException("Order must be pending before rejecting order");
-            }
-
-            Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
-                    .collect(Collectors.toMap(
-                            detail -> detail.getProduct().getId(),
-                            OrderDetail::getCount));
-
-            inventoryService.releaseStockBatch(productQuantities);
-
-            containerManagementService.releaseReservedContainers(order);
-
-            order.setOrderStatus(OrderStatus.REJECTED);
-            order.setRejectionReason(reason);
-            order.setOperator(operator);
-            Order savedOrder = orderRepository.save(order);
-
-            log.info("Order for Customer {} has been rejected", orderId);
-            return orderMapper.toResponse(savedOrder);
-        } catch (RuntimeException e) {
-            log.error("Failed to reject order {}: {}", orderId, e.getMessage());
-            throw new RuntimeException(e);
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new RuntimeException("Order must be pending before rejecting order");
         }
+
+        containerManagementService.releaseReservedContainers(order);
+
+        order.setOrderStatus(OrderStatus.REJECTED);
+        order.setRejectionReason(reason);
+        order.setOperator(operator);
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Order for Customer {} has been rejected", orderId);
+        return orderMapper.toResponse(savedOrder);
     }
 
     @Override
@@ -262,54 +249,48 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest) {
         log.info("Completing order {}", orderId);
 
-        try {
-            Order order = findOrderById(orderId);
+        Order order = findOrderById(orderId);
 
-            if (order.getOrderStatus() != OrderStatus.APPROVED) {
-                throw new RuntimeException("Order must be approved before completing order");
-            }
-
-            if (order.getDriver() == null)
-                throw new RuntimeException("Driver is null");
-
-            validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
-
-            containerManagementService.processCollectedBottles(
-                    order.getUser().getId(),
-                    order.getOrderDetails(),
-                    completeDeliveryRequest.getBottlesCollected()
-            );
-
-            orderCalculationService.recalculateDepositsFromActualCollection(order);
-
-            int totalCollected = calculateTotalBottlesCollected(order);
-            order.setEmptyBottlesCollected(totalCollected);
-
-            order.setOrderStatus(OrderStatus.COMPLETED);
-            order.setCompletedAt(LocalDateTime.now());
-
-            if (order.getPaymentMethod() == PaymentMethod.CASH &&
-                    order.getPaymentStatus() == PaymentStatus.PENDING) {
-                order.setPaymentStatus(PaymentStatus.SUCCESS);
-                order.setPaidAt(LocalDateTime.now());
-            }
-
-            appendNotes(order, completeDeliveryRequest.getNotes());
-
-            Order savedOrder = orderRepository.save(order);
-
-            log.info("Order {} completed - Expected bottles: {}, Collected: {}, Final amount: {}",
-                    savedOrder.getOrderNumber(),
-                    order.getEmptyBottlesExpected(),
-                    totalCollected,
-                    savedOrder.getTotalAmount());
-            return orderMapper.toResponse(savedOrder);
-        } catch (RuntimeException e) {
-            log.error("Failed to complete order {}: {}", orderId, e.getMessage());
-            throw new RuntimeException(e);
+        if (order.getOrderStatus() != OrderStatus.APPROVED) {
+            throw new RuntimeException("Order must be approved before completing order");
         }
-    }
 
+        if (order.getDriver() == null)
+            throw new RuntimeException("Driver must be assigned before completing order");
+
+        validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
+
+        containerManagementService.processCollectedBottles(
+                order.getUser().getId(),
+                order.getOrderDetails(),
+                completeDeliveryRequest.getBottlesCollected()
+        );
+
+        orderCalculationService.recalculateDepositsFromActualCollection(order);
+
+        int totalCollected = calculateTotalBottlesCollected(order);
+        order.setEmptyBottlesCollected(totalCollected);
+
+        order.setOrderStatus(OrderStatus.COMPLETED);
+        order.setCompletedAt(LocalDateTime.now());
+
+        if (order.getPaymentMethod() == PaymentMethod.CASH &&
+                order.getPaymentStatus() == PaymentStatus.PENDING) {
+            order.setPaymentStatus(PaymentStatus.SUCCESS);
+            order.setPaidAt(LocalDateTime.now());
+        }
+
+        appendNotes(order, completeDeliveryRequest.getNotes());
+
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Order {} completed - Expected bottles: {}, Collected: {}, Final amount: {}",
+                savedOrder.getOrderNumber(),
+                order.getEmptyBottlesExpected(),
+                totalCollected,
+                savedOrder.getTotalAmount());
+        return orderMapper.toResponse(savedOrder);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -375,19 +356,15 @@ public class OrderServiceImpl implements OrderService {
 
         Address address = findUserAddress(createOrderRequest.getAddressId(), user.getId());
 
+        List<OrderDetail> orderDetails = orderDetailFactory.createOrderDetails(createOrderRequest.getItems());
+
         Map<Long, Integer> productQuantities = createOrderRequest.getItems().stream()
                 .collect(Collectors.toMap(
                         OrderItemRequest::getProductId,
                         OrderItemRequest::getQuantity
                 ));
 
-        inventoryService.validateAndReserveStockBatch(productQuantities);
-
-        List<OrderDetail> orderDetails = orderDetailFactory.createOrderDetails(createOrderRequest.getItems());
-
-        ContainerDepositSummary depositSummary =
-                containerManagementService.calculateAvailableContainerRefunds(
-                        user.getId(), productQuantities);
+        ContainerDepositSummary depositSummary = containerManagementService.calculateAvailableContainerRefunds(user.getId(), productQuantities);
 
         applyContainerInfoToOrderDetails(orderDetails, depositSummary);
 
@@ -395,21 +372,101 @@ public class OrderServiceImpl implements OrderService {
 
         OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(orderDetails);
 
-        PromoDiscountResult promoResult = promoCodeService.applyPromoCode(
-                createOrderRequest.getPromoCode(), calculation.getSubtotal()
-        );
+        BigDecimal promoDiscount = BigDecimal.ZERO;
+        if (createOrderRequest.getPromoCode() != null && !createOrderRequest.getPromoCode().trim().isEmpty()) {
+            Order tempSavedOrder = orderRepository.save(order);
 
-        orderCalculationService.applyCalculationAndPromoToOrder(order, calculation, promoResult);
+            ApplyPromoResponse promoResult = promoService.applyPromo(
+                    ApplyPromoRequest.builder()
+                            .userId(user.getId())
+                            .orderId(tempSavedOrder.getId())
+                            .promoCode(createOrderRequest.getPromoCode())
+                            .orderAmount(calculation.getSubtotal())
+                            .build()
+            );
+
+            if (promoResult.getSuccess()){
+                order.setPromoDiscount(promoResult.getDiscountApplied());
+                promoDiscount = promoResult.getDiscountApplied();
+                log.info("Promo applied: {}, Discount: {}", createOrderRequest.getPromoCode(), promoDiscount);
+            }
+        }
+
+        BigDecimal campaignBonusValue = BigDecimal.ZERO;
+        if (createOrderRequest.getCampaignId() != null && !createOrderRequest.getCampaignId().trim().isEmpty()) {
+            if (order.getId() == null){
+                order = orderRepository.save(order);
+            }
+
+            OrderDetail buyProductDetail = orderDetails.stream()
+                    .filter(detail -> createOrderRequest.getCampaignProductId() != null &&
+                            detail.getProduct().getId().equals(createOrderRequest.getCampaignProductId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (buyProductDetail != null){
+                ApplyCampaignResponse campaignResult = campaignService.applyCampaign(
+                        ApplyCampaignRequest.builder()
+                                .userId(user.getId())
+                                .orderId(order.getId())
+                                .campaignId(createOrderRequest.getCampaignId())
+                                .buyProductId(buyProductDetail.getProduct().getId())
+                                .buyQuantity(buyProductDetail.getCount())
+                                .build()
+                );
+
+                if (campaignResult.getSuccess()){
+                    OrderCampaignBonus bonus = new OrderCampaignBonus();
+                    bonus.setOrder(order);
+                    Campaign campaign = new Campaign();
+                    campaign.setId(Long.valueOf(campaignResult.getCampaignId()));
+                    bonus.setCampaign(campaign);
+
+                    Product freeProduct = new Product();
+                    freeProduct.setId(campaignResult.getFreeProductId());
+                    bonus.setProduct(freeProduct);
+
+                    bonus.setQuantity(campaignResult.getFreeQuantity());
+                    bonus.setOriginalValue(campaignResult.getBonusValue());
+
+                    order.getCampaignBonuses().add(bonus);
+                    campaignBonusValue = campaignResult.getBonusValue();
+
+                    log.info("Campaign applied: {}, Free products: {} x {}",
+                            createOrderRequest.getCampaignId(),
+                            campaignResult.getFreeProductName(),
+                            campaignResult.getFreeQuantity());
+                }
+            }
+        }
+
+        order.setTotalItems(calculation.getTotalCount());
+        order.setSubtotal(calculation.getSubtotal());
+        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
+        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
+        order.setNetDeposit(calculation.getNetDeposit());
+        order.setCampaignDiscount(campaignBonusValue);
+
+        BigDecimal amount = order.getSubtotal()
+                .subtract(promoDiscount)
+                .subtract(campaignBonusValue);
+
+        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+
+        order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
 
         containerManagementService.reserveContainers(user.getId(), depositSummary);
 
         Order savedOrder = orderRepository.save(order);
 
-        if (operator != null) {
-            log.info("Order created by operator {} with order number: {}", operator.getEmail(), savedOrder.getOrderNumber());
-        } else {
-            log.info("Order created by user {} with order number: {}", user.getPhoneNumber(), savedOrder.getOrderNumber());
-        }
+        log.info("Order created: {} - Subtotal: {}, Promo: {}, Campaign: {}, Deposits: {}, Total: {}",
+                savedOrder.getOrderNumber(),
+                order.getSubtotal(),
+                promoDiscount,
+                campaignBonusValue,
+                order.getNetDeposit(),
+                totalAmount);
 
         return orderMapper.toResponse(savedOrder);
     }
@@ -432,6 +489,7 @@ public class OrderServiceImpl implements OrderService {
 
         order.setEmptyBottlesCollected(0);
         order.setNotes(createOrderRequest.getNotes());
+        order.setDeliveryDate(createOrderRequest.getDeliveryDate());
         order.setOrderStatus(OrderStatus.PENDING);
         order.setPaymentStatus(PaymentStatus.PENDING);
         order.setPaymentMethod(PaymentMethod.CASH);
@@ -512,15 +570,12 @@ public class OrderServiceImpl implements OrderService {
                 );
 
         applyContainerInfoToOrderDetails(order.getOrderDetails(), depositSummary);
-
         orderCalculationService.recalculateOrderFinancials(order);
-
         order.setEmptyBottlesExpected(depositSummary.getTotalContainersUsed());
 
-        log.info("Order recalculated: subtotal:{}, netDeposit={}, total={}",
+        log.info("Order recalculated: subtotal={}, netDeposit={}, total={}",
                 order.getSubtotal(), order.getNetDeposit(), order.getTotalAmount());
     }
-
 
     private void appendNotes(Order order, String newNotes) {
         if (newNotes == null || newNotes.trim().isEmpty()) {
@@ -557,13 +612,13 @@ public class OrderServiceImpl implements OrderService {
                 continue;
             }
 
-            if (item.getQuantity() < 0){
+            if (item.getQuantity() < 0) {
                 error.add(String.format("Invalid quantity %d for product %d",
                         item.getQuantity(), item.getProductId()));
                 continue;
             }
 
-            if (item.getQuantity() > detail.getCount()){
+            if (item.getQuantity() > detail.getCount()) {
                 log.warn("Order {}: Collecting {} bottles of product {} but only delivered {}. " +
                                 "Customer returned extra bottles from previous orders.",
                         order.getOrderNumber(), item.getQuantity(), item.getProductId(), detail.getCount());
@@ -571,7 +626,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (!error.isEmpty()) {
-            throw new RuntimeException("Bottle collection validation failed: "  + String.join(", ", error));
+            throw new RuntimeException("Bottle collection validation failed: " + String.join(", ", error));
         }
     }
 

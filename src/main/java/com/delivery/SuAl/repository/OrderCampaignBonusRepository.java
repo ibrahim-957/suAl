@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Repository
@@ -14,7 +15,11 @@ public interface OrderCampaignBonusRepository extends JpaRepository<OrderCampaig
 
     List<OrderCampaignBonus> findByCampaignId(Long campaignId);
 
-    @Query("SELECT COUNT(ocb) FROM OrderCampaignBonus ocb " +
+    @Query("SELECT SUM(ocb.originalValue) FROM OrderCampaignBonus ocb " +
             "WHERE ocb.campaign.id = :campaignId")
-    Long countByCampaignId(@Param("campaignId") Long campaignId);
+    BigDecimal sumOriginalValueByCampaignId(@Param("campaignId") Long campaignId);
+
+    @Query("SELECT SUM(ocb.quantity) FROM OrderCampaignBonus ocb " +
+            "WHERE ocb.campaign.id = :campaignId")
+    Integer sumQuantityByCampaignId(@Param("campaignId") Long campaignId);
 }
