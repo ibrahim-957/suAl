@@ -171,7 +171,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             detail.setContainersReturned(actualCollected);
 
             if (actualCollected > 0) {
-                addOrUpdateUserContainer(user, detail.getProduct(), actualCollected);
+                removeFromUserContainer(user, detail.getProduct(), actualCollected);
             } else {
                 log.debug("User {}: No containers collected for product {}", userId, productId);
             }
@@ -191,8 +191,69 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                 .mapToInt(BottleCollectionItem::getQuantity)
                 .sum();
 
-        log.info("Completed bottle collection for user {}: {} bottles across {} products",
+        log.info("Completed bottle collection for user {}: {} bottles collected across {} products",
                 userId, totalCollected, collectedByProduct.size());
+    }
+
+    @Override
+    @Transactional
+    public void processDeliveredProducts(Long userId, List<OrderDetail> orderDetails) {
+        log.info("Processing delivered products for user {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        int totalDelivered = 0;
+
+        for (OrderDetail detail : orderDetails) {
+            int deliveredQuantity = detail.getCount();
+
+            if (deliveredQuantity > 0) {
+                addOrUpdateUserContainer(user, detail.getProduct(), deliveredQuantity);
+                totalDelivered += deliveredQuantity;
+
+                log.debug("User {}: Added {} containers of product {} ({})",
+                        userId, deliveredQuantity,
+                        detail.getProduct().getId(),
+                        detail.getProduct().getName());
+            }
+        }
+
+        userRepository.save(user);
+
+        log.info("Completed delivery processing for user {}: {} bottles delivered across {} products",
+                userId, totalDelivered, orderDetails.size());
+    }
+
+    private void removeFromUserContainer(User user, Product product, Integer quantity) {
+        UserContainer existing = user.getUserContainers().stream()
+                .filter(uc -> uc.getProduct().getId().equals(product.getId()))
+                .findFirst()
+                .orElse(null);
+
+        if (existing != null) {
+            int previousQuantity = existing.getQuantity();
+            int newQuantity = previousQuantity - quantity;
+
+            if (newQuantity < 0) {
+                log.warn("User {}: Trying to remove {} containers for product {}, but only {} available. Setting to 0.",
+                        user.getId(), quantity, product.getId(), previousQuantity);
+                newQuantity = 0;
+            }
+
+            existing.setQuantity(newQuantity);
+            log.debug("User {}: Removed {} containers for product {}. Previous: {}, New: {}",
+                    user.getId(), quantity, product.getId(), previousQuantity, newQuantity);
+
+            if (newQuantity == 0) {
+                user.getUserContainers().remove(existing);
+                log.debug("User {}: Removed empty container record for product {}",
+                        user.getId(), product.getId());
+            }
+        } else {
+            log.warn("User {}: Cannot remove containers for product {} - no container record exists",
+                    user.getId(), product.getId());
+        }
     }
 
     private void addOrUpdateUserContainer(User user, Product product, Integer quantity) {

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,7 +31,19 @@ import java.util.List;
 public class AddressController {
     private final AddressService addressService;
 
-    @PostMapping
+    @PostMapping("/user")
+    public ResponseEntity<AddressResponse> createAddressByUser(
+            @RequestHeader("X-User-Phone") String phoneNumber,
+            @Valid @RequestBody CreateAddressRequest createAddressRequest){
+        log.info("POST /v1/api/addresses/user - User with phone {} creating address", phoneNumber);
+
+        AddressResponse response = addressService.createAddressByUser(phoneNumber, createAddressRequest);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @PostMapping("/operator")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
             @PathVariable Long userId,
             @Valid @RequestBody CreateAddressRequest createAddressRequest

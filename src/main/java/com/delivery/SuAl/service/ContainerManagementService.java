@@ -18,5 +18,6 @@ public interface ContainerManagementService {
 
     void processCollectedBottles(Long userId, List<OrderDetail> orderDetails, List<BottleCollectionItem> bottlesCollected);
 
+    void processDeliveredProducts(Long userId, List<OrderDetail> orderDetails);
     UserContainer getOrCreateContainer(Long userId, Long productId);
 }

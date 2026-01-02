@@ -24,6 +24,23 @@ public class AddressServiceImpl implements AddressService {
     private final UserRepository userRepository;
 
     @Override
+    public AddressResponse createAddressByUser(String phoneNumber, CreateAddressRequest request) {
+        log.info("User create Address");
+
+        User user = userRepository.findByPhoneNumber(phoneNumber)
+                .orElseThrow(() -> new NotFoundException("User not found with phone number: " + phoneNumber));
+
+        Address address = addressMapper.toEntity(request);
+        address.setUser(user);
+        address.setIsActive(true);
+
+        Address savedAddress = addressRepository.save(address);
+
+        log.info("Address created successfully for phone number: {}", phoneNumber);
+        return addressMapper.toResponse(savedAddress);
+    }
+
+    @Override
     public AddressResponse createAddress(Long userId, CreateAddressRequest createAddressRequest) {
         log.info("Address created for user by ID {}", userId);
 

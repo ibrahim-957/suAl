@@ -266,6 +266,11 @@ public class OrderServiceImpl implements OrderService {
                 completeDeliveryRequest.getBottlesCollected()
         );
 
+        containerManagementService.processDeliveredProducts(
+                order.getUser().getId(),
+                order.getOrderDetails()
+        );
+
         orderCalculationService.recalculateDepositsFromActualCollection(order);
 
         int totalCollected = calculateTotalBottlesCollected(order);
@@ -284,10 +289,11 @@ public class OrderServiceImpl implements OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
-        log.info("Order {} completed - Expected bottles: {}, Collected: {}, Final amount: {}",
+        log.info("Order {} completed - Expected bottles: {}, Collected: {}, Delivered: {}, Final amount: {}",
                 savedOrder.getOrderNumber(),
                 order.getEmptyBottlesExpected(),
                 totalCollected,
+                order.getOrderDetails().stream().mapToInt(OrderDetail::getCount).sum(),
                 savedOrder.getTotalAmount());
         return orderMapper.toResponse(savedOrder);
     }
@@ -448,8 +454,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCampaignDiscount(campaignBonusValue);
 
         BigDecimal amount = order.getSubtotal()
-                .subtract(promoDiscount)
-                .subtract(campaignBonusValue);
+                .subtract(promoDiscount);
 
         BigDecimal totalAmount = amount.add(order.getNetDeposit());
 

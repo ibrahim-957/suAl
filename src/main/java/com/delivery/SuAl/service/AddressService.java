@@ -7,6 +7,8 @@ import com.delivery.SuAl.model.response.address.AddressResponse;
 import java.util.List;
 
 public interface AddressService {
+    AddressResponse createAddressByUser(String phoneNumber, CreateAddressRequest request);
+
     AddressResponse createAddress(Long userId, CreateAddressRequest createAddressRequest);
 
     AddressResponse getAddressById(Long userId, Long addressId);

@@ -5,6 +5,7 @@ import com.delivery.SuAl.model.request.warehouse.CreateWarehouseRequest;
 import com.delivery.SuAl.model.request.warehouse.UpdateStockRequest;
 import com.delivery.SuAl.model.response.warehouse.WarehouseResponse;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import java.util.List;
@@ -15,7 +16,6 @@ public interface WarehouseMapper {
 
     void updateStockFromRequest(UpdateStockRequest updateStockRequest,
                                 @MappingTarget Warehouse warehouse);
-
 
     WarehouseResponse toResponse(Warehouse warehouse);
 

@@ -17,7 +17,6 @@ import java.util.Optional;
 @Slf4j
 public class OrderCalculationService {
     public OrderCalculationResult calculateOrderTotals(List<OrderDetail> orderDetails) {
-
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal totalDepositCharged = BigDecimal.ZERO;
         BigDecimal totalDepositRefunded = BigDecimal.ZERO;
@@ -34,8 +33,9 @@ public class OrderCalculationService {
                 depositPerUnit = orderDetail.getDepositPerUnit();
             }
 
-            if (orderDetail.getDepositRefunded() != null)
+            if (orderDetail.getDepositRefunded() != null) {
                 totalDepositRefunded = totalDepositRefunded.add(orderDetail.getDepositRefunded());
+            }
         }
 
         BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
@@ -54,11 +54,15 @@ public class OrderCalculationService {
                 .multiply(BigDecimal.valueOf(orderDetail.getCount()))
                 .setScale(2, RoundingMode.HALF_UP);
 
+        BigDecimal depositRefunded = orderDetail.getDepositRefunded() != null
+                ? orderDetail.getDepositRefunded()
+                : BigDecimal.ZERO;
+
         orderDetail.setSubtotal(subtotal);
         orderDetail.setDepositCharged(depositCharged);
-        orderDetail.setLineTotal(subtotal.add(depositCharged).subtract(
-                orderDetail.getDepositRefunded() != null ? orderDetail.getDepositRefunded() : BigDecimal.ZERO
-        ));
+        orderDetail.setLineTotal(
+                subtotal.add(depositCharged).subtract(depositRefunded)
+        );
     }
 
     public void recalculateOrderFinancials(Order order) {
@@ -73,14 +77,17 @@ public class OrderCalculationService {
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal amount = order.getSubtotal().subtract(promoDiscount);
-        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+        BigDecimal totalAmount = order.getSubtotal().add(order.getNetDeposit());
 
-        order.setAmount(amount);
+        BigDecimal amount = order.getSubtotal()
+                .subtract(promoDiscount)
+                .add(order.getNetDeposit());
+
         order.setTotalAmount(totalAmount);
+        order.setAmount(amount);
 
-        log.debug("Recalculated order financials: subtotal={}, net deposit={}, total={}",
-                order.getSubtotal(), order.getNetDeposit(), totalAmount);
+        log.debug("Recalculated order financials: subtotal={}, promoDiscount={}, netDeposit={}, totalAmount={}, finalAmount={}",
+                order.getSubtotal(), promoDiscount, order.getNetDeposit(), totalAmount, amount);
     }
 
     public void recalculateDepositsFromActualCollection(Order order) {
@@ -102,7 +109,7 @@ public class OrderCalculationService {
 
             detail.setLineTotal(
                     detail.getSubtotal()
-                            .add(actualDepositRefunded)
+                            .add(detail.getDepositCharged())
                             .subtract(detail.getDepositRefunded())
             );
 
@@ -121,23 +128,23 @@ public class OrderCalculationService {
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal campaignDiscount = Optional.ofNullable(order.getCampaignDiscount())
-                .orElse(BigDecimal.ZERO);
+        BigDecimal totalAmount = order.getSubtotal().add(order.getNetDeposit());
 
         BigDecimal amount = order.getSubtotal()
                 .subtract(promoDiscount)
-                .subtract(campaignDiscount);
+                .add(order.getNetDeposit());
 
-        BigDecimal totalAmount = amount.add(order.getNetDeposit());
-
-        order.setAmount(amount);
         order.setTotalAmount(totalAmount);
+        order.setAmount(amount);
 
-        log.info("Order {} final calculation - DepositCharged: {}, DepositRefunded: {}, NetDeposit: {}, TotalAmount: {}",
+        log.info("Order {} final calculation - Subtotal: {}, PromoDiscount: {}, DepositCharged: {}, DepositRefunded: {}, NetDeposit: {}, TotalAmount: {}, FinalAmount: {}",
                 order.getOrderNumber(),
+                order.getSubtotal(),
+                promoDiscount,
                 order.getTotalDepositCharged(),
                 order.getTotalDepositRefunded(),
                 order.getNetDeposit(),
-                totalAmount);
+                totalAmount,
+                amount);
     }
 }

@@ -15,6 +15,7 @@ public interface WarehouseStockMapper {
     @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "size", source = "product.size")
+    @Mapping(target = "companyName", source = "product.company.name")
     WarehouseStockResponse toResponse(WarehouseStock warehouseStock);
 
     List<WarehouseStockResponse> toResponseList(List<WarehouseStock> warehouseStocks);
