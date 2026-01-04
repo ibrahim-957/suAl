@@ -89,12 +89,12 @@ public class Promo {
     public boolean isActive(){
         LocalDate now = LocalDate.now();
         return promoStatus == PromoStatus.ACTIVE
-                && !now.isAfter(validFrom)
-                && !now.isBefore(validTo);
+                && !now.isAfter(validTo)
+                && !now.isBefore(validFrom);
     }
 
     public boolean hasReachedTotalLimit(){
-        return maxTotalUses != null && currentTotalUses > maxTotalUses;
+        return maxTotalUses != null && currentTotalUses >= maxTotalUses;
     }
 
     public void incrementUses(){

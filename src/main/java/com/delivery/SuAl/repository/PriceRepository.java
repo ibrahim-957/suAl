@@ -16,4 +16,6 @@ public interface PriceRepository extends JpaRepository<Price, Long> {
 
     @Query("SELECT p FROM Price p WHERE p.product.id IN :productIds")
     List<Price> findAllByProductIdIn(@Param("productIds") List<Long> productIds);
+
+    Optional<Price> findLatestByProductId(Long productId);
 }

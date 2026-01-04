@@ -9,6 +9,7 @@ import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.exception.InvalidRequestException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.OrderCalculationResult;
@@ -18,6 +19,8 @@ import com.delivery.SuAl.model.OperatorStatus;
 import com.delivery.SuAl.model.OrderStatus;
 import com.delivery.SuAl.model.PaymentMethod;
 import com.delivery.SuAl.model.PaymentStatus;
+import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorRequest;
+import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
@@ -26,6 +29,7 @@ import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderItemRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
+import com.delivery.SuAl.model.response.basket.BasketResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
@@ -66,6 +70,7 @@ public class OrderServiceImpl implements OrderService {
     private final CampaignService campaignService;
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
+    private final BasketService basketService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -73,38 +78,98 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public OrderResponse createOrderByUser(String phoneNumber, CreateOrderRequest createOrderRequest) {
-        log.info("User with phone {} creating their own order", phoneNumber);
+    @Transactional
+    public OrderResponse createOrderFromBasketByUser(String phoneNumber, CreateOrderFromBasketRequest request) {
+        log.info("User with phone {} creating order from basket", phoneNumber);
 
         User user = userRepository.findByPhoneNumber(phoneNumber)
                 .orElseThrow(() -> new NotFoundException("User with phone number " + phoneNumber + " not found"));
 
+        if (!user.getIsActive())
+            throw new InvalidRequestException("User account is not active");
 
-        createOrderRequest.setUserId(user.getId());
+        BasketResponse basket;
+        try {
+            basket = basketService.getBasket(user.getId());
+        }catch (NotFoundException e) {
+            log.error("Basket not found for user {}", user.getId());
+            throw new InvalidRequestException("Basket not found. Please add items to basket first.");
+        }
 
-        log.info("Order will be created for authenticated user ID: {}", user.getId());
+        if (basket.getTotalItems() == null || basket.getTotalItems() == 0){
+            log.error("Empty basket for user {}", user.getId());
+            throw new InvalidRequestException("Cannot create order from empty basket");
+        }
 
-        return createOrderInternal(createOrderRequest, user, null);
+        log.info("Creating order from basket for user {} with {} items",  user.getId(), basket.getTotalItems());
+
+        CreateOrderRequest createOrderRequest = basketService.convertBasketToOrderRequest(user.getId(), request);
+
+        OrderResponse orderResponse = createOrderInternal(createOrderRequest, user, null);
+
+        try {
+            basketService.clearBasket(user.getId());
+            log.info("Basket cleared successfully for user {} after order {}",  user.getId(), basket.getTotalItems());
+        } catch (Exception e) {
+            log.error("Failed to clear basket for user {} after order creation", user.getId());
+        }
+        return orderResponse;
     }
 
     @Override
-    public OrderResponse createOrderByOperator(String operatorEmail, CreateOrderRequest createOrderRequest) {
-        log.info("Operator {} creating order for user ID: {}", operatorEmail, createOrderRequest.getUserId());
+    public OrderResponse createOrderFromBasketByOperator(String operatorEmail, CreateOrderFromBasketByOperatorRequest request) {
+        log.info("Operator {} creating order from basket for user ID: {}",  operatorEmail,  request.getUserId());
 
         Operator operator = operatorRepository.findByEmail(operatorEmail)
-                .orElseThrow(() -> new NotFoundException("Operator " + operatorEmail + " not found"));
+                .orElseThrow(() -> new NotFoundException("Operator with email " + operatorEmail + " not found"));
 
-        if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
-            throw new RuntimeException("Operator is not active with email: " + operatorEmail);
+        if (operator.getOperatorStatus() != OperatorStatus.ACTIVE){
+            throw new InvalidRequestException("Operator status is not active");
         }
 
-        if (createOrderRequest.getUserId() == null) {
-            throw new RuntimeException("User ID is required when operator creates order");
+        if (request.getUserId() == null){
+            throw new InvalidRequestException("User ID is required when operator creates order from basket");
         }
 
-        User user = findUserById(createOrderRequest.getUserId());
+        User user = findUserById(request.getUserId());
 
-        return createOrderInternal(createOrderRequest, user, operator);
+        BasketResponse basket;
+        try {
+            basket = basketService.getBasket(request.getUserId());
+        }catch (NotFoundException e) {
+            log.error("Basket not found for user {}", request.getUserId());
+            throw new InvalidRequestException("Basket not found for user " + request.getUserId());
+        }
+
+        if (basket.getTotalItems() == null || basket.getTotalItems() == 0){
+            log.error("Empty basket for user {}", request.getUserId());
+            throw new InvalidRequestException("Cannot create order from empty basket for user");
+        }
+
+        log.info("Operator {} creating order from basket for user {} with {} items",
+                operatorEmail,  request.getUserId(), basket.getTotalItems());
+
+        CreateOrderFromBasketRequest basketRequest = CreateOrderFromBasketRequest.builder()
+                .addressId(request.getAddressId())
+                .deliveryDate(request.getDeliveryDate())
+                .promoCode(request.getPromoCode())
+                .campaignId(request.getCampaignId())
+                .campaignProductId(request.getCampaignProductId())
+                .notes(request.getNotes())
+                .build();
+
+        CreateOrderRequest createOrderRequest =  basketService.convertBasketToOrderRequest(user.getId(), basketRequest);
+
+        OrderResponse orderResponse = createOrderInternal(createOrderRequest, user, operator);
+
+        try {
+            basketService.clearBasket(user.getId());
+            log.info("Basket cleared successfully for user {} after order {} by operator {}",
+                    request.getUserId(), orderResponse.getOrderNumber(), operatorEmail);
+        } catch (Exception e) {
+            log.error("Failed to clear basket for user {} after order creation", request.getUserId());
+        }
+        return orderResponse;
     }
 
     @Override
@@ -378,6 +443,20 @@ public class OrderServiceImpl implements OrderService {
 
         OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(orderDetails);
 
+        order.setTotalItems(calculation.getTotalCount());
+        order.setSubtotal(calculation.getSubtotal());
+        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
+        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
+        order.setNetDeposit(calculation.getNetDeposit());
+
+        order.setCampaignDiscount(BigDecimal.ZERO);
+        order.setPromoDiscount(BigDecimal.ZERO);
+
+        BigDecimal amount = order.getSubtotal();
+        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+        order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
+
         BigDecimal promoDiscount = BigDecimal.ZERO;
         if (createOrderRequest.getPromoCode() != null && !createOrderRequest.getPromoCode().trim().isEmpty()) {
             Order tempSavedOrder = orderRepository.save(order);
@@ -446,17 +525,12 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        order.setTotalItems(calculation.getTotalCount());
-        order.setSubtotal(calculation.getSubtotal());
-        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
-        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
-        order.setNetDeposit(calculation.getNetDeposit());
         order.setCampaignDiscount(campaignBonusValue);
 
-        BigDecimal amount = order.getSubtotal()
+        amount = order.getSubtotal()
                 .subtract(promoDiscount);
 
-        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+        totalAmount = amount.add(order.getNetDeposit());
 
         order.setAmount(amount);
         order.setTotalAmount(totalAmount);

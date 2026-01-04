@@ -1,7 +1,8 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorRequest;
+import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
-import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
@@ -11,9 +12,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface OrderService {
-    OrderResponse createOrderByUser(String phoneNumber, CreateOrderRequest createOrderRequest);
+    OrderResponse createOrderFromBasketByUser(String phoneNumber, CreateOrderFromBasketRequest request);
 
-    OrderResponse createOrderByOperator(String operatorEmail, CreateOrderRequest createOrderRequest);
+    OrderResponse createOrderFromBasketByOperator(String operatorEmail, CreateOrderFromBasketByOperatorRequest request);
 
     OrderResponse updateOrder(Long orderId, UpdateOrderRequest request);
 

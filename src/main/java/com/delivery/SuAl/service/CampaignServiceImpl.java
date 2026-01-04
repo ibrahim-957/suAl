@@ -220,7 +220,7 @@ public class CampaignServiceImpl implements CampaignService {
         user.setId(request.getUserId());
         campaignUsage.setUser(user);
 
-        if (request.getOrderId() != null) {
+        if (request.getUserId() != null) {
             Order order = new Order();
             order.setId(request.getOrderId());
             campaignUsage.setOrder(order);

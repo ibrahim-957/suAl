@@ -200,10 +200,9 @@ public class PromoServiceImpl implements PromoService {
 
         User user = new User();
         user.setId(request.getUserId());
-
         promoUsage.setUser(user);
 
-        if (request.getUserId() != null) {
+        if (request.getOrderId() != null) {
             Order order = new Order();
             order.setId(request.getOrderId());
             promoUsage.setOrder(order);
@@ -265,7 +264,7 @@ public class PromoServiceImpl implements PromoService {
 
         if (promo.getMaxUsesPerUser() != null){
             Integer userUsageCount = promoUsageRepository.countUsagesByUserAndPromo(userId, promo.getId());
-            if (userUsageCount > promo.getMaxUsesPerUser()){
+            if (userUsageCount >= promo.getMaxUsesPerUser()){
                 throw new PromoUsageLimitExceededException(
                         String.format("You have already used this promo %d times. Maximum allowed: %d",
                                 userUsageCount, promo.getMaxUsesPerUser())
