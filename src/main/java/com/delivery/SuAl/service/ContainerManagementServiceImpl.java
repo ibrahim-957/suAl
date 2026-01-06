@@ -52,8 +52,6 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
             int availableContainers = (userContainer != null) ? userContainer.getQuantity() : 0;
 
-            int containersToUse = Math.min(availableContainers, orderQuantity);
-
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
 
@@ -62,23 +60,23 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                     : BigDecimal.ZERO;
 
             BigDecimal refundForProduct = depositPerUnit
-                    .multiply(BigDecimal.valueOf(containersToUse))
+                    .multiply(BigDecimal.valueOf(availableContainers))
                     .setScale(2, RoundingMode.HALF_UP);
 
             productDepositInfos.add(new ProductDepositInfo(
                     productId,
                     orderQuantity,
                     availableContainers,
-                    containersToUse,
+                    availableContainers,
                     depositPerUnit,
                     refundForProduct
             ));
 
-            totalContainersUsed += containersToUse;
+            totalContainersUsed += availableContainers;
             totalDepositRefunded = totalDepositRefunded.add(refundForProduct);
 
             log.debug("Product {}: ordered={}, available={}, using={}, refund={}",
-                    productId, orderQuantity, availableContainers, containersToUse, refundForProduct);
+                    productId, orderQuantity, availableContainers, availableContainers, refundForProduct);
         }
 
         log.info("Total containers to use: {}, Total refund: {}",

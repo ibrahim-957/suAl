@@ -8,23 +8,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface CampaignUsageRepository extends JpaRepository<CampaignUsage, Long> {
+    int countByUserIdAndCampaignCampaignCode(Long userId, String campaignCode);
+
     List<CampaignUsage> findByUserId(Long userId);
 
-    Page<CampaignUsage> findByUserId(Long userId, Pageable pageable);
+    List<CampaignUsage> findByCampaignCampaignCode(String campaignCode);
 
-    List<CampaignUsage> findByCampaignId(Long campaignId);
-
-    Page<CampaignUsage> findByCampaignId(Long campaignId, Pageable pageable);
-
-    Long countByUserIdAndCampaignId(Long userId, Long campaignId);
-
-    @Query("SELECT CASE WHEN COUNT(cu) > 0 THEN TRUE ELSE FALSE END FROM CampaignUsage cu " +
-            "WHERE cu.user.id = :userId AND cu.campaign.id = :campaignId")
-    Boolean hasUserUsedCampaign(@Param("userId") Long userId, @Param("campaignId") Long campaignId);
-
-    @Query("SELECT COUNT(cu) FROM CampaignUsage cu " +
-            "WHERE cu.user.id = :userId AND cu.campaign.id = :campaignId")
-    Integer countUsagesByUserAndCampaign(@Param("userId") Long userId, @Param("campaignId") Long campaignId);
+    Optional<CampaignUsage> findByOrderId(Long orderId);
 }

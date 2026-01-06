@@ -20,9 +20,5 @@ public class CreateOrderFromBasketRequest {
 
     private String promoCode;
 
-    private String campaignId;
-
-    private Long campaignProductId;
-
     private String notes;
 }

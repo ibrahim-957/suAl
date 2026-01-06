@@ -128,23 +128,22 @@ public class OrderCalculationService {
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal totalAmount = order.getSubtotal().add(order.getNetDeposit());
-
         BigDecimal amount = order.getSubtotal()
-                .subtract(promoDiscount)
-                .add(order.getNetDeposit());
+                .subtract(promoDiscount);
 
-        order.setTotalAmount(totalAmount);
+        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+
         order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
 
-        log.info("Order {} final calculation - Subtotal: {}, PromoDiscount: {}, DepositCharged: {}, DepositRefunded: {}, NetDeposit: {}, TotalAmount: {}, FinalAmount: {}",
+        log.info("Order {} final calculation - Subtotal: {}, PromoDiscount: {}, DepositCharged: {}, DepositRefunded: {}, NetDeposit: {}, Amount: {}, TotalAmount: {}",
                 order.getOrderNumber(),
                 order.getSubtotal(),
                 promoDiscount,
                 order.getTotalDepositCharged(),
                 order.getTotalDepositRefunded(),
                 order.getNetDeposit(),
-                totalAmount,
-                amount);
+                amount,
+                totalAmount);
     }
 }

@@ -15,7 +15,6 @@ import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OrderRepository;
-import com.delivery.SuAl.repository.WarehouseStockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,7 +36,6 @@ public class DriverServiceImpl implements DriverService {
     private final DriverMapper driverMapper;
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
-    private final WarehouseStockRepository warehouseStockRepository;
 
     @Override
     @Transactional

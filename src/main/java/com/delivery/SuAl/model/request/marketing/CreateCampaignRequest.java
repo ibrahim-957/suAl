@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.request.marketing;
 
+import com.delivery.SuAl.model.CampaignType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -16,10 +17,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CreateCampaignRequest {
-    @NotBlank(message = "Campaign ID is required")
-    @Pattern(regexp = "^[A-Z0-9_]+$", message = "Campaign ID must contain only uppercase letters, numbers, and underscores")
-    @Size(min = 4, max = 30, message = "Campaign ID must be between 4 and 30 characters")
-    private String campaignId;
+    @Size(min = 3, max = 30)
+    private String campaignCode;
 
     @NotBlank(message = "Campaign name is required")
     @Size(min = 3, max = 100, message = "Campaign name must be between 3 and 100 characters")
@@ -27,6 +26,9 @@ public class CreateCampaignRequest {
 
     @Size(max = 500, message = "Description must not exceed 500 characters")
     private String description;
+
+    @NotNull(message = "Campaign type is required")
+    private CampaignType campaignType;
 
     @NotNull(message = "Buy product ID is required")
     private Long buyProductId;
@@ -39,6 +41,13 @@ public class CreateCampaignRequest {
 
     @Min(value = 1, message = "Free quantity must be at least 1")
     private int freeQuantity;
+
+    private Boolean firstOrderOnly;
+
+    @Min(0)
+    private Integer minDatsSinceRegistration;
+
+    private Boolean requiresPromoAbsence;
 
     @Min(value = 1, message = "Max uses per user must be at least 1")
     private Integer maxUsesPerUser;

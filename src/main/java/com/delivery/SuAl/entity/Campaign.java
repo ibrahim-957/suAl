@@ -1,6 +1,7 @@
 package com.delivery.SuAl.entity;
 
 import com.delivery.SuAl.model.CampaignStatus;
+import com.delivery.SuAl.model.CampaignType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,6 +19,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.cglib.core.Local;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,13 +35,17 @@ public class Campaign {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "campaign_id", nullable = false, unique = true, updatable = false)
-    private String campaignId;
+    @Column(name = "campaign_code", unique = true, nullable = false, updatable = false)
+    private String campaignCode;
 
     @Column(nullable = false)
     private String name;
 
     private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "campaign_type", nullable = false)
+    private CampaignType campaignType = CampaignType.BUY_X_GET_Y_FREE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buy_product_id", nullable = false)
@@ -54,6 +60,15 @@ public class Campaign {
 
     @Column(name = "free_quantity", nullable = false)
     private int freeQuantity;
+
+    @Column(name = "first_order_only")
+    private Boolean firstOrderOnly = false;
+
+    @Column(name = "min_days_since_registration")
+    private Integer minDaysSinceRegistration;
+
+    @Column(name = "requires_promo_absence")
+    private Boolean requiresPromoAbsence = false;
 
     @Column(name = "max_uses_per_user")
     private Integer maxUsesPerUser;
@@ -94,15 +109,32 @@ public class Campaign {
     public boolean isActive(){
         LocalDate now = LocalDate.now();
         return campaignStatus == CampaignStatus.ACTIVE
-                && !now.isAfter(validFrom)
-                && !now.isBefore(validTo);
+                && !now.isAfter(validTo)
+                && !now.isBefore(validFrom);
     }
 
     public boolean hasReachedTotalLimit(){
-        return maxTotalUses != null && currentTotalUses > maxTotalUses;
+        return maxTotalUses != null && currentTotalUses >= maxTotalUses;
     }
 
     public void incrementUses(){
         this.currentTotalUses++;
+    }
+
+    private boolean meetsRegistrationRequirement(LocalDateTime userRegistrationDate){
+        if (minDaysSinceRegistration == null || minDaysSinceRegistration == 0){
+            return true;
+        }
+
+        LocalDateTime requiredDate = userRegistrationDate.plusDays(minDaysSinceRegistration);
+        return LocalDateTime.now().isAfter(requiredDate);
+    }
+
+    public boolean isFirstOrderOnly(){
+        return Boolean.TRUE.equals(firstOrderOnly);
+    }
+
+    public boolean allowPromoCode(){
+        return !Boolean.TRUE.equals(requiresPromoAbsence);
     }
 }

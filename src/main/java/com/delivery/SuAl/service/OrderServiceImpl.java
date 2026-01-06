@@ -1,7 +1,6 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Address;
-import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.entity.Order;
@@ -12,6 +11,7 @@ import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.exception.InvalidRequestException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
+import com.delivery.SuAl.helper.EligibleCampaignInfo;
 import com.delivery.SuAl.helper.OrderCalculationResult;
 import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.mapper.OrderMapper;
@@ -23,6 +23,7 @@ import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorReq
 import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
+import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
@@ -32,18 +33,21 @@ import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.basket.BasketResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
+import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
 import com.delivery.SuAl.repository.OrderRepository;
+import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -64,6 +68,7 @@ public class OrderServiceImpl implements OrderService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final OperatorRepository operatorRepository;
+    private final ProductRepository productRepository;
 
     private final OrderCalculationService orderCalculationService;
     private final PromoService promoService;
@@ -91,43 +96,39 @@ public class OrderServiceImpl implements OrderService {
         BasketResponse basket;
         try {
             basket = basketService.getBasket(user.getId());
-        }catch (NotFoundException e) {
+        } catch (NotFoundException e) {
             log.error("Basket not found for user {}", user.getId());
             throw new InvalidRequestException("Basket not found. Please add items to basket first.");
         }
 
-        if (basket.getTotalItems() == null || basket.getTotalItems() == 0){
+        if (basket.getTotalItems() == null || basket.getTotalItems() == 0) {
             log.error("Empty basket for user {}", user.getId());
             throw new InvalidRequestException("Cannot create order from empty basket");
         }
 
-        log.info("Creating order from basket for user {} with {} items",  user.getId(), basket.getTotalItems());
+        log.info("Creating order from basket for user {} with {} items", user.getId(), basket.getTotalItems());
 
         CreateOrderRequest createOrderRequest = basketService.convertBasketToOrderRequest(user.getId(), request);
 
         OrderResponse orderResponse = createOrderInternal(createOrderRequest, user, null);
 
-        try {
-            basketService.clearBasket(user.getId());
-            log.info("Basket cleared successfully for user {} after order {}",  user.getId(), basket.getTotalItems());
-        } catch (Exception e) {
-            log.error("Failed to clear basket for user {} after order creation", user.getId());
-        }
+        clearBasketAfterOrder(user.getId());
         return orderResponse;
     }
 
     @Override
+    @Transactional
     public OrderResponse createOrderFromBasketByOperator(String operatorEmail, CreateOrderFromBasketByOperatorRequest request) {
-        log.info("Operator {} creating order from basket for user ID: {}",  operatorEmail,  request.getUserId());
+        log.info("Operator {} creating order from basket for user ID: {}", operatorEmail, request.getUserId());
 
         Operator operator = operatorRepository.findByEmail(operatorEmail)
                 .orElseThrow(() -> new NotFoundException("Operator with email " + operatorEmail + " not found"));
 
-        if (operator.getOperatorStatus() != OperatorStatus.ACTIVE){
+        if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
             throw new InvalidRequestException("Operator status is not active");
         }
 
-        if (request.getUserId() == null){
+        if (request.getUserId() == null) {
             throw new InvalidRequestException("User ID is required when operator creates order from basket");
         }
 
@@ -136,39 +137,31 @@ public class OrderServiceImpl implements OrderService {
         BasketResponse basket;
         try {
             basket = basketService.getBasket(request.getUserId());
-        }catch (NotFoundException e) {
+        } catch (NotFoundException e) {
             log.error("Basket not found for user {}", request.getUserId());
             throw new InvalidRequestException("Basket not found for user " + request.getUserId());
         }
 
-        if (basket.getTotalItems() == null || basket.getTotalItems() == 0){
+        if (basket.getTotalItems() == null || basket.getTotalItems() == 0) {
             log.error("Empty basket for user {}", request.getUserId());
             throw new InvalidRequestException("Cannot create order from empty basket for user");
         }
 
         log.info("Operator {} creating order from basket for user {} with {} items",
-                operatorEmail,  request.getUserId(), basket.getTotalItems());
+                operatorEmail, request.getUserId(), basket.getTotalItems());
 
         CreateOrderFromBasketRequest basketRequest = CreateOrderFromBasketRequest.builder()
                 .addressId(request.getAddressId())
                 .deliveryDate(request.getDeliveryDate())
                 .promoCode(request.getPromoCode())
-                .campaignId(request.getCampaignId())
-                .campaignProductId(request.getCampaignProductId())
                 .notes(request.getNotes())
                 .build();
 
-        CreateOrderRequest createOrderRequest =  basketService.convertBasketToOrderRequest(user.getId(), basketRequest);
+        CreateOrderRequest createOrderRequest = basketService.convertBasketToOrderRequest(user.getId(), basketRequest);
 
         OrderResponse orderResponse = createOrderInternal(createOrderRequest, user, operator);
 
-        try {
-            basketService.clearBasket(user.getId());
-            log.info("Basket cleared successfully for user {} after order {} by operator {}",
-                    request.getUserId(), orderResponse.getOrderNumber(), operatorEmail);
-        } catch (Exception e) {
-            log.error("Failed to clear basket for user {} after order creation", request.getUserId());
-        }
+        clearBasketAfterOrder(user.getId());
         return orderResponse;
     }
 
@@ -394,10 +387,32 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable) {
+        log.info("Getting all orders for management with page: {}", pageable);
+
         Page<Order> orderPage = orderRepository.findAll(pageable);
 
-        List<OrderResponse> responses = orderMapper.toResponseList(orderPage.getContent());
+        List<Order> orders = orderPage.getContent();
+
+        List<OrderResponse> responses = orders.stream()
+                .map(orderMapper::toResponse)
+                .toList();
+
         return PageResponse.of(responses, orderPage);
+    }
+
+    @Override
+    public int getCompletedOrderCount(Long userId) {
+        log.info("Getting completed orders for user {}", userId);
+        return orderRepository.countByUserIdAndOrderStatus(userId, OrderStatus.COMPLETED);
+    }
+
+    @Override
+    public Order getOrderEntityById(Long orderId) {
+        log.info("Fetching order entity by id: {}", orderId);
+
+        return orderRepository.findByUserId(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
+
     }
 
     private User findUserById(Long userId) {
@@ -435,7 +450,8 @@ public class OrderServiceImpl implements OrderService {
                         OrderItemRequest::getQuantity
                 ));
 
-        ContainerDepositSummary depositSummary = containerManagementService.calculateAvailableContainerRefunds(user.getId(), productQuantities);
+        ContainerDepositSummary depositSummary = containerManagementService.calculateAvailableContainerRefunds(
+                user.getId(), productQuantities);
 
         applyContainerInfoToOrderDetails(orderDetails, depositSummary);
 
@@ -470,57 +486,89 @@ public class OrderServiceImpl implements OrderService {
                             .build()
             );
 
-            if (promoResult.getSuccess()){
+            if (promoResult.getSuccess()) {
                 order.setPromoDiscount(promoResult.getDiscountApplied());
+                order.setPromo(promoService.getPromoEntityByCode(createOrderRequest.getPromoCode()));
                 promoDiscount = promoResult.getDiscountApplied();
                 log.info("Promo applied: {}, Discount: {}", createOrderRequest.getPromoCode(), promoDiscount);
             }
         }
 
         BigDecimal campaignBonusValue = BigDecimal.ZERO;
-        if (createOrderRequest.getCampaignId() != null && !createOrderRequest.getCampaignId().trim().isEmpty()) {
-            if (order.getId() == null){
+
+        boolean willUsePromo = (createOrderRequest.getPromoCode() != null && !createOrderRequest.getPromoCode().trim().isEmpty());
+
+        GetEligibleCampaignsRequest campaignRequest = GetEligibleCampaignsRequest.builder()
+                .userId(user.getId())
+                .productQuantities(productQuantities)
+                .willUsePromoCode(willUsePromo)
+                .build();
+
+        EligibleCampaignsResponse eligibleCampaigns = campaignService.getEligibleCampaigns(campaignRequest);
+
+        List<EligibleCampaignInfo> campaignsToApply = eligibleCampaigns.getEligibleCampaigns().stream()
+                .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
+                .toList();
+
+        if (!campaignsToApply.isEmpty()) {
+            if (order.getId() == null) {
                 order = orderRepository.save(order);
             }
 
-            OrderDetail buyProductDetail = orderDetails.stream()
-                    .filter(detail -> createOrderRequest.getCampaignProductId() != null &&
-                            detail.getProduct().getId().equals(createOrderRequest.getCampaignProductId()))
-                    .findFirst()
-                    .orElse(null);
+            for (EligibleCampaignInfo campaignInfo : campaignsToApply) {
+                try {
+                    ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
+                            .campaignCode(campaignInfo.getCampaignCode())
+                            .userId(user.getId())
+                            .orderId(order.getId())
+                            .build();
 
-            if (buyProductDetail != null){
-                ApplyCampaignResponse campaignResult = campaignService.applyCampaign(
-                        ApplyCampaignRequest.builder()
-                                .userId(user.getId())
-                                .orderId(order.getId())
-                                .campaignId(createOrderRequest.getCampaignId())
-                                .buyProductId(buyProductDetail.getProduct().getId())
-                                .buyQuantity(buyProductDetail.getCount())
-                                .build()
-                );
+                    ApplyCampaignResponse campaignResult = campaignService.applyCampaign(applyCampaignRequest);
 
-                if (campaignResult.getSuccess()){
-                    OrderCampaignBonus bonus = new OrderCampaignBonus();
-                    bonus.setOrder(order);
-                    Campaign campaign = new Campaign();
-                    campaign.setId(Long.valueOf(campaignResult.getCampaignId()));
-                    bonus.setCampaign(campaign);
+                    if (campaignResult.getSuccess()) {
+                        Product freeProduct = productRepository.findById(campaignResult.getFreeProductId())
+                                .orElseThrow(() -> new NotFoundException("Free product not found: " + campaignResult.getFreeProductId()));
 
-                    Product freeProduct = new Product();
-                    freeProduct.setId(campaignResult.getFreeProductId());
-                    bonus.setProduct(freeProduct);
+                        OrderDetail freeOrderDetail = new OrderDetail();
+                        freeOrderDetail.setOrder(order);
+                        freeOrderDetail.setProduct(freeProduct);
+                        freeOrderDetail.setCompany(freeProduct.getCompany());
+                        freeOrderDetail.setCategory(freeProduct.getCategory());
+                        freeOrderDetail.setPricePerUnit(BigDecimal.ZERO);
+                        freeOrderDetail.setBuyPrice(freeProduct.getPrices().getLast().getBuyPrice());
+                        freeOrderDetail.setCount(campaignResult.getFreeQuantity());
+                        freeOrderDetail.setSubtotal(BigDecimal.ZERO);
 
-                    bonus.setQuantity(campaignResult.getFreeQuantity());
-                    bonus.setOriginalValue(campaignResult.getBonusValue());
+                        if (Boolean.TRUE.equals(freeProduct.getHasDeposit())) {
+                            BigDecimal depositPerUnit = freeProduct.getDepositAmount();
+                            freeOrderDetail.setDepositPerUnit(depositPerUnit);
+                            freeOrderDetail.setDepositCharged(depositPerUnit.multiply(BigDecimal.valueOf(campaignResult.getFreeQuantity())));
+                            freeOrderDetail.setDepositRefunded(BigDecimal.ZERO);
+                            freeOrderDetail.setContainersReturned(0);
 
-                    order.getCampaignBonuses().add(bonus);
-                    campaignBonusValue = campaignResult.getBonusValue();
+                            order.setTotalDepositCharged(order.getTotalDepositCharged().add(freeOrderDetail.getDepositCharged()));
+                            order.setNetDeposit(order.getNetDeposit().add(freeOrderDetail.getDepositCharged()));
+                        } else {
+                            freeOrderDetail.setDepositPerUnit(BigDecimal.ZERO);
+                            freeOrderDetail.setDepositCharged(BigDecimal.ZERO);
+                            freeOrderDetail.setDepositRefunded(BigDecimal.ZERO);
+                        }
 
-                    log.info("Campaign applied: {}, Free products: {} x {}",
-                            createOrderRequest.getCampaignId(),
-                            campaignResult.getFreeProductName(),
-                            campaignResult.getFreeQuantity());
+                        freeOrderDetail.setLineTotal(freeOrderDetail.getSubtotal()
+                                .add(freeOrderDetail.getDepositCharged())
+                                .subtract(freeOrderDetail.getDepositRefunded()));
+
+                        order.getOrderDetails().add(freeOrderDetail);
+                        campaignBonusValue = campaignBonusValue.add(campaignResult.getBonusValue());
+
+                        log.info("Campaign applied: {} - Free product: {} x {}, Bonus value: {}",
+                                campaignResult.getCampaignName(),
+                                campaignResult.getFreeProductName(),
+                                campaignResult.getFreeQuantity(),
+                                campaignResult.getBonusValue());
+                    }
+                } catch (Exception e) {
+                    log.error("Error applying campaign: {}", campaignInfo.getCampaignCode(), e);
                 }
             }
         }
@@ -528,7 +576,8 @@ public class OrderServiceImpl implements OrderService {
         order.setCampaignDiscount(campaignBonusValue);
 
         amount = order.getSubtotal()
-                .subtract(promoDiscount);
+                .subtract(promoDiscount)
+                .subtract(campaignBonusValue);
 
         totalAmount = amount.add(order.getNetDeposit());
 
@@ -713,5 +762,15 @@ public class OrderServiceImpl implements OrderService {
         return order.getOrderDetails().stream()
                 .mapToInt(OrderDetail::getContainersReturned)
                 .sum();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void clearBasketAfterOrder(Long userId) {
+        try {
+            basketService.clearBasket(userId);
+            log.info("Basket cleared successfully for user {} after order creation", userId);
+        } catch (Exception e) {
+            log.error("Failed to clear basket for user {} after order creation: {}", userId, e.getMessage());
+        }
     }
 }

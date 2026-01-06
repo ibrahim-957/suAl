@@ -25,10 +25,6 @@ public class CreateOrderRequest {
 
     private String promoCode;
 
-    private String campaignId;
-
-    private Long campaignProductId;
-
     private LocalDate deliveryDate;
 
     @Size(max = 1000, message = "Notes must not exceed 1000 characters")

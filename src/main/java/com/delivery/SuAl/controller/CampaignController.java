@@ -91,25 +91,25 @@ public class CampaignController {
         return ResponseEntity.ok(ApiResponse.success("Campaign deleted successfully", null));
     }
 
-    @PostMapping("/apply")
-    public ResponseEntity<ApiResponse<ApplyCampaignResponse>> applyCampaign(
-            @Valid @RequestBody ApplyCampaignRequest request) {
-
-        ApplyCampaignResponse response = campaignService.applyCampaign(request);
-
-        return ResponseEntity.ok(ApiResponse.success("Campaign applied successfully", response));
-    }
-
-    @PostMapping("/validate")
-    public ResponseEntity<ApiResponse<ValidateCampaignResponse>> validateCampaign(
-        @Valid @RequestBody ValidateCampaignRequest request
-    ){
-        ValidateCampaignResponse response = campaignService.validateCampaign(request);
-
-        if (response.getIsValid()){
-            return ResponseEntity.ok(ApiResponse.success("Campaign validated successfully", response));
-        } else {
-            return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response));
-        }
-    }
+//    @PostMapping("/apply")
+//    public ResponseEntity<ApiResponse<ApplyCampaignResponse>> applyCampaign(
+//            @Valid @RequestBody ApplyCampaignRequest request) {
+//
+//        ApplyCampaignResponse response = campaignService.applyCampaign(request);
+//
+//        return ResponseEntity.ok(ApiResponse.success("Campaign applied successfully", response));
+//    }
+//
+//    @PostMapping("/validate")
+//    public ResponseEntity<ApiResponse<ValidateCampaignResponse>> validateCampaign(
+//        @Valid @RequestBody ValidateCampaignRequest request
+//    ){
+//        ValidateCampaignResponse response = campaignService.validateCampaign(request);
+//
+//        if (response.getIsValid()){
+//            return ResponseEntity.ok(ApiResponse.success("Campaign validated successfully", response));
+//        } else {
+//            return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response));
+//        }
+//    }
 }

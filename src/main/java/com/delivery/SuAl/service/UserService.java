@@ -1,10 +1,12 @@
 package com.delivery.SuAl.service;
 
 
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.model.request.user.CreateUserRequest;
 import com.delivery.SuAl.model.request.user.UpdateUserRequest;
 import com.delivery.SuAl.model.response.user.UserResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Pageable;
 
 public interface UserService {
@@ -17,4 +19,6 @@ public interface UserService {
     void deleteUser(Long id);
 
     PageResponse<UserResponse> getAllUsers(Pageable pageable);
+
+    User getUserEntityById(Long id);
 }

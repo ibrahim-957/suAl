@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.response.basket;
 
+import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,7 @@ public class BasketCalculationResponse {
     private Boolean promoValid;
     private String promoMessage;
     private BigDecimal campaignDiscount;
+    private EligibleCampaignsResponse eligibleCampaigns;
     private BigDecimal amount;
     private BigDecimal totalAmount;
     private Integer totalItems;

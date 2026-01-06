@@ -43,7 +43,7 @@ public class BasketController {
 
     @GetMapping("/my-basket")
     public ResponseEntity<ApiResponse<BasketResponse>> getMyBasket(
-            @RequestHeader("X-User_Phone") String phoneNumber
+            @RequestHeader("X-User-Phone") String phoneNumber
     ) {
         log.info("Getting basket for user with phone: {}", phoneNumber);
 
@@ -56,7 +56,7 @@ public class BasketController {
 
     @PostMapping("/items")
     public ResponseEntity<ApiResponse<BasketResponse>> addItem(
-            @RequestHeader("X-User_Phone") String phoneNumber,
+            @RequestHeader("X-User-Phone") String phoneNumber,
             @Valid @RequestBody AddToBasketRequest request
             ){
         log.info("Adding item to basket for user with phone: {}", phoneNumber);
@@ -71,7 +71,7 @@ public class BasketController {
 
     @PutMapping("/items/{itemId}")
     public ResponseEntity<ApiResponse<BasketResponse>> updateItem(
-            @RequestHeader("X-User_Phone") String phoneNumber,
+            @RequestHeader("X-User-Phone") String phoneNumber,
             @PathVariable Long itemId,
             @Valid @RequestBody UpdateBasketItemRequest request
     ){

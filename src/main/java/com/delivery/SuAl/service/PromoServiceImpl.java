@@ -231,6 +231,12 @@ public class PromoServiceImpl implements PromoService {
                 .build();
     }
 
+    @Override
+    public Promo getPromoEntityByCode(String promoCode) {
+        return promoRepository.findByPromoCode(promoCode)
+                .orElseThrow(() -> new NotFoundException("Promo not found with code: " + promoCode));
+    }
+
     private void checkAndUpdateExpiredStatus(Promo promo) {
         if (promo.getPromoStatus() == PromoStatus.ACTIVE){
             LocalDate now = LocalDate.now();

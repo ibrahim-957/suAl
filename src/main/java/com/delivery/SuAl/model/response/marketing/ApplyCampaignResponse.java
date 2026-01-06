@@ -14,12 +14,14 @@ import java.math.BigDecimal;
 public class ApplyCampaignResponse {
     private Boolean success;
     private String message;
+
     private Long campaignUsageId;
-    private String campaignId;
+    private String campaignCode;
     private String campaignName;
 
     private Long freeProductId;
     private String freeProductName;
     private Integer freeQuantity;
+
     private BigDecimal bonusValue;
 }

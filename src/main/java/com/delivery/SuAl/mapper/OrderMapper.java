@@ -9,8 +9,6 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.Mappings;
 
-import java.util.List;
-
 @Mapper(componentModel = "spring", uses = {OrderDetailMapper.class})
 public interface OrderMapper {
     Order toEntity(CreateOrderRequest createOrderRequest);
@@ -30,10 +28,8 @@ public interface OrderMapper {
             @Mapping(target = "promoCode", source = "promo.promoCode"),
 
             @Mapping(target = "address", source = "address"),
-            @Mapping(target = "finalAmount", source = "amount")
+            @Mapping(target = "totalAmount", source = "amount"),
+            @Mapping(target = "finalAmount", source = "totalAmount")
     })
     OrderResponse toResponse(Order order);
-
-    List<OrderResponse> toResponseList(List<Order> orders);
-
 }

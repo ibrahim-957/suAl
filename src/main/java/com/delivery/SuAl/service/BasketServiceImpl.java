@@ -12,12 +12,14 @@ import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.mapper.BasketMapper;
 import com.delivery.SuAl.model.ProductStatus;
 import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
+import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
 import com.delivery.SuAl.model.request.marketing.ValidatePromoRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderRequest;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.response.basket.BasketCalculationResponse;
 import com.delivery.SuAl.model.response.basket.BasketItemResponse;
 import com.delivery.SuAl.model.response.basket.BasketResponse;
+import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidatePromoResponse;
 import com.delivery.SuAl.repository.BasketItemRepository;
 import com.delivery.SuAl.repository.BasketRepository;
@@ -32,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +49,7 @@ public class BasketServiceImpl implements BasketService {
     private final ContainerManagementService containerManagementService;
     private final PromoService promoService;
     private final BasketMapper basketMapper;
+    private final CampaignService campaignService;
 
     @Override
     public BasketResponse getOrCreateBasket(Long userId) {
@@ -222,15 +226,31 @@ public class BasketServiceImpl implements BasketService {
 
         BigDecimal totalDepositCharged = itemResponses.stream()
                 .map(item -> item.getDepositPerUnit()
-                        .multiply(new BigDecimal(item.getQuantity() - item.getContainersToReturn())))
+                        .multiply(new BigDecimal(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalDepositRefunded = itemResponses.stream()
                 .map(item -> item.getDepositPerUnit()
-                        .multiply(new BigDecimal(item.getContainersToReturn())))
+                        .multiply(new BigDecimal(item.getAvailableContainers())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
+
+        Map<Long, Integer> productQuantities = basket.getBasketItems().stream()
+                .collect(Collectors.toMap(
+                        item -> item.getProduct().getId(),
+                        BasketItem::getQuantity
+                ));
+
+        GetEligibleCampaignsRequest campaignsRequest = GetEligibleCampaignsRequest.builder()
+                .userId(userId)
+                .productQuantities(productQuantities)
+                .willUsePromoCode(false)
+                .build();
+
+        EligibleCampaignsResponse eligibleCampaigns = campaignService.getEligibleCampaigns(campaignsRequest);
+        BigDecimal campaignDiscount = eligibleCampaigns.getTotalCampaignDiscount();
+
         BigDecimal amount = subtotal;
         BigDecimal totalAmount = amount.add(netDeposit);
 
@@ -244,7 +264,8 @@ public class BasketServiceImpl implements BasketService {
                 .promoCode(null)
                 .promoDiscount(BigDecimal.ZERO)
                 .promoMessage(null)
-                .campaignDiscount(BigDecimal.ZERO)
+                .campaignDiscount(campaignDiscount)
+                .eligibleCampaigns(eligibleCampaigns)
                 .amount(amount)
                 .totalAmount(totalAmount)
                 .totalItems(basket.getBasketItems().size())
@@ -256,15 +277,71 @@ public class BasketServiceImpl implements BasketService {
     public BasketCalculationResponse calculateBasketWithPromo(Long userId, String promoCode) {
         log.info("Calculating basket with promo for user: {}, promoCode: {}", userId, promoCode);
 
-        BasketCalculationResponse calculation = calculateBasket(userId);
+        Basket basket = basketRepository.findByUserIdWithItems(userId)
+                .orElseThrow(() -> new NotFoundException("Basket not found for user: " + userId));
 
-        if (promoCode != null && !promoCode.isBlank()) {
+        if (basket.getBasketItems().isEmpty()) {
+            log.info("Basket is empty for user: {}, returning zero calculation", userId);
+            return createEmptyCalculationResponse();
+        }
+
+        List<BasketItemResponse> itemResponses = basket.getBasketItems().stream()
+                .map(this::mapBasketItemWithContainers)
+                .toList();
+
+        BigDecimal subtotal = itemResponses.stream()
+                .map(BasketItemResponse::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalDepositCharged = itemResponses.stream()
+                .map(item -> item.getDepositPerUnit()
+                        .multiply(new BigDecimal(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalDepositRefunded = itemResponses.stream()
+                .map(item -> item.getDepositPerUnit()
+                        .multiply(new BigDecimal(item.getAvailableContainers())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
+
+        Map<Long, Integer> productQuantities = basket.getBasketItems().stream()
+                .collect(Collectors.toMap(
+                        item -> item.getProduct().getId(),
+                        BasketItem::getQuantity
+                ));
+
+        boolean willUsePromo = (promoCode != null && !promoCode.isBlank());
+
+        GetEligibleCampaignsRequest campaignRequest = GetEligibleCampaignsRequest.builder()
+                .userId(userId)
+                .productQuantities(productQuantities)
+                .willUsePromoCode(willUsePromo)
+                .build();
+
+        EligibleCampaignsResponse eligibleCampaigns = campaignService.getEligibleCampaigns(campaignRequest);
+        BigDecimal campaignDiscount = eligibleCampaigns.getTotalCampaignDiscount();
+
+        BigDecimal amount = subtotal.subtract(campaignDiscount);
+        BigDecimal totalAmount = amount.add(netDeposit);
+
+        BasketCalculationResponse.BasketCalculationResponseBuilder responseBuilder = BasketCalculationResponse.builder()
+                .subtotal(subtotal)
+                .totalDepositCharged(totalDepositCharged)
+                .totalDepositRefunded(totalDepositRefunded)
+                .netDeposit(netDeposit)
+                .campaignDiscount(campaignDiscount)
+                .eligibleCampaigns(eligibleCampaigns)
+                .totalItems(basket.getBasketItems().size())
+                .items(itemResponses);
+
+        if (willUsePromo) {
             try {
                 log.info("Validating promo code: {} for user: {}", promoCode, userId);
 
                 ValidatePromoRequest validateRequest = new ValidatePromoRequest();
                 validateRequest.setPromoCode(promoCode);
-                validateRequest.setOrderAmount(calculation.getSubtotal());
+                validateRequest.setOrderAmount(subtotal);
                 validateRequest.setUserId(userId);
 
                 ValidatePromoResponse promoValidation = promoService.validatePromo(validateRequest);
@@ -272,36 +349,49 @@ public class BasketServiceImpl implements BasketService {
                 if (Boolean.TRUE.equals(promoValidation.getIsValid()) &&
                         Boolean.TRUE.equals(promoValidation.getUserCanUse())) {
                     BigDecimal promoDiscount = promoValidation.getEstimatedDiscount();
-                    BigDecimal newAmount = calculation.getSubtotal().subtract(promoDiscount);
-                    BigDecimal newTotalAmount = newAmount.add(calculation.getNetDeposit());
+                    BigDecimal newAmount = amount.subtract(promoDiscount);
+                    BigDecimal newTotalAmount = newAmount.add(netDeposit);
 
-                    calculation.setPromoCode(promoCode);
-                    calculation.setPromoDiscount(promoDiscount);
-                    calculation.setPromoValid(true);
-                    calculation.setPromoMessage(promoValidation.getMessage());
-                    calculation.setAmount(newAmount);
-                    calculation.setTotalAmount(newTotalAmount);
+                    responseBuilder
+                            .promoCode(promoCode)
+                            .promoDiscount(promoDiscount)
+                            .promoValid(true)
+                            .promoMessage(promoValidation.getMessage())
+                            .amount(newAmount)
+                            .totalAmount(newTotalAmount);
 
                     log.info("Promo code applied successfully - discount: {}, newTotal: {}", promoDiscount, newTotalAmount);
                 } else {
-                    calculation.setPromoCode(promoCode);
-                    calculation.setPromoDiscount(BigDecimal.ZERO);
-                    calculation.setPromoValid(false);
-                    calculation.setPromoMessage(promoValidation.getMessage());
+                    responseBuilder
+                            .promoCode(promoCode)
+                            .promoDiscount(BigDecimal.ZERO)
+                            .promoValid(false)
+                            .promoMessage(promoValidation.getMessage())
+                            .amount(amount)
+                            .totalAmount(totalAmount);
 
                     log.warn("Promo code invalid: {} - message: {}", promoCode, promoValidation.getMessage());
                 }
             } catch (Exception e) {
                 log.error("Error validating promo code: {} for user: {}", promoCode, userId, e);
 
-                calculation.setPromoCode(promoCode);
-                calculation.setPromoDiscount(BigDecimal.ZERO);
-                calculation.setPromoValid(false);
-                calculation.setPromoMessage("Invalid promo code");
+                responseBuilder
+                        .promoCode(promoCode)
+                        .promoDiscount(BigDecimal.ZERO)
+                        .promoValid(false)
+                        .promoMessage("Invalid promo code")
+                        .amount(amount)
+                        .totalAmount(totalAmount);
             }
+        } else {
+            responseBuilder
+                    .promoCode(null)
+                    .promoDiscount(BigDecimal.ZERO)
+                    .amount(amount)
+                    .totalAmount(totalAmount);
         }
 
-        return calculation;
+        return responseBuilder.build();
     }
 
     @Override
@@ -311,13 +401,13 @@ public class BasketServiceImpl implements BasketService {
         Basket basket = basketRepository.findByUserIdWithItems(userId)
                 .orElseThrow(() -> new NotFoundException("Basket not found for user: " + userId));
 
-        if (basket.getBasketItems().isEmpty()){
+        if (basket.getBasketItems().isEmpty()) {
             log.error("Cannot create order from empty basket for user: {}", userId);
             throw new InvalidRequestException("Cannot create order from empty basket");
         }
 
         List<OrderItemRequest> orderItems = basket.getBasketItems().stream()
-                .map( item -> {
+                .map(item -> {
                     OrderItemRequest orderItem = new OrderItemRequest();
                     orderItem.setProductId(item.getProduct().getId());
                     orderItem.setQuantity(item.getQuantity());
@@ -331,8 +421,6 @@ public class BasketServiceImpl implements BasketService {
         orderRequest.setDeliveryDate(request.getDeliveryDate());
         orderRequest.setItems(orderItems);
         orderRequest.setPromoCode(request.getPromoCode());
-        orderRequest.setCampaignId(request.getCampaignId());
-        orderRequest.setCampaignProductId(request.getCampaignProductId());
         orderRequest.setNotes(request.getNotes());
 
         log.info("Basket converted to order request - {} items, addressId: {}, deliveryDate: {}",

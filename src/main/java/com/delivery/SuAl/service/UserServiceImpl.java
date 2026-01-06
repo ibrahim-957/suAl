@@ -101,4 +101,11 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
         return PageResponse.of(responses, users);
     }
+
+    @Override
+    public User getUserEntityById(Long id) {
+        log.info("Fetching user entity by id: {}", id);
+        return userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found with id " + id));
+    }
 }

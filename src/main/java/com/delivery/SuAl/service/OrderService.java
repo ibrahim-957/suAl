@@ -1,11 +1,13 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorRequest;
 import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
@@ -36,4 +38,7 @@ public interface OrderService {
 
     PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable);
 
+    int getCompletedOrderCount(Long userId);
+
+    Order getOrderEntityById(Long orderId);
 }

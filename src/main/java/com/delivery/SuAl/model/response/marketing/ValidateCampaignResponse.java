@@ -14,11 +14,22 @@ import java.math.BigDecimal;
 public class ValidateCampaignResponse {
     private Boolean isValid;
     private String message;
+
     private CampaignResponse campaignResponse;
+
+    private Boolean meetsQuantityRequirement;
+    private Boolean meetsFirstOrderRequirement;
+    private Boolean meetsRegistrationRequirement;
+    private Boolean meetsUsageLimitRequirement;
+    private Boolean meetsDateRequirement;
+    private Boolean meetsPromoAbsenceRequirement;
+
     private Integer freeQuantity;
     private Long freeProductId;
     private String freeProductName;
     private BigDecimal estimatedBonusValue;
+
     private Boolean userCanUse;
     private Integer userUsageCount;
+    private Integer usageRemaining;
 }

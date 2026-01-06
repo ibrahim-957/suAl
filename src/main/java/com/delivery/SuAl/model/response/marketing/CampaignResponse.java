@@ -1,6 +1,7 @@
 package com.delivery.SuAl.model.response.marketing;
 
 import com.delivery.SuAl.model.CampaignStatus;
+import com.delivery.SuAl.model.CampaignType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,9 +16,12 @@ import java.time.LocalDateTime;
 @Builder
 public class CampaignResponse {
     private Long id;
-    private String campaignId;
+    private String campaignCode;
     private String name;
     private String description;
+
+    private CampaignType campaignType;
+    private String campaignTypeDisplay;
 
     private Long buyProductId;
     private String buyProductName;
@@ -26,6 +30,10 @@ public class CampaignResponse {
     private Long freeProductId;
     private String freeProductName;
     private Integer freeQuantity;
+
+    private Boolean firstOrderOnly;
+    private Integer minDatsSinceRegistration;
+    private Boolean requiresPromoAbsence;
 
     private Integer maxUsesPerUser;
     private Integer maxTotalUses;

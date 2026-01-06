@@ -103,11 +103,11 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order approved successfully", order));
     }
 
-    @PatchMapping("/{id}/reject")
+    @PutMapping("/{id}/reject")
     public ResponseEntity<ApiResponse<OrderResponse>> rejectOrder(
             @RequestHeader("X-Operator-Email") String operatorEmail,
             @PathVariable Long id,
-            @RequestParam String reason
+            @RequestBody String reason
     ) {
         log.info("PATCH /v1/api/orders/{}/reject - Rejecting order with reason: {}", id, reason);
         OrderResponse order = orderService.rejectOrder(operatorEmail, id, reason);

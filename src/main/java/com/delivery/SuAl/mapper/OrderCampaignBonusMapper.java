@@ -9,8 +9,7 @@ import org.mapstruct.Mapping;
 public interface OrderCampaignBonusMapper {
     @Mapping(source = "order.id", target = "orderId")
     @Mapping(source = "order.orderNumber", target = "orderNumber")
-    @Mapping(source = "campaign.id", target = "campaignId")
-    @Mapping(source = "campaign.campaignId", target = "campaignCode")
+    @Mapping(source = "campaign.campaignCode", target = "campaignCode")
     @Mapping(source = "campaign.name", target = "campaignName")
     @Mapping(source = "product.id", target = "productId")
     @Mapping(source = "product.name", target = "productName")

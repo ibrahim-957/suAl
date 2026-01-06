@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -35,4 +36,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "BETWEEN :startDate AND :endDate")
     BigDecimal calculateRevenue(@Param("startDate") LocalDateTime startDate,
                                 @Param("endDate") LocalDateTime endDate);
+
+    Optional<Order> findByUserId(Long userId);
+
+    int countByUserIdAndOrderStatus(Long userId, OrderStatus orderStatus);
 }

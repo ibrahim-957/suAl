@@ -77,4 +77,8 @@ public class Product {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    public boolean getHasDeposit() {
+        return depositAmount != null && depositAmount.compareTo(BigDecimal.ZERO) != 0;
+    }
 }

@@ -1,5 +1,6 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.Promo;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.marketing.CreatePromoRequest;
 import com.delivery.SuAl.model.request.marketing.UpdatePromoRequest;
@@ -24,4 +25,6 @@ public interface PromoService {
     ValidatePromoResponse validatePromo(ValidatePromoRequest request);
 
     ApplyPromoResponse applyPromo(ApplyPromoRequest request);
+
+    Promo getPromoEntityByCode(String promoCode);
 }

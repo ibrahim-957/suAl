@@ -16,34 +16,9 @@ import java.util.Optional;
 
 @Repository
 public interface CampaignRepository extends JpaRepository<Campaign, Long> {
-    Optional<Campaign> findByCampaignId(String  campaignId);
+    Optional<Campaign> findByCampaignCode(String campaignCode);
 
-    List<Campaign> findByCampaignStatus(CampaignStatus campaignStatus);
+    boolean existsByCampaignCode(String campaignCode);
 
-    Page<Campaign> findByCampaignStatus(CampaignStatus campaignStatus, Pageable pageable);
-
-    @Query("SELECT c FROM Campaign c " +
-            "WHERE c.campaignId = :campaignId " +
-            "AND c.campaignStatus = 'ACTIVE' " +
-            "AND :now BETWEEN c.validFrom AND c.validTo")
-    Optional<Campaign> findActiveByCampaignId(@Param("campaignId") Long campaignId,
-                                              @Param("now") LocalDate now);
-
-    @Query("SELECT c FROM Campaign c " +
-            "WHERE c.campaignStatus = 'ACTIVE' " +
-            "AND :now BETWEEN c.validFrom AND c.validTo")
-    List<Campaign> findActiveCampaigns(@Param("now") LocalDate now);
-
-    @Query("SELECT c FROM Campaign c WHERE c.validTo < :now")
-    List<Campaign> findExpiredCampaigns(@Param("now") LocalDate now);
-
-    @Modifying
-    @Query("UPDATE Campaign c SET c.currentTotalUses = c.currentTotalUses + 1 WHERE c.id = :id")
-    void incrementUsageCount(@Param("id") Long id);
-
-    @Query("SELECT CASE WHEN (c.maxTotalUses IS NULL OR c.currentTotalUses < c.maxTotalUses) " +
-            "THEN true ELSE false END FROM Campaign c WHERE c.id = :id")
-    Boolean hasUsageAvailable(@Param("id") Long id);
-
-    Boolean existsByCampaignId(String campaignId);
+    List<Campaign> findByCampaignStatus(CampaignStatus status);
 }
