@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model;
+package com.delivery.SuAl.model.enums;
 
 public enum CampaignType {
     BUY_X_GET_Y_FREE,

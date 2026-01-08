@@ -1,7 +1,7 @@
 package com.delivery.SuAl.model.response.product;
 
-import com.delivery.SuAl.model.CategoryType;
-import com.delivery.SuAl.model.ProductStatus;
+import com.delivery.SuAl.model.enums.CategoryType;
+import com.delivery.SuAl.model.enums.ProductStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

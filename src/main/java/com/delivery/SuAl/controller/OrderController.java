@@ -1,9 +1,9 @@
 package com.delivery.SuAl.controller;
 
-import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorRequest;
-import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
 import com.delivery.SuAl.model.request.operation.AssignDriverRequest;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
@@ -41,30 +41,30 @@ import java.time.LocalDateTime;
 public class OrderController {
     private final OrderService orderService;
 
-    @PostMapping("/from-basket")
-    public ResponseEntity<ApiResponse<OrderResponse>> createOrderFromBasket(
-            @RequestHeader("X-User-Phone") String phoneNumber,
-            @Valid @RequestBody CreateOrderFromBasketRequest request
+    @PostMapping("/create-by-user")
+    public ResponseEntity<ApiResponse<OrderResponse>> createOrderByUser(
+            @RequestHeader ("X-Phone-Number") String phoneNumber,
+            @RequestBody @Valid CreateOrderByUserRequest request
             ){
-        log.info("POST /v1/api/orders/from-basket - User {} creating order from basket", phoneNumber);
+        log.info("Order creation request from user: {}", phoneNumber);
 
-        OrderResponse response = orderService.createOrderFromBasketByUser(phoneNumber, request);
+        OrderResponse response = orderService.createOrderByUser(phoneNumber, request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Order created successfully from basket", response));
+                .body(ApiResponse.success("Order created successfully", response));
     }
 
-    @PostMapping("/from-basket/by-operator")
-    public ResponseEntity<ApiResponse<OrderResponse>> createOrderFromBasketByOperator(
+    @PostMapping("/create-by-operator")
+    public ResponseEntity<ApiResponse<OrderResponse>> createOrderByOperator(
             @RequestHeader("X-Operator-Email") String operatorEmail,
-            @Valid @RequestBody CreateOrderFromBasketByOperatorRequest request
+            @RequestBody @Valid CreateOrderByOperatorRequest request
     ){
-        log.info("POST /v1/api/orders/from-basket/by-operator - Operator {} creating order for user {}", operatorEmail, request.getUserId());
+        log.info("Order creation by operator: {} for userId: {}", operatorEmail, request.getUserId());
 
-        OrderResponse response = orderService.createOrderFromBasketByOperator(operatorEmail, request);
+        OrderResponse response = orderService.createOrderByOperator(operatorEmail, request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Order created successfully from basket", response));
+                .body(ApiResponse.success("Order created successfully", response));
     }
 
     @GetMapping("/{id}")

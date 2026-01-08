@@ -1,6 +1,6 @@
 package com.delivery.SuAl.helper;
 
-import com.delivery.SuAl.model.CampaignType;
+import com.delivery.SuAl.model.enums.CampaignType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

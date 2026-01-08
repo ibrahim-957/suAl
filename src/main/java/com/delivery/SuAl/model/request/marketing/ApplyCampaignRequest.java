@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.request.marketing;
 
+import com.delivery.SuAl.entity.Order;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,6 +19,6 @@ public class ApplyCampaignRequest {
     @NotNull
     private Long userId;
 
-    @NotNull
-    private Long orderId;
+
+    private Order order;
 }

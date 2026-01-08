@@ -1,7 +1,7 @@
 package com.delivery.SuAl.model.request.marketing;
 
-import com.delivery.SuAl.model.DiscountType;
-import com.delivery.SuAl.model.PromoStatus;
+import com.delivery.SuAl.model.enums.DiscountType;
+import com.delivery.SuAl.model.enums.PromoStatus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;

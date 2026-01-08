@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.request.searchAndfilter;
 
-import com.delivery.SuAl.model.ProductStatus;
+import com.delivery.SuAl.model.enums.ProductStatus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;

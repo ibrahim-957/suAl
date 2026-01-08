@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.response.warehouse;
 
-import com.delivery.SuAl.model.WarehouseStatus;
+import com.delivery.SuAl.model.enums.WarehouseStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,7 +1,7 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.CampaignStatus;
-import com.delivery.SuAl.model.CampaignType;
+import com.delivery.SuAl.model.enums.CampaignStatus;
+import com.delivery.SuAl.model.enums.CampaignType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,7 +19,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.springframework.cglib.core.Local;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

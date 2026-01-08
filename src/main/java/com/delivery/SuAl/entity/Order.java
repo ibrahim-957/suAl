@@ -1,8 +1,8 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.OrderStatus;
-import com.delivery.SuAl.model.PaymentMethod;
-import com.delivery.SuAl.model.PaymentStatus;
+import com.delivery.SuAl.model.enums.OrderStatus;
+import com.delivery.SuAl.model.enums.PaymentMethod;
+import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.CascadeType;

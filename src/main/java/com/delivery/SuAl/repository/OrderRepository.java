@@ -1,7 +1,7 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Order;
-import com.delivery.SuAl.model.OrderStatus;
+import com.delivery.SuAl.model.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

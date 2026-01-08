@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model.request.basket;
+package com.delivery.SuAl.model.request.cart;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -9,11 +9,11 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class AddToBasketRequest {
+public class CartItem {
     @NotNull
-    Long productId;
+    private Long productId;
 
     @NotNull
     @Min(1)
-    Integer quantity;
+    private Integer quantity;
 }

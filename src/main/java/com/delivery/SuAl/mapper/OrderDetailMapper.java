@@ -1,6 +1,7 @@
 package com.delivery.SuAl.mapper;
 
 import com.delivery.SuAl.entity.OrderDetail;
+import com.delivery.SuAl.model.request.cart.CartItem;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.response.order.OrderDetailResponse;
 import org.mapstruct.Mapper;
@@ -11,7 +12,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface OrderDetailMapper {
     @Mapping(target = "count", source = "quantity")
-    OrderDetail toEntity(OrderItemRequest orderItemRequest);
+    OrderDetail toEntity(CartItem cartItem);
 
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "companyName", source = "company.name")

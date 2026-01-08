@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.request.marketing;
 
-import com.delivery.SuAl.model.DiscountType;
+import com.delivery.SuAl.model.enums.DiscountType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;

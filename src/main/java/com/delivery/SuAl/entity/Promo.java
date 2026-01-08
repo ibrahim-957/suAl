@@ -1,7 +1,7 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.DiscountType;
-import com.delivery.SuAl.model.PromoStatus;
+import com.delivery.SuAl.model.enums.DiscountType;
+import com.delivery.SuAl.model.enums.PromoStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

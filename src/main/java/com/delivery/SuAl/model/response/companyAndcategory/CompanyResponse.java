@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.response.companyAndcategory;
 
-import com.delivery.SuAl.model.CompanyStatus;
+import com.delivery.SuAl.model.enums.CompanyStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

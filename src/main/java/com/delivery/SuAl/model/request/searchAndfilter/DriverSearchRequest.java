@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.request.searchAndfilter;
 
-import com.delivery.SuAl.model.DriverStatus;
+import com.delivery.SuAl.model.enums.DriverStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;

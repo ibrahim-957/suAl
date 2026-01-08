@@ -1,9 +1,9 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.PaymentMethod;
-import com.delivery.SuAl.model.PaymentProvider;
-import com.delivery.SuAl.model.PaymentStatus;
-import com.delivery.SuAl.model.TransactionType;
+import com.delivery.SuAl.model.enums.PaymentMethod;
+import com.delivery.SuAl.model.enums.PaymentProvider;
+import com.delivery.SuAl.model.enums.PaymentStatus;
+import com.delivery.SuAl.model.enums.TransactionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

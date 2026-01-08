@@ -1,6 +1,7 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Address;
+import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.entity.Order;
@@ -8,35 +9,34 @@ import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
-import com.delivery.SuAl.exception.InvalidRequestException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
-import com.delivery.SuAl.helper.OrderCalculationResult;
 import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.mapper.OrderMapper;
-import com.delivery.SuAl.model.OperatorStatus;
-import com.delivery.SuAl.model.OrderStatus;
-import com.delivery.SuAl.model.PaymentMethod;
-import com.delivery.SuAl.model.PaymentStatus;
-import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorRequest;
-import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
+import com.delivery.SuAl.model.enums.OperatorStatus;
+import com.delivery.SuAl.model.enums.OrderStatus;
+import com.delivery.SuAl.model.enums.PaymentMethod;
+import com.delivery.SuAl.model.enums.PaymentStatus;
+import com.delivery.SuAl.model.request.cart.CalculatePriceRequest;
+import com.delivery.SuAl.model.request.cart.CartItem;
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
-import com.delivery.SuAl.model.request.order.CreateOrderRequest;
-import com.delivery.SuAl.model.request.order.OrderItemRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderItemRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
-import com.delivery.SuAl.model.response.basket.BasketResponse;
+import com.delivery.SuAl.model.response.cart.CartCalculationResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
 import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AddressRepository;
+import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
 import com.delivery.SuAl.repository.OrderRepository;
@@ -47,7 +47,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -69,13 +68,14 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final OperatorRepository operatorRepository;
     private final ProductRepository productRepository;
+    private final CampaignRepository campaignRepository;
 
     private final OrderCalculationService orderCalculationService;
+    private final CartPriceCalculationService cartPriceCalculationService;
     private final PromoService promoService;
     private final CampaignService campaignService;
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
-    private final BasketService basketService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -84,85 +84,28 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse createOrderFromBasketByUser(String phoneNumber, CreateOrderFromBasketRequest request) {
-        log.info("User with phone {} creating order from basket", phoneNumber);
+    public OrderResponse createOrderByUser(String phoneNumber, CreateOrderByUserRequest request) {
+        log.info("User creating order - phoneNumber: {}", phoneNumber);
 
         User user = userRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new NotFoundException("User with phone number " + phoneNumber + " not found"));
+                .orElseThrow(() -> new NotFoundException("User not found with phoneNumber: " + phoneNumber));
 
-        if (!user.getIsActive())
-            throw new InvalidRequestException("User account is not active");
-
-        BasketResponse basket;
-        try {
-            basket = basketService.getBasket(user.getId());
-        } catch (NotFoundException e) {
-            log.error("Basket not found for user {}", user.getId());
-            throw new InvalidRequestException("Basket not found. Please add items to basket first.");
-        }
-
-        if (basket.getTotalItems() == null || basket.getTotalItems() == 0) {
-            log.error("Empty basket for user {}", user.getId());
-            throw new InvalidRequestException("Cannot create order from empty basket");
-        }
-
-        log.info("Creating order from basket for user {} with {} items", user.getId(), basket.getTotalItems());
-
-        CreateOrderRequest createOrderRequest = basketService.convertBasketToOrderRequest(user.getId(), request);
-
-        OrderResponse orderResponse = createOrderInternal(createOrderRequest, user, null);
-
-        clearBasketAfterOrder(user.getId());
-        return orderResponse;
+        log.info("User found - userId: {}, name: {}", user.getId(), user.getFirstName());
+        return createOrderInternal(user, null, request.getAddressId(), request.getDeliveryDate(),
+                request.getItems(), request.getPromoCode(), request.getNote());
     }
 
     @Override
     @Transactional
-    public OrderResponse createOrderFromBasketByOperator(String operatorEmail, CreateOrderFromBasketByOperatorRequest request) {
-        log.info("Operator {} creating order from basket for user ID: {}", operatorEmail, request.getUserId());
+    public OrderResponse createOrderByOperator(String operatorEmail, CreateOrderByOperatorRequest request) {
+        log.info("Operator creating order - operatorEmail: {}, userId: {}", operatorEmail, request.getUserId());
 
         Operator operator = operatorRepository.findByEmail(operatorEmail)
-                .orElseThrow(() -> new NotFoundException("Operator with email " + operatorEmail + " not found"));
-
-        if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
-            throw new InvalidRequestException("Operator status is not active");
-        }
-
-        if (request.getUserId() == null) {
-            throw new InvalidRequestException("User ID is required when operator creates order from basket");
-        }
+                .orElseThrow(() -> new NotFoundException("Operator not found with email: " + operatorEmail));
 
         User user = findUserById(request.getUserId());
-
-        BasketResponse basket;
-        try {
-            basket = basketService.getBasket(request.getUserId());
-        } catch (NotFoundException e) {
-            log.error("Basket not found for user {}", request.getUserId());
-            throw new InvalidRequestException("Basket not found for user " + request.getUserId());
-        }
-
-        if (basket.getTotalItems() == null || basket.getTotalItems() == 0) {
-            log.error("Empty basket for user {}", request.getUserId());
-            throw new InvalidRequestException("Cannot create order from empty basket for user");
-        }
-
-        log.info("Operator {} creating order from basket for user {} with {} items",
-                operatorEmail, request.getUserId(), basket.getTotalItems());
-
-        CreateOrderFromBasketRequest basketRequest = CreateOrderFromBasketRequest.builder()
-                .addressId(request.getAddressId())
-                .deliveryDate(request.getDeliveryDate())
-                .promoCode(request.getPromoCode())
-                .notes(request.getNotes())
-                .build();
-
-        CreateOrderRequest createOrderRequest = basketService.convertBasketToOrderRequest(user.getId(), basketRequest);
-
-        OrderResponse orderResponse = createOrderInternal(createOrderRequest, user, operator);
-
-        clearBasketAfterOrder(user.getId());
-        return orderResponse;
+        return createOrderInternal(user, operator, request.getAddressId(), request.getDeliveryDate(),
+                request.getItems(), request.getPromoCode(), request.getNotes());
     }
 
     @Override
@@ -436,195 +379,233 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Driver Not Found with id " + id));
     }
 
-    private OrderResponse createOrderInternal(CreateOrderRequest createOrderRequest, User user, Operator operator) {
-        log.info("Creating order for User ID: {}, Operator: {}", user.getId(),
-                operator != null ? operator.getEmail() : "none");
+    private OrderResponse createOrderInternal(
+            User user,
+            Operator operator,
+            Long addressId,
+            LocalDate deliveryDate,
+            List<CartItem> items,
+            String promoCode,
+            String notes) {
 
-        Address address = findUserAddress(createOrderRequest.getAddressId(), user.getId());
+        log.info("Creating order for user ID: {}, operator: {}, items: {}",
+                user.getId(),
+                operator != null ? operator.getId() : "none",
+                items.size());
 
-        List<OrderDetail> orderDetails = orderDetailFactory.createOrderDetails(createOrderRequest.getItems());
+        Address address = findUserAddress(user.getId(), addressId);
 
-        Map<Long, Integer> productQuantities = createOrderRequest.getItems().stream()
+        CalculatePriceRequest priceRequest = new CalculatePriceRequest();
+        priceRequest.setUserId(user.getId());
+        priceRequest.setItems(items);
+        priceRequest.setPromoCode(promoCode);
+
+        CartCalculationResponse pricing = cartPriceCalculationService.calculatePrice(priceRequest);
+
+        log.debug("Cart calculation: subtotal={}, promo={}, netDeposit={}, total={}",
+                pricing.getSubtotal(),
+                pricing.getPromoDiscount(),
+                pricing.getNetDeposit(),
+                pricing.getTotalAmount());
+
+        Map<Long, Integer> productQuantities = items.stream()
                 .collect(Collectors.toMap(
-                        OrderItemRequest::getProductId,
-                        OrderItemRequest::getQuantity
+                        CartItem::getProductId,
+                        CartItem::getQuantity
                 ));
 
-        ContainerDepositSummary depositSummary = containerManagementService.calculateAvailableContainerRefunds(
-                user.getId(), productQuantities);
+        ContainerDepositSummary depositSummary =
+                containerManagementService.calculateAvailableContainerRefunds(
+                        user.getId(),
+                        productQuantities
+                );
 
-        applyContainerInfoToOrderDetails(orderDetails, depositSummary);
-
-        Order order = initializeOrder(createOrderRequest, user, address, orderDetails, depositSummary, operator);
-
-        OrderCalculationResult calculation = orderCalculationService.calculateOrderTotals(orderDetails);
-
-        order.setTotalItems(calculation.getTotalCount());
-        order.setSubtotal(calculation.getSubtotal());
-        order.setTotalDepositCharged(calculation.getTotalDepositCharged());
-        order.setTotalDepositRefunded(calculation.getTotalDepositRefunded());
-        order.setNetDeposit(calculation.getNetDeposit());
-
-        order.setCampaignDiscount(BigDecimal.ZERO);
-        order.setPromoDiscount(BigDecimal.ZERO);
-
-        BigDecimal amount = order.getSubtotal();
-        BigDecimal totalAmount = amount.add(order.getNetDeposit());
-        order.setAmount(amount);
-        order.setTotalAmount(totalAmount);
-
-        BigDecimal promoDiscount = BigDecimal.ZERO;
-        if (createOrderRequest.getPromoCode() != null && !createOrderRequest.getPromoCode().trim().isEmpty()) {
-            Order tempSavedOrder = orderRepository.save(order);
-
-            ApplyPromoResponse promoResult = promoService.applyPromo(
-                    ApplyPromoRequest.builder()
-                            .userId(user.getId())
-                            .orderId(tempSavedOrder.getId())
-                            .promoCode(createOrderRequest.getPromoCode())
-                            .orderAmount(calculation.getSubtotal())
-                            .build()
-            );
-
-            if (promoResult.getSuccess()) {
-                order.setPromoDiscount(promoResult.getDiscountApplied());
-                order.setPromo(promoService.getPromoEntityByCode(createOrderRequest.getPromoCode()));
-                promoDiscount = promoResult.getDiscountApplied();
-                log.info("Promo applied: {}, Discount: {}", createOrderRequest.getPromoCode(), promoDiscount);
-            }
-        }
-
-        BigDecimal campaignBonusValue = BigDecimal.ZERO;
-
-        boolean willUsePromo = (createOrderRequest.getPromoCode() != null && !createOrderRequest.getPromoCode().trim().isEmpty());
-
-        GetEligibleCampaignsRequest campaignRequest = GetEligibleCampaignsRequest.builder()
-                .userId(user.getId())
-                .productQuantities(productQuantities)
-                .willUsePromoCode(willUsePromo)
-                .build();
-
-        EligibleCampaignsResponse eligibleCampaigns = campaignService.getEligibleCampaigns(campaignRequest);
-
-        List<EligibleCampaignInfo> campaignsToApply = eligibleCampaigns.getEligibleCampaigns().stream()
-                .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
-                .toList();
-
-        if (!campaignsToApply.isEmpty()) {
-            if (order.getId() == null) {
-                order = orderRepository.save(order);
-            }
-
-            for (EligibleCampaignInfo campaignInfo : campaignsToApply) {
-                try {
-                    ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
-                            .campaignCode(campaignInfo.getCampaignCode())
-                            .userId(user.getId())
-                            .orderId(order.getId())
-                            .build();
-
-                    ApplyCampaignResponse campaignResult = campaignService.applyCampaign(applyCampaignRequest);
-
-                    if (campaignResult.getSuccess()) {
-                        Product freeProduct = productRepository.findById(campaignResult.getFreeProductId())
-                                .orElseThrow(() -> new NotFoundException("Free product not found: " + campaignResult.getFreeProductId()));
-
-                        OrderDetail freeOrderDetail = new OrderDetail();
-                        freeOrderDetail.setOrder(order);
-                        freeOrderDetail.setProduct(freeProduct);
-                        freeOrderDetail.setCompany(freeProduct.getCompany());
-                        freeOrderDetail.setCategory(freeProduct.getCategory());
-                        freeOrderDetail.setPricePerUnit(BigDecimal.ZERO);
-                        freeOrderDetail.setBuyPrice(freeProduct.getPrices().getLast().getBuyPrice());
-                        freeOrderDetail.setCount(campaignResult.getFreeQuantity());
-                        freeOrderDetail.setSubtotal(BigDecimal.ZERO);
-
-                        if (Boolean.TRUE.equals(freeProduct.getHasDeposit())) {
-                            BigDecimal depositPerUnit = freeProduct.getDepositAmount();
-                            freeOrderDetail.setDepositPerUnit(depositPerUnit);
-                            freeOrderDetail.setDepositCharged(depositPerUnit.multiply(BigDecimal.valueOf(campaignResult.getFreeQuantity())));
-                            freeOrderDetail.setDepositRefunded(BigDecimal.ZERO);
-                            freeOrderDetail.setContainersReturned(0);
-
-                            order.setTotalDepositCharged(order.getTotalDepositCharged().add(freeOrderDetail.getDepositCharged()));
-                            order.setNetDeposit(order.getNetDeposit().add(freeOrderDetail.getDepositCharged()));
-                        } else {
-                            freeOrderDetail.setDepositPerUnit(BigDecimal.ZERO);
-                            freeOrderDetail.setDepositCharged(BigDecimal.ZERO);
-                            freeOrderDetail.setDepositRefunded(BigDecimal.ZERO);
-                        }
-
-                        freeOrderDetail.setLineTotal(freeOrderDetail.getSubtotal()
-                                .add(freeOrderDetail.getDepositCharged())
-                                .subtract(freeOrderDetail.getDepositRefunded()));
-
-                        order.getOrderDetails().add(freeOrderDetail);
-                        campaignBonusValue = campaignBonusValue.add(campaignResult.getBonusValue());
-
-                        log.info("Campaign applied: {} - Free product: {} x {}, Bonus value: {}",
-                                campaignResult.getCampaignName(),
-                                campaignResult.getFreeProductName(),
-                                campaignResult.getFreeQuantity(),
-                                campaignResult.getBonusValue());
-                    }
-                } catch (Exception e) {
-                    log.error("Error applying campaign: {}", campaignInfo.getCampaignCode(), e);
-                }
-            }
-        }
-
-        order.setCampaignDiscount(campaignBonusValue);
-
-        amount = order.getSubtotal()
-                .subtract(promoDiscount)
-                .subtract(campaignBonusValue);
-
-        totalAmount = amount.add(order.getNetDeposit());
-
-        order.setAmount(amount);
-        order.setTotalAmount(totalAmount);
-
-        containerManagementService.reserveContainers(user.getId(), depositSummary);
-
-        Order savedOrder = orderRepository.save(order);
-
-        log.info("Order created: {} - Subtotal: {}, Promo: {}, Campaign: {}, Deposits: {}, Total: {}",
-                savedOrder.getOrderNumber(),
-                order.getSubtotal(),
-                promoDiscount,
-                campaignBonusValue,
-                order.getNetDeposit(),
-                totalAmount);
-
-        return orderMapper.toResponse(savedOrder);
-    }
-
-    private Order initializeOrder(
-            CreateOrderRequest createOrderRequest,
-            User user,
-            Address address,
-            List<OrderDetail> orderDetails,
-            ContainerDepositSummary depositSummary,
-            Operator operator) {
+        String orderNumber = orderNumberGenerator.generateOrderNumber();
+        log.info("Generated order number: {}", orderNumber);
 
         Order order = new Order();
         order.setUser(user);
         order.setOperator(operator);
         order.setAddress(address);
-        order.setOrderNumber(orderNumberGenerator.generateOrderNumber());
-
+        order.setOrderNumber(orderNumber);
         order.setEmptyBottlesExpected(depositSummary.getTotalContainersUsed());
-
         order.setEmptyBottlesCollected(0);
-        order.setNotes(createOrderRequest.getNotes());
-        order.setDeliveryDate(createOrderRequest.getDeliveryDate());
+        order.setNotes(notes);
+        order.setDeliveryDate(deliveryDate);
         order.setOrderStatus(OrderStatus.PENDING);
         order.setPaymentStatus(PaymentStatus.PENDING);
         order.setPaymentMethod(PaymentMethod.CASH);
-        order.setOrderDetails(orderDetails);
-        orderDetails.forEach(orderDetail -> orderDetail.setOrder(order));
 
-        return order;
+        order.setSubtotal(pricing.getSubtotal());
+        order.setTotalDepositCharged(pricing.getTotalDepositCharged());
+        order.setTotalDepositRefunded(pricing.getTotalDepositRefunded());
+        order.setNetDeposit(pricing.getNetDeposit());
+        order.setTotalItems(pricing.getTotalItems());
+        order.setPromoDiscount(pricing.getPromoDiscount() != null
+                ? pricing.getPromoDiscount()
+                : BigDecimal.ZERO);
+        order.setCampaignDiscount(BigDecimal.ZERO);
+        order.setAmount(pricing.getAmount());
+        order.setTotalAmount(pricing.getTotalAmount());
+
+        List<OrderDetail> orderDetails = orderDetailFactory.createOrderDetailsFromCart(
+                items,
+                depositSummary.getContainersReturnedByProduct()
+        );
+
+        Order savedOrder = orderRepository.save(order);
+
+        orderDetails.forEach(detail -> detail.setOrder(savedOrder));
+        savedOrder.setOrderDetails(orderDetails);
+
+        log.info("Order saved with ID: {}, number: {}", savedOrder.getId(), savedOrder.getOrderNumber());
+
+        if (promoCode != null
+                && !promoCode.trim().isEmpty()
+                && Boolean.TRUE.equals(pricing.getPromoValid())) {
+            try {
+                ApplyPromoResponse promoResult = promoService.applyPromo(
+                        ApplyPromoRequest.builder()
+                                .userId(user.getId())
+                                .orderId(savedOrder.getId())
+                                .promoCode(promoCode)
+                                .orderAmount(pricing.getSubtotal())
+                                .build()
+                );
+
+                if (Boolean.TRUE.equals(promoResult.getSuccess())) {
+                    savedOrder.setPromo(promoService.getPromoEntityByCode(promoCode));
+                    log.info("Promo applied: {}, Discount: {}",
+                            promoCode,
+                            pricing.getPromoDiscount());
+                }
+            } catch (Exception e) {
+                log.error("Failed to apply promo: {}", promoCode, e);
+            }
+        }
+
+        boolean willUsePromo = promoCode != null && !promoCode.trim().isEmpty();
+        BigDecimal campaignBonusValue = applyCampaigns(
+                savedOrder,
+                user.getId(),
+                productQuantities,
+                willUsePromo
+        );
+
+        if (campaignBonusValue.compareTo(BigDecimal.ZERO) > 0) {
+            savedOrder.setCampaignDiscount(campaignBonusValue);
+
+            BigDecimal amount = savedOrder.getSubtotal()
+                    .subtract(savedOrder.getPromoDiscount());
+            BigDecimal totalAmount = amount.add(savedOrder.getNetDeposit());
+
+            savedOrder.setAmount(amount);
+            savedOrder.setTotalAmount(totalAmount);
+
+            log.info("Campaign bonus applied: {}, New total: {}",
+                    campaignBonusValue,
+                    totalAmount);
+        }
+
+        containerManagementService.reserveContainers(user.getId(), depositSummary);
+
+        log.debug("Reserved {} containers from user balance",
+                depositSummary.getTotalContainersUsed());
+
+        Order finalOrder = orderRepository.save(savedOrder);
+
+        log.info("Order created successfully: {} - Subtotal: {}, Promo: {}, Campaign: {}, Deposits: {}, Total: {}",
+                finalOrder.getOrderNumber(),
+                finalOrder.getSubtotal(),
+                finalOrder.getPromoDiscount(),
+                campaignBonusValue,
+                finalOrder.getNetDeposit(),
+                finalOrder.getTotalAmount());
+
+        return orderMapper.toResponse(finalOrder);
+    }
+
+    private BigDecimal applyCampaigns(
+            Order order,
+            Long userId,
+            Map<Long, Integer> productQuantities,
+            boolean willUsePromo) {
+
+        BigDecimal campaignBonusValue = BigDecimal.ZERO;
+
+        GetEligibleCampaignsRequest campaignRequest = GetEligibleCampaignsRequest.builder()
+                .userId(userId)
+                .productQuantities(productQuantities)
+                .willUsePromoCode(willUsePromo)
+                .build();
+
+        EligibleCampaignsResponse eligibleCampaigns =
+                campaignService.getEligibleCampaigns(campaignRequest);
+
+        List<EligibleCampaignInfo> campaignsToApply = eligibleCampaigns
+                .getEligibleCampaigns()
+                .stream()
+                .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
+                .toList();
+
+        if (campaignsToApply.isEmpty()) {
+            log.debug("No campaigns to apply for order");
+            return campaignBonusValue;
+        }
+
+        log.info("Applying {} campaigns to order", campaignsToApply.size());
+
+        for (EligibleCampaignInfo campaignInfo : campaignsToApply) {
+            try {
+                ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
+                        .campaignCode(campaignInfo.getCampaignCode())
+                        .userId(userId)
+                        .order(order)
+                        .build();
+
+                ApplyCampaignResponse campaignResult =
+                        campaignService.applyCampaign(applyCampaignRequest);
+
+                if (Boolean.TRUE.equals(campaignResult.getSuccess())) {
+                    addCampaignFreeProduct(order, campaignResult);
+                    campaignBonusValue = campaignBonusValue.add(campaignResult.getBonusValue());
+
+                    log.info("Campaign applied: {} - Free product: {} x {}, Bonus value: {}",
+                            campaignResult.getCampaignName(),
+                            campaignResult.getFreeProductName(),
+                            campaignResult.getFreeQuantity(),
+                            campaignResult.getBonusValue());
+                }
+            } catch (Exception e) {
+                log.error("Error applying campaign: {}", campaignInfo.getCampaignCode(), e);
+            }
+        }
+
+        return campaignBonusValue;
+    }
+
+    private void addCampaignFreeProduct(Order order, ApplyCampaignResponse campaignResult) {
+        Product freeProduct = productRepository.findById(campaignResult.getFreeProductId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Free product not found: " + campaignResult.getFreeProductId()));
+
+        Campaign campaign = campaignRepository.findByCampaignCode(campaignResult.getCampaignCode())
+                .orElseThrow(() -> new NotFoundException(
+                        "Campaign not found: " + campaignResult.getCampaignCode()));
+
+        OrderCampaignBonus campaignBonus = new OrderCampaignBonus();
+        campaignBonus.setOrder(order);
+        campaignBonus.setCampaign(campaign);
+        campaignBonus.setProduct(freeProduct);
+        campaignBonus.setQuantity(campaignResult.getFreeQuantity());
+        campaignBonus.setOriginalValue(campaignResult.getBonusValue());
+
+        order.getCampaignBonuses().add(campaignBonus);
+
+        log.info("Added campaign bonus: {} x {} - value: {}",
+                freeProduct.getName(),
+                campaignResult.getFreeQuantity(),
+                campaignResult.getBonusValue());
     }
 
     private void applyContainerInfoToOrderDetails(
@@ -632,7 +613,7 @@ public class OrderServiceImpl implements OrderService {
             ContainerDepositSummary depositSummary
     ) {
         Map<Long, ProductDepositInfo> depositInfoMap = depositSummary
-                .getProductDepositInfoList().stream()
+                .getProductDepositInfos().stream()
                 .collect(Collectors.toMap(ProductDepositInfo::getProductId, info -> info));
 
         for (OrderDetail detail : orderDetails) {
@@ -762,15 +743,5 @@ public class OrderServiceImpl implements OrderService {
         return order.getOrderDetails().stream()
                 .mapToInt(OrderDetail::getContainersReturned)
                 .sum();
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void clearBasketAfterOrder(Long userId) {
-        try {
-            basketService.clearBasket(userId);
-            log.info("Basket cleared successfully for user {} after order creation", userId);
-        } catch (Exception e) {
-            log.error("Failed to clear basket for user {} after order creation: {}", userId, e.getMessage());
-        }
     }
 }

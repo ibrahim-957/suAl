@@ -16,7 +16,6 @@ public class OrderCampaignBonusResponse {
     private Long id;
     private Long orderId;
     private String orderNumber;
-    private Long campaignId;
     private String campaignCode;
     private String campaignName;
     private Long productId;

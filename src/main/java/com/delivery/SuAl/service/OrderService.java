@@ -1,22 +1,22 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Order;
-import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketByOperatorRequest;
-import com.delivery.SuAl.model.request.basket.CreateOrderFromBasketRequest;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
-import jakarta.validation.constraints.NotNull;
+import org.aspectj.weaver.ast.Or;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface OrderService {
-    OrderResponse createOrderFromBasketByUser(String phoneNumber, CreateOrderFromBasketRequest request);
+    OrderResponse createOrderByUser(String phoneNumber, CreateOrderByUserRequest request);
 
-    OrderResponse createOrderFromBasketByOperator(String operatorEmail, CreateOrderFromBasketByOperatorRequest request);
+    OrderResponse createOrderByOperator(String operatorEmail, CreateOrderByOperatorRequest request);
 
     OrderResponse updateOrder(Long orderId, UpdateOrderRequest request);
 

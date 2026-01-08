@@ -1,8 +1,8 @@
 package com.delivery.SuAl.model.response.order;
 
-import com.delivery.SuAl.model.OrderStatus;
-import com.delivery.SuAl.model.PaymentMethod;
-import com.delivery.SuAl.model.PaymentStatus;
+import com.delivery.SuAl.model.enums.OrderStatus;
+import com.delivery.SuAl.model.enums.PaymentMethod;
+import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

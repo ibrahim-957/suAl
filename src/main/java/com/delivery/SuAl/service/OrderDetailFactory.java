@@ -3,7 +3,9 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.OrderDetailMapper;
+import com.delivery.SuAl.model.request.cart.CartItem;
 import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.repository.PriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
@@ -26,13 +28,18 @@ public class OrderDetailFactory {
     private final OrderCalculationService orderCalculationService;
     private final OrderDetailMapper orderDetailMapper;
 
-    public List<OrderDetail> createOrderDetails(List<OrderItemRequest> items) {
-        if (items == null || items.isEmpty()) return Collections.emptyList();
+    public List<OrderDetail> createOrderDetailsFromCart(
+            List<CartItem> cartItems,
+            Map<Long, Integer> containersReturned
+    ){
+        if (cartItems == null || cartItems.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        List<Long> productIds = items.stream()
-                .map(OrderItemRequest::getProductId)
+        List<Long> productIds = cartItems.stream()
+                .map(CartItem::getProductId)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
 
         List<Product> products = productRepository.findAllById(productIds);
         Map<Long, Product> productMap = products.stream()
@@ -42,30 +49,37 @@ public class OrderDetailFactory {
 
         List<Price> prices = priceRepository.findAllByProductIdIn(productIds);
         Map<Long, Price> priceMap = prices.stream()
-                .collect(Collectors.toMap(Price::getId, p -> p));
+                        .collect(Collectors.toMap(Price::getId, p -> p));
 
         validateAllPricesExist(productIds, priceMap);
 
         List<OrderDetail> orderDetails = new ArrayList<>();
-        for (OrderItemRequest item : items) {
-            Product product = productMap.get(item.getProductId());
-            Price price = priceMap.get(item.getProductId());
-            OrderDetail detail = buildOrderDetail(item, product, price);
+        for(CartItem cartItem : cartItems){
+            Product product = productMap.get(cartItem.getProductId());
+            Price price = priceMap.get(cartItem.getProductId());
+            int containers = containersReturned.getOrDefault(cartItem.getProductId(), 0);
+
+            OrderDetail detail = buildOrderDetailFromCart(cartItem, product, price, containers);
             orderDetails.add(detail);
         }
-        log.info("Created {} order details with batch loading", orderDetails.size());
+        log.info("Created {} order details from cart with batch loading", orderDetails.size());
         return orderDetails;
     }
 
-    private OrderDetail buildOrderDetail(OrderItemRequest item, Product product, Price price) {
-        OrderDetail orderDetail = orderDetailMapper.toEntity(item);
+    private OrderDetail buildOrderDetailFromCart(
+            CartItem cartItem,
+            Product product,
+            Price price,
+            int containersReturned) {
+        OrderDetail orderDetail = orderDetailMapper.toEntity(cartItem);
         orderDetail.setProduct(product);
         orderDetail.setCompany(product.getCompany());
         orderDetail.setCategory(product.getCategory());
+        orderDetail.setCount(cartItem.getQuantity());
         orderDetail.setPricePerUnit(price.getSellPrice());
         orderDetail.setBuyPrice(price.getBuyPrice());
         orderDetail.setDepositPerUnit(product.getDepositAmount());
-        orderDetail.setContainersReturned(0);
+        orderDetail.setContainersReturned(containersReturned);
 
         orderCalculationService.recalculateOrderDetail(orderDetail);
         return orderDetail;
@@ -74,20 +88,20 @@ public class OrderDetailFactory {
     private void validateAllProductsExist(List<Long> requestedIds, Map<Long, Product> productMap) {
         List<Long> missingIds = requestedIds.stream()
                 .filter(id -> !productMap.containsKey(id))
-                .collect(Collectors.toList());
+                .toList();
 
         if (!missingIds.isEmpty()) {
-            throw new RuntimeException("Product not found: " + missingIds);
+            throw new NotFoundException("Product not found: " + missingIds);
         }
     }
 
     private void validateAllPricesExist(List<Long> requestedIds, Map<Long, Price> priceMap) {
         List<Long> missingIds = requestedIds.stream()
                 .filter(id -> !priceMap.containsKey(id))
-                .collect(Collectors.toList());
+                .toList();
 
         if (!missingIds.isEmpty()) {
-            throw new RuntimeException("Price not found: " + missingIds);
+            throw new NotFoundException("Price not found for products: " + missingIds);
         }
     }
 }

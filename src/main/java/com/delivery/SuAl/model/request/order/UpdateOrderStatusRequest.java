@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.request.order;
 
-import com.delivery.SuAl.model.OrderStatus;
+import com.delivery.SuAl.model.enums.OrderStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;

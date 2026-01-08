@@ -93,7 +93,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
     @Transactional
     public void reserveContainers(Long userId, ContainerDepositSummary depositSummary) {
         log.info("Reserving containers for user {}", userId);
-        for (ProductDepositInfo info : depositSummary.getProductDepositInfoList()) {
+        for (ProductDepositInfo info : depositSummary.getProductDepositInfos()) {
             if (info.getContainersUsed() > 0) {
                 UserContainer container = userContainerRepository
                         .findByUserIdAndProductId(userId, info.getProductId())

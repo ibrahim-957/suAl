@@ -1,7 +1,7 @@
 package com.delivery.SuAl.model.request.marketing;
 
-import com.delivery.SuAl.model.CampaignStatus;
-import com.delivery.SuAl.model.CampaignType;
+import com.delivery.SuAl.model.enums.CampaignStatus;
+import com.delivery.SuAl.model.enums.CampaignType;
 import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
 import lombok.Data;

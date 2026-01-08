@@ -1,7 +1,7 @@
 package com.delivery.SuAl.model.response.marketing;
 
-import com.delivery.SuAl.model.CampaignStatus;
-import com.delivery.SuAl.model.CampaignType;
+import com.delivery.SuAl.model.enums.CampaignStatus;
+import com.delivery.SuAl.model.enums.CampaignType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

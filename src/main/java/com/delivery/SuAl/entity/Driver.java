@@ -1,6 +1,6 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.DriverStatus;
+import com.delivery.SuAl.model.enums.DriverStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

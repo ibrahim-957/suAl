@@ -9,7 +9,7 @@ import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.NotValidException;
 import com.delivery.SuAl.exception.PromoUsageLimitExceededException;
 import com.delivery.SuAl.mapper.PromoMapper;
-import com.delivery.SuAl.model.PromoStatus;
+import com.delivery.SuAl.model.enums.PromoStatus;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.marketing.CreatePromoRequest;
 import com.delivery.SuAl.model.request.marketing.UpdatePromoRequest;

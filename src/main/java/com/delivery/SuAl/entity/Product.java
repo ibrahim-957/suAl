@@ -1,6 +1,6 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.ProductStatus;
+import com.delivery.SuAl.model.enums.ProductStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

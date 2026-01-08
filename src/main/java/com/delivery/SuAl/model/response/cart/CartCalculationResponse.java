@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model.response.basket;
+package com.delivery.SuAl.model.response.cart;
 
 import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import lombok.AllArgsConstructor;
@@ -10,10 +10,10 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
-public class BasketCalculationResponse {
+public class CartCalculationResponse {
     private BigDecimal subtotal;
     private BigDecimal totalDepositCharged;
     private BigDecimal totalDepositRefunded;
@@ -27,5 +27,5 @@ public class BasketCalculationResponse {
     private BigDecimal amount;
     private BigDecimal totalAmount;
     private Integer totalItems;
-    private List<BasketItemResponse> items;
+    private List<CartItemResponse> items;
 }

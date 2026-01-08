@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.request.order;
 
+import com.delivery.SuAl.model.request.cart.CartItem;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -13,7 +14,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CreateOrderRequest {
+public class CreateOrderByOperatorRequest {
     private Long userId;
 
     @NotNull(message = "Address ID is required")
@@ -21,7 +22,7 @@ public class CreateOrderRequest {
 
     @NotEmpty(message = "Order must have at least one item")
     @Size(min = 1, message = "Order must have at least one item")
-    private List<OrderItemRequest> items;
+    private List<CartItem> items;
 
     private String promoCode;
 

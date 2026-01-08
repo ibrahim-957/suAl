@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.response.operation;
 
-import com.delivery.SuAl.model.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

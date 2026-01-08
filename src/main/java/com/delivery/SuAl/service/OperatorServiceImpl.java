@@ -4,7 +4,7 @@ import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.OperatorMapper;
-import com.delivery.SuAl.model.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorStatus;
 import com.delivery.SuAl.model.request.operation.CreateOperatorRequest;
 import com.delivery.SuAl.model.request.operation.UpdateOperatorRequest;
 import com.delivery.SuAl.model.response.operation.OperatorResponse;

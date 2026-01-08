@@ -12,7 +12,7 @@ import com.delivery.SuAl.exception.NotValidException;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
 import com.delivery.SuAl.helper.FreeProductSummary;
 import com.delivery.SuAl.mapper.CampaignMapper;
-import com.delivery.SuAl.model.CampaignStatus;
+import com.delivery.SuAl.model.enums.CampaignStatus;
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.CreateCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
@@ -25,7 +25,6 @@ import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.CampaignUsageRepository;
 import com.delivery.SuAl.repository.ProductRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -248,13 +247,14 @@ public class CampaignServiceImpl implements CampaignService {
     @Override
     public ApplyCampaignResponse applyCampaign(ApplyCampaignRequest request) {
         log.info("Applying campaign: {} for user: {} on order: {}",
-                request.getCampaignCode(), request.getUserId(), request.getOrderId());
+                request.getCampaignCode(), request.getUserId(), request.getOrder());
+
+        Order order = request.getOrder();
 
         Campaign campaign = campaignRepository.findByCampaignCode(request.getCampaignCode())
                 .orElseThrow(() -> new NotFoundException("Campaign not found with code: " + request.getCampaignCode()));
 
         User user = userService.getUserEntityById(request.getUserId());
-        Order order = orderService.getOrderEntityById(request.getOrderId());
 
         if (!campaign.isActive()) {
             return ApplyCampaignResponse.builder()

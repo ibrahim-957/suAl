@@ -1,7 +1,7 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Company;
-import com.delivery.SuAl.model.CompanyStatus;
+import com.delivery.SuAl.model.enums.CompanyStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

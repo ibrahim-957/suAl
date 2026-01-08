@@ -4,7 +4,7 @@ import com.delivery.SuAl.entity.Company;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.CompanyMapper;
-import com.delivery.SuAl.model.CompanyStatus;
+import com.delivery.SuAl.model.enums.CompanyStatus;
 import com.delivery.SuAl.model.request.companyAndcategory.CreateCompanyRequest;
 import com.delivery.SuAl.model.request.companyAndcategory.UpdateCompanyRequest;
 import com.delivery.SuAl.model.response.companyAndcategory.CompanyResponse;

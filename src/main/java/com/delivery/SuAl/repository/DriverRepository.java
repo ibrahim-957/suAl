@@ -1,7 +1,7 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Driver;
-import com.delivery.SuAl.model.DriverStatus;
+import com.delivery.SuAl.model.enums.DriverStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

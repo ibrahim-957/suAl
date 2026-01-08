@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model;
+package com.delivery.SuAl.model.enums;
 
 public enum CategoryType {
     QAZLI,

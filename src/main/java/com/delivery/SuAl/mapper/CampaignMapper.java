@@ -2,7 +2,6 @@ package com.delivery.SuAl.mapper;
 
 import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.model.CampaignType;
 import com.delivery.SuAl.model.request.marketing.CreateCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.UpdateCampaignRequest;
 import com.delivery.SuAl.model.response.marketing.CampaignResponse;

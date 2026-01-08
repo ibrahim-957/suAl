@@ -1,6 +1,6 @@
 package com.delivery.SuAl.entity;
 
-import com.delivery.SuAl.model.CategoryType;
+import com.delivery.SuAl.model.enums.CategoryType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

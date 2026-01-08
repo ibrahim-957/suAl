@@ -1,7 +1,7 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Promo;
-import com.delivery.SuAl.model.PromoStatus;
+import com.delivery.SuAl.model.enums.PromoStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

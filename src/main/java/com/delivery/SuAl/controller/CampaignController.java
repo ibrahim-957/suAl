@@ -2,10 +2,12 @@ package com.delivery.SuAl.controller;
 
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.CreateCampaignRequest;
+import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
 import com.delivery.SuAl.model.request.marketing.UpdateCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ValidateCampaignRequest;
 import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.CampaignResponse;
+import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
@@ -41,6 +43,7 @@ public class CampaignController {
     @PostMapping
     public ResponseEntity<ApiResponse<CampaignResponse>> createCampaign(
             @Valid @RequestBody CreateCampaignRequest request) {
+        log.info("Creating campaign with code: {}", request.getCampaignCode());
 
         CampaignResponse response = campaignService.createCampaign(request);
 
@@ -51,6 +54,7 @@ public class CampaignController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CampaignResponse>> getCampaignById(@PathVariable Long id) {
+        log.info("Fetching campaign with id: {}", id);
 
         CampaignResponse response = campaignService.getCampaignById(id);
 
@@ -63,6 +67,7 @@ public class CampaignController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction) {
+        log.info("Fetching all campaigns - page: {}, size: {}", page, size);
 
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
@@ -77,6 +82,7 @@ public class CampaignController {
     public ResponseEntity<ApiResponse<CampaignResponse>> updateCampaign(
             @PathVariable Long id,
             @Valid @RequestBody UpdateCampaignRequest request) {
+        log.info("Updating campaign with id: {}", id);
 
         CampaignResponse response = campaignService.updateCampaign(id, request);
 
@@ -85,31 +91,37 @@ public class CampaignController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteCampaign(@PathVariable Long id) {
+        log.info("Deleting campaign with id: {}", id);
 
         campaignService.deleteCampaignById(id);
 
         return ResponseEntity.ok(ApiResponse.success("Campaign deleted successfully", null));
     }
 
-//    @PostMapping("/apply")
-//    public ResponseEntity<ApiResponse<ApplyCampaignResponse>> applyCampaign(
-//            @Valid @RequestBody ApplyCampaignRequest request) {
-//
-//        ApplyCampaignResponse response = campaignService.applyCampaign(request);
-//
-//        return ResponseEntity.ok(ApiResponse.success("Campaign applied successfully", response));
-//    }
-//
-//    @PostMapping("/validate")
-//    public ResponseEntity<ApiResponse<ValidateCampaignResponse>> validateCampaign(
-//        @Valid @RequestBody ValidateCampaignRequest request
-//    ){
-//        ValidateCampaignResponse response = campaignService.validateCampaign(request);
-//
-//        if (response.getIsValid()){
-//            return ResponseEntity.ok(ApiResponse.success("Campaign validated successfully", response));
-//        } else {
-//            return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response));
-//        }
-//    }
+    @PostMapping("/validate")
+    public ResponseEntity<ApiResponse<ValidateCampaignResponse>> validateCampaign(
+            @Valid @RequestBody ValidateCampaignRequest request) {
+        log.info("Validating campaign: {} for user: {}", request.getCampaignCode(), request.getUserId());
+
+        ValidateCampaignResponse response = campaignService.validateCampaign(request);
+
+        if (Boolean.TRUE.equals(response.getIsValid())) {
+            return ResponseEntity.ok(ApiResponse.success("Campaign is valid", response));
+        } else {
+            return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response));
+        }
+    }
+
+    @PostMapping("/eligible")
+    public ResponseEntity<ApiResponse<EligibleCampaignsResponse>> getEligibleCampaigns(
+            @Valid @RequestBody GetEligibleCampaignsRequest request) {
+        log.info("Getting eligible campaigns for user: {}", request.getUserId());
+
+        EligibleCampaignsResponse response = campaignService.getEligibleCampaigns(request);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                String.format("Found %d eligible campaigns", response.getEligibleCampaigns().size()),
+                response
+        ));
+    }
 }

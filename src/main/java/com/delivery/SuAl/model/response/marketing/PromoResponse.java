@@ -1,7 +1,7 @@
 package com.delivery.SuAl.model.response.marketing;
 
-import com.delivery.SuAl.model.DiscountType;
-import com.delivery.SuAl.model.PromoStatus;
+import com.delivery.SuAl.model.enums.DiscountType;
+import com.delivery.SuAl.model.enums.PromoStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

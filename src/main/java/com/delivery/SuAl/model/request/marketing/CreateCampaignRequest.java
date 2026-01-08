@@ -1,11 +1,10 @@
 package com.delivery.SuAl.model.request.marketing;
 
-import com.delivery.SuAl.model.CampaignType;
+import com.delivery.SuAl.model.enums.CampaignType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;

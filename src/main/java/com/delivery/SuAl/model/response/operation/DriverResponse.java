@@ -1,6 +1,6 @@
 package com.delivery.SuAl.model.response.operation;
 
-import com.delivery.SuAl.model.DriverStatus;
+import com.delivery.SuAl.model.enums.DriverStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
