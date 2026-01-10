@@ -1,11 +1,9 @@
 package com.delivery.SuAl.controller;
 
-import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.CreateCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
 import com.delivery.SuAl.model.request.marketing.UpdateCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ValidateCampaignRequest;
-import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.CampaignResponse;
 import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;

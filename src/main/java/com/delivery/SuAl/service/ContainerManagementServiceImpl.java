@@ -19,9 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -255,22 +257,27 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
     }
 
     private void addOrUpdateUserContainer(User user, Product product, Integer quantity) {
-        UserContainer existing = user.getUserContainers().stream()
-                .filter(uc -> uc.getProduct().getId().equals(product.getId()))
-                .findFirst()
-                .orElse(null);
+        Optional<UserContainer> existing = userContainerRepository
+                .findByUserIdAndProductId(user.getId(), product.getId());
 
-        if (existing != null) {
-            int previousQuantity = existing.getQuantity();
-            existing.setQuantity(previousQuantity + quantity);
+        if (existing.isPresent()) {
+            UserContainer container = existing.get();
+            int previousQuantity = container.getQuantity();
+            container.setQuantity(previousQuantity + quantity);
+            container.setUpdatedAt(LocalDateTime.now());
+            userContainerRepository.save(container);
+
             log.debug("User {}: Updated container for product {}. Previous: {}, New: {}",
-                    user.getId(), product.getId(), previousQuantity, existing.getQuantity());
+                    user.getId(), product.getId(), previousQuantity, container.getQuantity());
         } else {
             UserContainer newContainer = new UserContainer();
             newContainer.setUser(user);
             newContainer.setProduct(product);
             newContainer.setQuantity(quantity);
-            user.getUserContainers().add(newContainer);
+            newContainer.setCreatedAt(LocalDateTime.now());
+            newContainer.setUpdatedAt(LocalDateTime.now());
+            userContainerRepository.save(newContainer);
+
             log.debug("User {}: Created new container for product {} with quantity {}",
                     user.getId(), product.getId(), quantity);
         }

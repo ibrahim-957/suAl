@@ -76,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
     private final CampaignService campaignService;
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
+    private final OrderQueryService orderQueryService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -346,7 +347,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public int getCompletedOrderCount(Long userId) {
         log.info("Getting completed orders for user {}", userId);
-        return orderRepository.countByUserIdAndOrderStatus(userId, OrderStatus.COMPLETED);
+        return orderQueryService.getCompletedOrderCount(userId);
     }
 
     @Override

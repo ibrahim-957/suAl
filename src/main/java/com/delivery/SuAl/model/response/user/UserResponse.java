@@ -18,6 +18,7 @@ public class UserResponse {
     private String firstName;
     private String lastName;
     private String phoneNumber;
+    private Boolean isActive;
     private List<AddressResponse> addresses;
     private List<UserContainerResponse> userContainers;
     private LocalDateTime createdAt;
