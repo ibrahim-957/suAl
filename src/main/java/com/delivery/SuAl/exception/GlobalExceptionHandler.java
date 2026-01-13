@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 
@@ -76,6 +77,11 @@ public class GlobalExceptionHandler {
                 "Unexpected server error",
                 request
         );
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<String> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.notFound().build();
     }
 
     private ResponseEntity<ErrorResponse> buildError(
