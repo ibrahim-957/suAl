@@ -37,7 +37,6 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
     private final PromoService promoService;
     private final CampaignService campaignService;
 
-
     @Override
     public CartCalculationResponse calculatePrice(CalculatePriceRequest request) {
         log.info("Calculating price for userId: {}, {} items",
@@ -98,50 +97,40 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                 .items(itemResponses);
 
         if (willUsePromo) {
-            try {
-                log.info("Validating promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
+            log.info("Validating promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
 
-                ValidatePromoRequest validateRequest = new ValidatePromoRequest();
-                validateRequest.setPromoCode(request.getPromoCode());
-                validateRequest.setUserId(request.getUserId());
-                validateRequest.setOrderAmount(subtotal);
+            ValidatePromoRequest validateRequest = new ValidatePromoRequest();
+            validateRequest.setPromoCode(request.getPromoCode());
+            validateRequest.setUserId(request.getUserId());
+            validateRequest.setOrderAmount(subtotal);
 
-                ValidatePromoResponse promoValidation = promoService.validatePromo(validateRequest);
+            ValidatePromoResponse promoValidation = promoService.validatePromo(validateRequest);
 
-                if (Boolean.TRUE.equals(promoValidation.getIsValid()) && Boolean.TRUE.equals(promoValidation.getUserCanUse())) {
-                    BigDecimal promoDiscount = promoValidation.getEstimatedDiscount();
-                    BigDecimal newAmount = subtotal.subtract(promoDiscount);
-                    BigDecimal newTotalAmount = newAmount.add(netDeposit);
+            if (Boolean.TRUE.equals(promoValidation.getIsValid()) && Boolean.TRUE.equals(promoValidation.getUserCanUse())) {
+                BigDecimal promoDiscount = promoValidation.getEstimatedDiscount();
+                BigDecimal newAmount = subtotal.subtract(promoDiscount);
+                BigDecimal newTotalAmount = newAmount.add(netDeposit);
 
-                    responseBuilder
-                            .promoCode(request.getPromoCode())
-                            .promoDiscount(promoDiscount)
-                            .promoValid(true)
-                            .promoMessage(promoValidation.getMessage())
-                            .amount(newAmount)
-                            .totalAmount(newTotalAmount);
+                responseBuilder
+                        .promoCode(request.getPromoCode())
+                        .promoDiscount(promoDiscount)
+                        .promoValid(true)
+                        .promoMessage(promoValidation.getMessage())
+                        .amount(newAmount)
+                        .totalAmount(newTotalAmount);
 
-                    log.info("Promo applied - discount: {}, newTotal: {}", promoDiscount, newTotalAmount);
-                } else {
-                    responseBuilder
-                            .promoCode(request.getPromoCode())
-                            .promoDiscount(BigDecimal.ZERO)
-                            .promoValid(false)
-                            .amount(amount)
-                            .totalAmount(totalAmount);
-
-                    log.warn("Promo code invalid: {} - message: {}", request.getPromoCode(), promoValidation.getMessage());
-                }
-            } catch (Exception e) {
-                log.error("Error validating promo: {}", request.getPromoCode(), e);
+                log.info("Promo applied - discount: {}, newTotal: {}", promoDiscount, newTotalAmount);
+            } else {
                 responseBuilder
                         .promoCode(request.getPromoCode())
                         .promoDiscount(BigDecimal.ZERO)
                         .promoValid(false)
-                        .promoMessage(e.getMessage())
                         .amount(amount)
                         .totalAmount(totalAmount);
+
+                log.warn("Promo code invalid: {} - message: {}", request.getPromoCode(), promoValidation.getMessage());
             }
+
         } else {
             responseBuilder
                     .promoCode(request.getPromoCode())
@@ -161,7 +150,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
         }
 
         Price currentPrice = priceRepository.findLatestByProductId(product.getId())
-                .orElseThrow(() -> new NotFoundException("No price found for product: "+ product.getId()));
+                .orElseThrow(() -> new NotFoundException("Price not found for product with id: " + product.getId()));
 
         Map<Long, Integer> productQuantities = Map.of(product.getId(), cartItem.getQuantity());
 

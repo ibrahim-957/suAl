@@ -12,6 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 @Data
 @AllArgsConstructor
@@ -41,6 +42,11 @@ public class CreateProductRequest {
     private BigDecimal buyPrice;
 
     private BigDecimal sellPrice;
+
+    @Size(max = 2000)
+    private String description;
+
+    private Map<String, String> mineralComposition;
 
     @NotNull
     @Min(value = 0)

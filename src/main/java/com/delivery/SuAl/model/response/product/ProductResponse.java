@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @AllArgsConstructor
@@ -17,6 +18,9 @@ import java.time.LocalDateTime;
 public class ProductResponse {
     private Long id;
     private String name;
+    private String description;
+    private String imageUrl;
+    private Map<String, String> mineralComposition;
     private String companyName;
     private CategoryType categoryType;
     private String size;
@@ -24,6 +28,7 @@ public class ProductResponse {
     private ProductStatus productStatus;
     private BigDecimal sellPrice;
     private BigDecimal buyPrice;
+    private Long orderCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

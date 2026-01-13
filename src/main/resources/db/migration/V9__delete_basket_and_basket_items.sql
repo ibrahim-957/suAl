@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS basket_items;
-DROP TABLE IF EXISTS baskets;

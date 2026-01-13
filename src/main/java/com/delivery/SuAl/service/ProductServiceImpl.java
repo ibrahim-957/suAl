@@ -26,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,10 +44,11 @@ public class ProductServiceImpl implements ProductService {
     private final WarehouseStockRepository warehouseStockRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductMapper productMapper;
+    private final ImageUploadService imageUploadService;
 
     @Override
     @Transactional
-    public ProductResponse createProduct(CreateProductRequest request) {
+    public ProductResponse createProduct(CreateProductRequest request, MultipartFile image) {
         log.info("Creating new product with name: {}", request.getName());
 
         Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
@@ -58,9 +60,12 @@ public class ProductServiceImpl implements ProductService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new NotFoundException("Category not found with id: " + request.getCategoryId()));
 
+        String imageUrl = imageUploadService.uploadImage(image);
+
         Product product = productMapper.toEntity(request);
         product.setCategory(category);
         product.setCompany(company);
+        product.setImageUrl(imageUrl);
 
         Product savedProduct = productRepository.save(product);
 
@@ -107,7 +112,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductResponse updateProduct(Long id, UpdateProductRequest request) {
+    public ProductResponse updateProduct(Long id, UpdateProductRequest request, MultipartFile image) {
         log.info("Updating product with name: {}", request.getName());
 
         Product product = productRepository.findById(id)
@@ -131,6 +136,19 @@ public class ProductServiceImpl implements ProductService {
                     });
         }
 
+        if (image != null && !image.isEmpty()) {
+            if (product.getImageUrl() != null) {
+                try {
+                    imageUploadService.deleteImage(product.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete old image, continuing with update", e);
+                }
+            }
+
+            String newImageUrl = imageUploadService.uploadImage(image);
+            product.setImageUrl(newImageUrl);
+        }
+
         productMapper.updateEntityFromRequest(request, product);
         Product updatedProduct = productRepository.save(product);
 
@@ -141,7 +159,7 @@ public class ProductServiceImpl implements ProductService {
                 priceRequest.setBuyPrice(request.getBuyPrice());
                 priceRequest.setSellPrice(request.getSellPrice());
                 priceService.updatePrice(existingPrice.getId(), priceRequest);
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 CreatePriceRequest priceRequest = new CreatePriceRequest();
                 priceRequest.setProductId(updatedProduct.getId());
                 priceRequest.setCategoryId(updatedProduct.getCategory().getId());
@@ -161,6 +179,16 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void deleteProductByID(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
+
+        if (product.getImageUrl() != null) {
+            try {
+                imageUploadService.deleteImage(product.getImageUrl());
+            } catch (Exception e) {
+                log.warn("Failed to delete product image from Cloudinary", e);
+            }
+        }
         productRepository.deleteById(id);
         log.info("Product deleted successfully with ID: {}", id);
     }

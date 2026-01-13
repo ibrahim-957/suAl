@@ -2,6 +2,8 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.WarehouseStock;
+import com.delivery.SuAl.exception.InsufficientStockException;
+import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.WarehouseStockRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,17 +25,17 @@ public class InventoryService {
 
     public void validateAndReserveStock(Long productId, int quantity) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("product not found"));
+                .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(productId);
         if (stocks.isEmpty()) {
-            throw new RuntimeException("product not found in warehouse");
+            throw new NotFoundException("product not found in warehouse with id: " + productId);
         }
 
         WarehouseStock stock = stocks.getFirst();
 
         if (stock.getFullCount() < quantity) {
-            throw new RuntimeException(
+            throw new InsufficientStockException(
                     String.format("Insufficient stock for product %s. Available: %d, Requested: %d",
                             product.getName(), stock.getFullCount(), quantity)
             );
@@ -64,7 +66,7 @@ public class InventoryService {
                 .filter(id -> !productMap.containsKey(id))
                 .toList();
         if (!missingProducts.isEmpty()) {
-            throw new RuntimeException("Products not found: " + missingProducts);
+            throw new NotFoundException("Products not found: " + missingProducts);
         }
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
@@ -90,7 +92,7 @@ public class InventoryService {
         }
 
         if (!errors.isEmpty()) {
-            throw new RuntimeException("Stock validation failed: " + String.join("; ", errors));
+            throw new InsufficientStockException("Stock validation failed: " + String.join("; ", errors));
         }
 
         for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {

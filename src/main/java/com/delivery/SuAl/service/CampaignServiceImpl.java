@@ -60,8 +60,8 @@ public class CampaignServiceImpl implements CampaignService {
 
         validateCampaignDoesNotExist(request.getCampaignCode());
 
-        Product buyProduct = findProductById(request.getBuyProductId(), "Buy");
-        Product freeProduct = findProductById(request.getFreeProductId(), "Free");
+        Product buyProduct = findProductById(request.getBuyProductId());
+        Product freeProduct = findProductById(request.getFreeProductId());
 
         Campaign campaign = campaignMapper.toEntity(request);
         campaign.setBuyProduct(buyProduct);
@@ -184,7 +184,7 @@ public class CampaignServiceImpl implements CampaignService {
 
     private void validateCampaignDoesNotExist(String campaignCode) {
         if (campaignRepository.existsByCampaignCode(campaignCode)) {
-            throw new AlreadyExistsException("Campaign already exists with id: " + campaignCode);
+            throw new AlreadyExistsException("Campaign already exists with campaign code: " + campaignCode);
         }
     }
 
@@ -565,10 +565,10 @@ public class CampaignServiceImpl implements CampaignService {
 
     private Campaign findCampaignByCode(String campaignCode) {
         return campaignRepository.findByCampaignCode(campaignCode)
-                .orElseThrow(() -> new NotFoundException("Campaign not found with code: " + campaignCode));
+                .orElseThrow(() -> new NotFoundException("Campaign not found with campaign code: " + campaignCode));
     }
 
-    private Product findProductById(Long productId, String productType) {
+    private Product findProductById(Long productId) {
         return productRepository.findById(productId)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
     }

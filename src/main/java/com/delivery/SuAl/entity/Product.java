@@ -2,7 +2,9 @@ package com.delivery.SuAl.entity;
 
 import com.delivery.SuAl.model.enums.ProductStatus;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,6 +14,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -25,7 +28,9 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "products", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "name"}))
@@ -40,6 +45,12 @@ public class Product {
 
     @Column(nullable = false)
     private String name;
+
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String description;
+
+    @Column(nullable = false, name = "image_url")
+    private String imageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
@@ -60,6 +71,18 @@ public class Product {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Price> prices = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(
+            name = "product_mineral_composition",
+            joinColumns = @JoinColumn(name = "product_id")
+    )
+    @MapKeyColumn(name = "mineral_name")
+    @Column(name = "mineral_value")
+    private Map<String, String> mineralComposition = new HashMap<>();
+
+    @Column(name = "order_count", nullable = false)
+    private Long orderCount = 0L;
 
     @Column(name = "created_at",  nullable = false, updatable = false)
     private LocalDateTime createdAt;

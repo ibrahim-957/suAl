@@ -2,6 +2,7 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Category;
 import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.InvalidRequestException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.CategoryMapper;
 import com.delivery.SuAl.model.request.companyAndcategory.CreateCategoryRequest;
@@ -35,8 +36,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         categoryRepository.findByCategoryType(createCategoryRequest.getCategoryType())
                 .ifPresent(existing -> {
-                    throw new AlreadyExistsException("Category already exists with type: "
-                            + createCategoryRequest.getCategoryType());
+                    throw new AlreadyExistsException("Category already exists with type: " + createCategoryRequest.getCategoryType());
                 });
 
         Category category = categoryMapper.toEntity(createCategoryRequest);
@@ -57,7 +57,7 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Fetching category with ID: {}", id);
 
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Category not found with ID: " + id));
+                .orElseThrow(() -> new NotFoundException("Category not found with id: " + id));
 
         CategoryResponse response = categoryMapper.toResponse(category);
         response.setProductCount(productRepository.countByCategoryId(id));
@@ -73,7 +73,7 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Updating category with ID: {}", id);
 
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Category not found with ID: " + id));
+                .orElseThrow(() -> new NotFoundException("Category not found with id: " + id));
 
         categoryMapper.updateEntityFromRequest(updateCategoryRequest, category);
         Category updatedCategory = categoryRepository.save(category);
@@ -88,8 +88,12 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public void deleteCategory(Long id) {
+        Long productCount = productRepository.countByCategoryId(id);
+        if (productCount > 0) {
+            throw new InvalidRequestException("Cannot delete category with existing products");
+        }
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Category not found with ID: " + id));
+                .orElseThrow(() -> new NotFoundException("Category not found with id: " + id));
 
         category.setIsActive(false);
         categoryRepository.save(category);

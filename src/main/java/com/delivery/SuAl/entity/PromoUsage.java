@@ -41,8 +41,9 @@ public class PromoUsage {
     @JoinColumn(name = "order_id",  nullable = false)
     private Order order;
 
-    @Column(name = "campaign_id")
-    private Long campaignId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campaign_id")
+    private Campaign campaign;
 
     @Column(name = "discount_applied", nullable = false, precision = 10, scale = 2)
     private BigDecimal discountApplied;

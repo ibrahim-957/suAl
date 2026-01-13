@@ -13,17 +13,20 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/v1/api/products")
@@ -33,11 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductController {
     private final ProductService productService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Valid @RequestBody CreateProductRequest createProductRequest) {
+            @Valid @ModelAttribute CreateProductRequest createProductRequest,
+            @RequestPart(value = "image", required = false)MultipartFile image
+            ) {
 
-        ProductResponse response = productService.createProduct(createProductRequest);
+        ProductResponse response = productService.createProduct(createProductRequest, image);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Product created successfully", response));
@@ -50,12 +55,13 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes =  MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateProductRequest updateProductRequest) {
+            @Valid @ModelAttribute UpdateProductRequest updateProductRequest,
+            @RequestPart(value = "image", required = false)MultipartFile image) {
 
-        ProductResponse response = productService.updateProduct(id, updateProductRequest);
+        ProductResponse response = productService.updateProduct(id, updateProductRequest, image);
         return ResponseEntity.ok(ApiResponse.success("Product updated successfully", response));
     }
 
