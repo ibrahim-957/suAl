@@ -63,7 +63,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         log.error("Image upload failed", ex);
-        return buildError(HttpStatus.INTERNAL_SERVER_ERROR  , ex, request);
+        return buildError(HttpStatus.INTERNAL_SERVER_ERROR, ex, request);
     }
 
     @ExceptionHandler(Exception.class)
