@@ -1,0 +1,27 @@
+[33m370faea[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m cloud enviroment change
+[33m6158f94[m HealthController added
+[33m47c8f69[m HealthController added
+[33m48ff248[m global exception handler added, product modified and image can added
+[33m8e8988f[m global exception handler added, product modified and image can added
+[33m4b25485[m campaign service modified, cycle problem solved, empty container add problem solved.
+[33m535d476[m basket logic deleted.
+[33mdde68ca[m campaign added
+[33mc03f4df[m basket system added
+[33mdc0e0bc[m eyni adlı product ola biler artıq
+[33mfde2cd4[m company name null problem solved, usercontainer problem solved
+[33md31789f[m promo and campaign added
+[33m4886930[m new entities added
+[33m0d95eb2[m new entities added
+[33mdda0f06[m new entities added
+[33mb482847[m new entities added
+[33m6bb8090[m user and user container created, now user and operator can create order
+[33m910ed93[m complete order work properly
+[33m6d7199e[m update method modified for product and order also order method redesign
+[33m3cb5ba0[m added updateOrder and modified operator endpoint
+[33mc0ba099[m order service modified and add new endpoint to controller
+[33m1e7f0a0[m docker file added
+[33m62a0ddf[m Merge remote-tracking branch 'origin/main'
+[33m9b11530[m warehouse, order and product controller are finish
+[33m52c21db[m warehouse, order and product controller are finish
+[33m58a3bb9[m second commit
+[33m91b83c2[m first commit
