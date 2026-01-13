@@ -32,3 +32,8 @@ spring:
       tags-sorter: alpha
       operations-sorter: alpha
     show-actuator: false
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:dmmzwnbuh}
+  api-key: ${CLOUDINARY_API_KEY:317535883367571}
+  api-secret: ${CLOUDINARY_API_SECRET:4mVqoKNCbDNMl9EOm1fWblXLao4}

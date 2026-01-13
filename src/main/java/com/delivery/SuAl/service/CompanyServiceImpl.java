@@ -53,7 +53,7 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Getting company with ID: {}", id);
 
         Company company = companyRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Company with ID: " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Company not found with id: " + id));
 
         CompanyResponse companyResponse = companyMapper.toResponse(company);
         companyResponse.setProductCount(productRepository.countByCompanyId(id));
@@ -66,11 +66,11 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Updating company with ID: {}", id);
 
         Company company = companyRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Company with ID: " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Company not found with id: " + id));
 
         if (updateCompanyRequest.getName() != null && !updateCompanyRequest.getName().equals(company.getName())) {
             companyRepository.findByName(updateCompanyRequest.getName()).ifPresent(existing -> {
-                throw new AlreadyExistsException("Company with name " + updateCompanyRequest.getName() + " already exists");
+                throw new AlreadyExistsException("Company already exists with name: " + updateCompanyRequest.getName());
             });
         }
 
@@ -87,7 +87,7 @@ public class CompanyServiceImpl implements CompanyService {
     @Override
     public void deleteCompany(Long id) {
         Company company = companyRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Company with ID: " + id + " not found"));
+                .orElseThrow(() -> new NotFoundException("Company not found with id: " + id));
 
         company.setCompanyStatus(CompanyStatus.DEACTIVATED);
         companyRepository.save(company);

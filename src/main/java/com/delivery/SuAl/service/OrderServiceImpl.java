@@ -9,7 +9,10 @@ import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.exception.BusinessRuleViolationException;
+import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.exception.UnauthorizedOperationException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
 import com.delivery.SuAl.helper.ProductDepositInfo;
@@ -117,7 +120,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = findOrderById(orderId);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
-            throw new RuntimeException("Can only update order with PENDING status");
+            throw new InvalidOrderStateException("Order must be PENDING to be updated");
         }
 
         boolean needsRecalculation = false;
@@ -167,7 +170,7 @@ public class OrderServiceImpl implements OrderService {
         Driver driver = findDriverById(driverId);
 
         if (order.getOrderStatus() != OrderStatus.APPROVED) {
-            throw new RuntimeException("Order must be approved before assigning driver");
+            throw new InvalidOrderStateException("Order must be APPROVED before assigning driver");
         }
         order.setDriver(driver);
         orderRepository.save(order);
@@ -181,15 +184,15 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse approveOrder(String operatorEmail, Long orderId) {
         log.info("Approving order ID: {}", orderId);
         Operator operator = operatorRepository.findByEmail(operatorEmail)
-                .orElseThrow(() -> new RuntimeException("Operator " + operatorEmail + " not found"));
+                .orElseThrow(() -> new NotFoundException("Operator " + operatorEmail + " not found"));
 
         if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
-            throw new RuntimeException("Operator is not active with email: " + operatorEmail);
+            throw new UnauthorizedOperationException("Operator is not active with email: " + operatorEmail);
         }
         Order order = findOrderById(orderId);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
-            throw new RuntimeException("Order must be pending before approving order");
+            throw new InvalidOrderStateException("Order must be PENDING before approving order");
         }
 
         Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
@@ -224,15 +227,15 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse rejectOrder(String operatorEmail, Long orderId, String reason) {
         log.info("Rejecting order ID: {} with reason: {}", orderId, reason);
         Operator operator = operatorRepository.findByEmail(operatorEmail)
-                .orElseThrow(() -> new RuntimeException("Operator " + operatorEmail + " not found"));
+                .orElseThrow(() -> new NotFoundException("Operator " + operatorEmail + " not found"));
 
         if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
-            throw new RuntimeException("Operator is not active with email: " + operatorEmail);
+            throw new UnauthorizedOperationException("Operator is not active with email: " + operatorEmail);
         }
         Order order = findOrderById(orderId);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
-            throw new RuntimeException("Order must be pending before rejecting order");
+            throw new InvalidOrderStateException("Order must be pending before rejecting order");
         }
 
         containerManagementService.releaseReservedContainers(order);
@@ -254,11 +257,11 @@ public class OrderServiceImpl implements OrderService {
         Order order = findOrderById(orderId);
 
         if (order.getOrderStatus() != OrderStatus.APPROVED) {
-            throw new RuntimeException("Order must be approved before completing order");
+            throw new InvalidOrderStateException("Order must be APPROVED before completing order");
         }
 
         if (order.getDriver() == null)
-            throw new RuntimeException("Driver must be assigned before completing order");
+            throw new InvalidOrderStateException("Driver must be assigned before completing order");
 
         validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
 
@@ -361,23 +364,23 @@ public class OrderServiceImpl implements OrderService {
 
     private User findUserById(Long userId) {
         return userRepository.findByIdAndIsActiveTrue(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id " + userId));
+                .orElseThrow(() -> new NotFoundException("User not found with id " + userId));
     }
 
     private Order findOrderById(Long id) {
         return orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order Not Found with id: " + id));
+                .orElseThrow(() -> new NotFoundException("Order Not Found with id: " + id));
     }
 
     private Address findUserAddress(Long userId, Long addressId) {
         return addressRepository
                 .findByIdAndUserIdAndIsActiveTrue(userId, addressId)
-                .orElseThrow(() -> new RuntimeException("Address Not Found with id: " + addressId + " for user: " + userId));
+                .orElseThrow(() -> new NotFoundException("Address Not Found with id: " + addressId + " for user: " + userId));
     }
 
     private Driver findDriverById(Long id) {
         return driverRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Driver Not Found with id " + id));
+                .orElseThrow(() -> new NotFoundException("Driver Not Found with id " + id));
     }
 
     private OrderResponse createOrderInternal(
@@ -736,7 +739,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (!error.isEmpty()) {
-            throw new RuntimeException("Bottle collection validation failed: " + String.join(", ", error));
+            throw new BusinessRuleViolationException("Bottle collection validation failed: " + String.join(", ", error));
         }
     }
 

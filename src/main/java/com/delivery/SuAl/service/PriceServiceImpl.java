@@ -89,6 +89,6 @@ public class PriceServiceImpl implements PriceService {
         return priceRepository.findAllByProductIdIn(productIds)
                 .stream()
                 .map(priceMapper::toResponse)
-                .collect(Collectors.toMap(p -> p.getProductId(), p -> p));
+                .collect(Collectors.toMap(PriceResponse::getProductId, p -> p));
     }
 }

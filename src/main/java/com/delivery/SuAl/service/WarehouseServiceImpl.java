@@ -42,7 +42,7 @@ public class WarehouseServiceImpl implements WarehouseService {
         log.info("Creating new warehouse with name: {}", createWarehouseRequest.getName());
 
         if (warehouseRepository.findByName(createWarehouseRequest.getName()).isPresent()) {
-            throw new AlreadyExistsException("Warehouse already exists");
+            throw new AlreadyExistsException("Warehouse already exists with name: " + createWarehouseRequest.getName());
         }
 
         Warehouse warehouse = new Warehouse();

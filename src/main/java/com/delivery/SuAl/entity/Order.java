@@ -80,7 +80,7 @@ public class Order {
     private BigDecimal campaignDiscount = BigDecimal.ZERO;
 
     @Column(name = "total_amount", precision = 10, scale = 2, nullable = false)
-    private BigDecimal totalAmount;
+    private BigDecimal totalAmount;// amount + netDeposit
 
     @Column(name = "total_deposit_charged", precision = 10, scale = 2)
     private BigDecimal totalDepositCharged = BigDecimal.ZERO;
@@ -92,7 +92,7 @@ public class Order {
     private BigDecimal netDeposit = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal amount;
+    private BigDecimal amount; // productAmount
 
     private LocalDate deliveryDate;
 

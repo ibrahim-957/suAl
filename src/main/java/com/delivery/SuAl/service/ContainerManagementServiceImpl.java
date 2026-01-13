@@ -5,6 +5,7 @@ import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.entity.UserContainer;
+import com.delivery.SuAl.exception.InsufficientContainerException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.ProductDepositInfo;
@@ -55,7 +56,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             int availableContainers = (userContainer != null) ? userContainer.getQuantity() : 0;
 
             Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+                    .orElseThrow(() -> new NotFoundException("Product not found with id " + productId));
 
             BigDecimal depositPerUnit = product.getDepositAmount() != null
                     ? product.getDepositAmount()
@@ -99,12 +100,12 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             if (info.getContainersUsed() > 0) {
                 UserContainer container = userContainerRepository
                         .findByUserIdAndProductId(userId, info.getProductId())
-                        .orElseThrow(() -> new RuntimeException("Container not found with id: " + info.getProductId()));
+                        .orElseThrow(() -> new NotFoundException("Container not found for user " + userId + " and product " + info.getProductId()));
 
                 int newQuantity = container.getQuantity() - info.getContainersUsed();
 
                 if (newQuantity < 0) {
-                    throw new RuntimeException("New container quantity is less than 0");
+                    throw new InsufficientContainerException("User " + userId + " does not have enough containers for product " + info.getProductId());
                 }
 
                 container.setQuantity(newQuantity);
@@ -145,7 +146,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             List<BottleCollectionItem> bottlesCollected) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found with id: " + userId));
 
         if (bottlesCollected == null || bottlesCollected.isEmpty()) {
             log.info("No bottles collected for user {}", userId);
@@ -201,7 +202,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
         log.info("Processing delivered products for user {}", userId);
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found with id: " + userId));
 
         int totalDelivered = 0;
 
@@ -293,10 +294,10 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                             userId, productId);
 
                     User user = userRepository.findById(userId)
-                            .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                            .orElseThrow(() -> new NotFoundException("User not found with id: " + userId));
 
                     Product product = productRepository.findById(productId)
-                            .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+                            .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
 
                     UserContainer newContainer = new UserContainer();
                     newContainer.setUser(user);

@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 @Data
 @AllArgsConstructor
@@ -27,6 +28,11 @@ public class UpdateProductRequest {
     private BigDecimal buyPrice;
 
     private BigDecimal sellPrice;
+
+    @Size(max = 2000)
+    private String description;
+
+    private Map<String, String> mineralComposition;
 
     @DecimalMin(value = "0.0", inclusive = true, message = "Deposit amount cannot be negative")
     @DecimalMax(value = "999.99", message = "Deposit amount is too large")
