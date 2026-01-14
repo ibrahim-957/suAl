@@ -38,7 +38,7 @@ public class ProductController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Valid @ModelAttribute CreateProductRequest createProductRequest,
+            @RequestPart("createProductRequest") @Valid CreateProductRequest createProductRequest,
             @RequestPart(value = "image", required = false)MultipartFile image
             ) {
 
