@@ -6,6 +6,10 @@ import com.delivery.SuAl.model.response.product.ProductResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,13 +40,24 @@ import org.springframework.web.multipart.MultipartFile;
 public class ProductController {
     private final ProductService productService;
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Create product with image")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Valid @ModelAttribute CreateProductRequest createProductRequest,
-            @RequestPart(value = "image", required = false)MultipartFile image
-            ) {
+            @Parameter(
+                    description = "Product JSON",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = CreateProductRequest.class)
+                    )
+            )
+            @RequestPart("product") CreateProductRequest createProductRequest,
 
-        ProductResponse response = productService.createProduct(createProductRequest, image);
+            @Parameter(description = "Product image")
+            @RequestPart(value = "image", required = false) MultipartFile image
+    ) {
+
+        ProductResponse response =
+                productService.createProduct(createProductRequest, image);
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Product created successfully", response));
