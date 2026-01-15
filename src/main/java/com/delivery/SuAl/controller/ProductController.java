@@ -1,6 +1,5 @@
 package com.delivery.SuAl.controller;
 
-import com.delivery.SuAl.config.JsonRequestPart;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
 import com.delivery.SuAl.model.request.product.UpdateProductRequest;
 import com.delivery.SuAl.model.response.product.ProductResponse;
@@ -38,19 +37,24 @@ public class ProductController {
     private final ProductService productService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Create a new product")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @JsonRequestPart("createProductRequest") CreateProductRequest request,
+            // Use standard @RequestPart + @Valid
+            @Valid @RequestPart("createProductRequest") CreateProductRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {
 
         log.info("Received request: {}", request);
         ProductResponse response = productService.createProduct(request, image);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Product created successfully", response));
     }
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Update an existing product")
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
             @PathVariable Long id,
+            // Consistency: use @RequestPart here too
             @Valid @RequestPart("updateProductRequest") UpdateProductRequest updateProductRequest,
             @RequestPart(value = "image", required = false) MultipartFile image) {
 
