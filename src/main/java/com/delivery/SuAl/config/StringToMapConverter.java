@@ -23,7 +23,6 @@ public class StringToMapConverter implements Converter<String, Map<String, Strin
         }
 
         try {
-            // Remove any extra whitespace or newlines
             String cleanedSource = source.trim();
 
             return objectMapper.readValue(cleanedSource, new TypeReference<Map<String, String>>() {});
