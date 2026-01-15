@@ -8,9 +8,6 @@ import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Encoding;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,14 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -41,13 +31,6 @@ public class ProductController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create a new product")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(
-                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                    schema = @Schema(type = "object"),
-                    encoding = @Encoding(name = "createProductRequest", contentType = MediaType.APPLICATION_JSON_VALUE)
-            )
-    )
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
             @Valid @RequestPart("createProductRequest") CreateProductRequest request,
             @Parameter(description = "Product image file")
@@ -62,13 +45,6 @@ public class ProductController {
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Update an existing product")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(
-                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                    schema = @Schema(type = "object"),
-                    encoding = @Encoding(name = "updateProductRequest", contentType = MediaType.APPLICATION_JSON_VALUE)
-            )
-    )
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
             @PathVariable Long id,
             @Valid @RequestPart("updateProductRequest") UpdateProductRequest updateProductRequest,
