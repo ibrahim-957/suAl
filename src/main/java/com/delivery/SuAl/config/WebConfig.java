@@ -11,7 +11,6 @@ import java.util.List;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-
     private final StringToMapConverter stringToMapConverter;
 
     public WebConfig(StringToMapConverter stringToMapConverter) {
@@ -21,8 +20,6 @@ public class WebConfig implements WebMvcConfigurer {
     @Bean
     public MappingJackson2HttpMessageConverter octetStreamConverter() {
         MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
-        // This allows Spring to handle the 'application/octet-stream' content type
-        // that Swagger sends for the JSON part.
         converter.setSupportedMediaTypes(List.of(new MediaType("application", "octet-stream")));
         return converter;
     }
