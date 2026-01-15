@@ -149,7 +149,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
             throw new InvalidRequestException("Product is not active: " + cartItem.getProductId());
         }
 
-        Price currentPrice = priceRepository.findLatestByProductId(product.getId())
+        Price currentPrice = priceRepository.findFirstByProduct_IdOrderByCreatedAtDesc(product.getId())
                 .orElseThrow(() -> new NotFoundException("Price not found for product with id: " + product.getId()));
 
         Map<Long, Integer> productQuantities = Map.of(product.getId(), cartItem.getQuantity());

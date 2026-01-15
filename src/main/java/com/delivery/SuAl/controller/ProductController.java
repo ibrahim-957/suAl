@@ -39,7 +39,12 @@ public class ProductController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
             @Valid @ModelAttribute CreateProductRequest createProductRequest,
-            @RequestPart(value = "image", required = false)MultipartFile image ) {
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+
+        log.info("Received createProductRequest: {}", createProductRequest);
+        log.info("Mineral composition: {}", createProductRequest.getMineralComposition());
+        log.info("Image present: {}", image != null);
+
         ProductResponse response = productService.createProduct(createProductRequest, image);
         return ResponseEntity
                 .status(HttpStatus.CREATED)

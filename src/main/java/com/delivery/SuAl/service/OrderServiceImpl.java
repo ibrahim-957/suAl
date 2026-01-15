@@ -42,6 +42,7 @@ import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
+import com.delivery.SuAl.repository.OrderDetailRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.UserRepository;
@@ -84,6 +85,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
     private final OrderMapper orderMapper;
+    private final OrderDetailRepository orderDetailRepository;
 
 
     @Override
@@ -213,6 +215,11 @@ public class OrderServiceImpl implements OrderService {
         }
 
         inventoryService.validateAndReserveStockBatch(productQuantities);
+        for (OrderDetail detail : order.getOrderDetails()) {
+            Product product = detail.getProduct();
+            product.setOrderCount(product.getOrderCount() + detail.getCount());
+            productRepository.save(product);
+        }
 
         order.setOrderStatus(OrderStatus.APPROVED);
         order.setOperator(operator);

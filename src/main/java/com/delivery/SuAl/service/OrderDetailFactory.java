@@ -6,7 +6,6 @@ import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.OrderDetailMapper;
 import com.delivery.SuAl.model.request.cart.CartItem;
-import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.repository.PriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +48,10 @@ public class OrderDetailFactory {
 
         List<Price> prices = priceRepository.findAllByProductIdIn(productIds);
         Map<Long, Price> priceMap = prices.stream()
-                        .collect(Collectors.toMap(Price::getId, p -> p));
+                .collect(Collectors.toMap(
+                        price -> price.getProduct().getId(),
+                        p -> p
+                ));
 
         validateAllPricesExist(productIds, priceMap);
 
