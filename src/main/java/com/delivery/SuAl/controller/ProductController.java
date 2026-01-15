@@ -41,8 +41,7 @@ public class ProductController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create a new product")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Valid @ModelAttribute CreateProductRequest createProductRequest,
-            @Parameter(description = "Product image file")
+            @Valid @RequestPart("createProductRequest") CreateProductRequest createProductRequest,
             @RequestPart(value = "image", required = false) MultipartFile image) {
 
         log.info("Received request: {}", createProductRequest);
@@ -56,8 +55,7 @@ public class ProductController {
     @Operation(summary = "Update an existing product")
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
             @PathVariable Long id,
-            @Valid @ModelAttribute UpdateProductRequest updateProductRequest,
-            @Parameter(description = "Product image file")
+            @Valid @RequestPart("updateProductRequest") UpdateProductRequest updateProductRequest,
             @RequestPart(value = "image", required = false) MultipartFile image) {
 
         ProductResponse response = productService.updateProduct(id, updateProductRequest, image);

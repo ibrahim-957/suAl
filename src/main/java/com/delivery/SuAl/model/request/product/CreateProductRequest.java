@@ -59,10 +59,9 @@ public class CreateProductRequest {
     private String description;
 
     @Schema(
-            description = "Mineral composition (send as JSON string)",
+            description = "Mineral composition",
             example = "{\"Mg\":\"<15\",\"Na\":\"<15\",\"SO4\":\"<15\",\"pH\":\"6-9\"}",
-            required = true,
-            type = "string"
+            requiredMode = Schema.RequiredMode.REQUIRED
     )
     @NotNull(message = "Mineral composition is required")
     private Map<String, String> mineralComposition;
