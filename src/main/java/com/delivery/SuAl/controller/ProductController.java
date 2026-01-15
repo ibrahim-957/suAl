@@ -6,6 +6,8 @@ import com.delivery.SuAl.model.response.product.ProductResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,13 +39,12 @@ public class ProductController {
     private final ProductService productService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Create a new product")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
+            @Parameter(description = "Product details", required = true)
             @Valid @ModelAttribute CreateProductRequest createProductRequest,
+            @Parameter(description = "Product image")
             @RequestPart(value = "image", required = false) MultipartFile image) {
-
-        log.info("Received createProductRequest: {}", createProductRequest);
-        log.info("Mineral composition: {}", createProductRequest.getMineralComposition());
-        log.info("Image present: {}", image != null);
 
         ProductResponse response = productService.createProduct(createProductRequest, image);
         return ResponseEntity
