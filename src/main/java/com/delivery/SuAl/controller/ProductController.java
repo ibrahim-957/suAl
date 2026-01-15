@@ -1,5 +1,6 @@
 package com.delivery.SuAl.controller;
 
+import com.delivery.SuAl.config.JsonRequestPart;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
 import com.delivery.SuAl.model.request.product.UpdateProductRequest;
 import com.delivery.SuAl.model.response.product.ProductResponse;
@@ -7,7 +8,6 @@ import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -39,16 +38,13 @@ public class ProductController {
     private final ProductService productService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Create a new product")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Valid @RequestPart("createProductRequest") CreateProductRequest createProductRequest,
+            @JsonRequestPart("createProductRequest") CreateProductRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {
 
-        log.info("Received request: {}", createProductRequest);
-        ProductResponse response = productService.createProduct(createProductRequest, image);
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Product created successfully", response));
+        log.info("Received request: {}", request);
+        ProductResponse response = productService.createProduct(request, image);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
