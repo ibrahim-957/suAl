@@ -41,42 +41,45 @@ public class ProductController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create a new product")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Parameter(description = "Product details", required = true)
             @Valid @ModelAttribute CreateProductRequest createProductRequest,
-            @Parameter(description = "Product image")
+            @Parameter(description = "Product image file")
             @RequestPart(value = "image", required = false) MultipartFile image) {
 
+        log.info("Received request: {}", createProductRequest);
         ProductResponse response = productService.createProduct(createProductRequest, image);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Product created successfully", response));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ProductResponse>> getProductById(@PathVariable Long id) {
-
-        ProductResponse response = productService.getProductByID(id);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @PutMapping(value = "/{id}", consumes =  MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Update an existing product")
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
             @PathVariable Long id,
             @Valid @ModelAttribute UpdateProductRequest updateProductRequest,
-            @RequestPart(value = "image", required = false)MultipartFile image) {
+            @Parameter(description = "Product image file")
+            @RequestPart(value = "image", required = false) MultipartFile image) {
 
         ProductResponse response = productService.updateProduct(id, updateProductRequest, image);
         return ResponseEntity.ok(ApiResponse.success("Product updated successfully", response));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
+    @GetMapping("/{id}")
+    @Operation(summary = "Get product by ID")
+    public ResponseEntity<ApiResponse<ProductResponse>> getProductById(@PathVariable Long id) {
+        ProductResponse response = productService.getProductByID(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete product by ID")
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
         productService.deleteProductByID(id);
         return ResponseEntity.ok(ApiResponse.success("Product deleted successfully", null));
     }
 
     @GetMapping
+    @Operation(summary = "Get all products with pagination")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,

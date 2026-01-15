@@ -21,65 +21,68 @@ import java.util.Map;
 @Schema(description = "Request object for creating a new product")
 public class CreateProductRequest {
 
-    @Schema(description = "Product name", required = true, example = "Spring Water 5L")
+    @Schema(description = "Product name", example = "Dübrar Su", required = true)
     @NotBlank(message = "Product name is required")
     @Size(min = 2, max = 255)
     private String name;
 
-    @Schema(description = "Company ID", required = true, example = "1")
+    @Schema(description = "Company ID", example = "1", required = true)
     @NotNull
     private Long companyId;
 
-    @Schema(description = "Category ID", required = true, example = "2")
+    @Schema(description = "Category ID", example = "2", required = true)
     @NotNull
     private Long categoryId;
 
-    @Schema(description = "Warehouse ID", required = true, example = "3")
+    @Schema(description = "Warehouse ID", example = "1", required = true)
     @NotNull
     private Long warehouseId;
 
-    @Schema(description = "Product size", required = true, example = "5L")
+    @Schema(description = "Product size", example = "19L", required = true)
     @Size(max = 50)
     private String size;
 
-    @Schema(description = "Deposit amount", required = true, example = "10.50")
+    @Schema(description = "Deposit amount", example = "10.00", required = true)
     @DecimalMin(value = "0.0", inclusive = true, message = "Deposit amount cannot be negative")
     @DecimalMax(value = "999.99", message = "Deposit amount is too large")
     @Digits(integer = 3, fraction = 2, message = "Deposit amount must have at most 3 digits before decimal and 2 after")
     private BigDecimal depositAmount;
 
-    @Schema(description = "Buy price", required = true, example = "5.00")
+    @Schema(description = "Buy price", example = "4", required = true)
     private BigDecimal buyPrice;
 
-    @Schema(description = "Sell price", required = true, example = "8.00")
+    @Schema(description = "Sell price", example = "5", required = true)
     private BigDecimal sellPrice;
 
-    @Schema(description = "Product description", required = true, example = "Fresh spring water")
+    @Schema(description = "Product description", example = "Xızı rayonu ərazisində yerləşən təbii mineral su", required = true)
     @Size(max = 2000)
     private String description;
 
-    @Schema(description = "Mineral composition (JSON string)",
+    @Schema(
+            description = "Mineral composition (send as JSON string)",
+            example = "{\"Mg\":\"<15\",\"Na\":\"<15\",\"SO4\":\"<15\",\"pH\":\"6-9\"}",
             required = true,
-            example = "{\"calcium\":\"50mg\",\"magnesium\":\"20mg\"}")
+            type = "string"
+    )
     @NotNull(message = "Mineral composition is required")
     private Map<String, String> mineralComposition;
 
-    @Schema(description = "Initial full bottle count", required = true, example = "100")
+    @Schema(description = "Initial full bottle count", example = "100", required = true)
     @NotNull
     @Min(value = 0)
     private Integer initialFullCount;
 
-    @Schema(description = "Initial empty bottle count", required = true, example = "0")
+    @Schema(description = "Initial empty bottle count", example = "0", required = true)
     @NotNull
     @Min(value = 0)
     private Integer initialEmptyCount;
 
-    @Schema(description = "Initial damaged bottle count", required = true, example = "0")
+    @Schema(description = "Initial damaged bottle count", example = "0", required = true)
     @NotNull
     @Min(value = 0)
     private Integer initialDamagedCount;
 
-    @Schema(description = "Minimum stock alert threshold", required = true, example = "10")
+    @Schema(description = "Minimum stock alert threshold", example = "10", required = true)
     @Min(value = 1)
     private Integer minimumStockAlert;
 }
