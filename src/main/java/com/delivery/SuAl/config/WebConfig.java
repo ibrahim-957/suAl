@@ -29,7 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
         MappingJackson2HttpMessageConverter octetConverter = new MappingJackson2HttpMessageConverter(objectMapper);
         octetConverter.setSupportedMediaTypes(List.of(new MediaType("application", "octet-stream")));
 
-        converters.addFirst(octetConverter);
+        converters.add(0, octetConverter);
     }
 
     @Override
