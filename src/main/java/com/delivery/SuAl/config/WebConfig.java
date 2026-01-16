@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -26,10 +27,15 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
-        MappingJackson2HttpMessageConverter octetConverter = new MappingJackson2HttpMessageConverter(objectMapper);
-        octetConverter.setSupportedMediaTypes(List.of(new MediaType("application", "octet-stream")));
-
-        converters.addFirst(octetConverter);
+        converters.stream()
+                .filter(c -> c instanceof MappingJackson2HttpMessageConverter)
+                .map(c -> (MappingJackson2HttpMessageConverter) c)
+                .findFirst()
+                .ifPresent(jsonConverter -> {
+                    List<MediaType> supportedTypes = new ArrayList<>(jsonConverter.getSupportedMediaTypes());
+                    supportedTypes.add(new MediaType("application", "octet-stream"));
+                    jsonConverter.setSupportedMediaTypes(supportedTypes);
+                });
     }
 
     @Override
