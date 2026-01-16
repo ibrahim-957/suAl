@@ -53,7 +53,7 @@ public class WarehouseController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<WarehouseResponse>>> getAllWarehouses(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,

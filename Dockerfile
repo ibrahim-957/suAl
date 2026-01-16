@@ -1,26 +1,33 @@
-# ---- BUILD STAGE ----
+# Stage 1: Build
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 
-# Wrapper ve build dosyalarını kopyala
+# Copy gradle executable tools
 COPY gradlew .
 COPY gradle ./gradle
-COPY build.gradle .
-COPY settings.gradle .
+
+# Copy build configuration
+COPY build.gradle settings.gradle ./
+
+# NEW: Download dependencies (this layer is cached unless build.gradle changes)
+RUN ./gradlew dependencies --no-daemon
+
+# Copy source code
 COPY src ./src
 
-# Gradle izinleri
-RUN chmod +x gradlew
+# Build the application
+RUN ./gradlew clean build -x test --no-daemon
 
-# JAR oluştur
-RUN ./gradlew clean build -x test
-
-# ---- RUNTIME STAGE ----
-FROM eclipse-temurin:21-jre
+# Stage 2: Runtime
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Build edilen JAR'ı kopyala
-COPY --from=build /app/build/libs/SuAl-0.0.1-SNAPSHOT.jar app.jar
+# Create a non-root user for security
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
+
+# Use a wildcard to find the jar or ensure a consistent name
+COPY --from=build /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
 
