@@ -103,14 +103,24 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order approved successfully", order));
     }
 
-    @PutMapping("/{id}/reject")
-    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrder(
+    @PatchMapping("/user/{id}/reject")
+    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrderByUser(
+            @RequestHeader("X-Phone-Number") String phoneNumber,
+            @PathVariable Long id
+    ){
+        log.info("PATCH /v1/api/orders/user/{}/reject", id);
+        OrderResponse order = orderService.rejectOrderByUser(phoneNumber, id);
+        return ResponseEntity.ok(ApiResponse.success("Order rejected successfully", order));
+    }
+
+    @PatchMapping("/operator/{id}/reject")
+    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrderByOperator(
             @RequestHeader("X-Operator-Email") String operatorEmail,
             @PathVariable Long id,
             @RequestBody String reason
     ) {
-        log.info("PATCH /v1/api/orders/{}/reject - Rejecting order with reason: {}", id, reason);
-        OrderResponse order = orderService.rejectOrder(operatorEmail, id, reason);
+        log.info("PATCH /v1/api/orders/operaot/{}/reject - Rejecting order with reason: {}", id, reason);
+        OrderResponse order = orderService.rejectOrderByOperator(operatorEmail, id, reason);
         return ResponseEntity.ok(ApiResponse.success("Order rejected successfully", order));
     }
 

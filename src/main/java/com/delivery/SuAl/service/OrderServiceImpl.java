@@ -42,7 +42,6 @@ import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
-import com.delivery.SuAl.repository.OrderDetailRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.UserRepository;
@@ -85,8 +84,6 @@ public class OrderServiceImpl implements OrderService {
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
     private final OrderMapper orderMapper;
-    private final OrderDetailRepository orderDetailRepository;
-
 
     @Override
     @Transactional
@@ -231,18 +228,81 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse rejectOrder(String operatorEmail, Long orderId, String reason) {
-        log.info("Rejecting order ID: {} with reason: {}", orderId, reason);
+    public OrderResponse rejectOrderByUser(String phoneNumber, Long orderId) {
+        log.info("User {} rejecting order ID: {}", phoneNumber, orderId);
+
+        Order order = findOrderById(orderId);
+
+        User user = userRepository.findByPhoneNumber(phoneNumber)
+                .orElseThrow(() -> new NotFoundException("User " + phoneNumber + " not found"));
+
+        if (!order.getUser().getId().equals(user.getId())) {
+            throw new UnauthorizedOperationException("User " + user.getId() + " cannot reject order " + orderId);
+        }
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new InvalidOrderStateException("User can only reject PENDING orders");
+        }
+
+        containerManagementService.releaseReservedContainers(order);
+
+        order.setOrderStatus(OrderStatus.REJECTED);
+        order.setRejectionReason("Rejected by user");
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Order {} rejected by user {}", orderId, user.getId());
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse rejectOrderByOperator(String operatorEmail, Long orderId, String reason) {
+        log.info("Operator {} rejecting order ID: {} with reason: {}", operatorEmail, orderId, reason);
+
         Operator operator = operatorRepository.findByEmail(operatorEmail)
                 .orElseThrow(() -> new NotFoundException("Operator " + operatorEmail + " not found"));
 
         if (operator.getOperatorStatus() != OperatorStatus.ACTIVE) {
             throw new UnauthorizedOperationException("Operator is not active with email: " + operatorEmail);
         }
+
         Order order = findOrderById(orderId);
 
-        if (order.getOrderStatus() != OrderStatus.PENDING) {
-            throw new InvalidOrderStateException("Order must be pending before rejecting order");
+        if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
+            throw new InvalidOrderStateException("Order must be PENDING or APPROVED to reject");
+        }
+
+        if (order.getOrderStatus() == OrderStatus.APPROVED) {
+            log.info("Order was APPROVED, releasing warehouse stock");
+
+            Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
+                    .collect(Collectors.toMap(
+                            detail -> detail.getProduct().getId(),
+                            OrderDetail::getCount,
+                            Integer::sum
+                    ));
+
+            if (!order.getCampaignBonuses().isEmpty()) {
+                for (OrderCampaignBonus bonus : order.getCampaignBonuses()) {
+                    productQuantities.merge(
+                            bonus.getProduct().getId(),
+                            bonus.getQuantity(),
+                            Integer::sum
+                    );
+                }
+            }
+
+            for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
+                inventoryService.releaseStock(entry.getKey(), entry.getValue());
+                log.debug("Released {} units of product {} back to warehouse",
+                        entry.getValue(), entry.getKey());
+            }
+
+            for (OrderDetail detail : order.getOrderDetails()) {
+                Product product = detail.getProduct();
+                product.setOrderCount(Math.max(0, product.getOrderCount() - detail.getCount()));
+                productRepository.save(product);
+            }
         }
 
         containerManagementService.releaseReservedContainers(order);
@@ -252,7 +312,7 @@ public class OrderServiceImpl implements OrderService {
         order.setOperator(operator);
         Order savedOrder = orderRepository.save(order);
 
-        log.info("Order for Customer {} has been rejected", orderId);
+        log.info("Order {} rejected by operator {}", orderId, operatorEmail);
         return orderMapper.toResponse(savedOrder);
     }
 
@@ -381,8 +441,9 @@ public class OrderServiceImpl implements OrderService {
 
     private Address findUserAddress(Long userId, Long addressId) {
         return addressRepository
-                .findByIdAndUserIdAndIsActiveTrue(userId, addressId)
-                .orElseThrow(() -> new NotFoundException("Address Not Found with id: " + addressId + " for user: " + userId));
+                .findByIdAndUserId(addressId, userId)
+                .orElseThrow(() ->
+                        new NotFoundException("Address not found with id: " + addressId + " for user: " + userId));
     }
 
     private Driver findDriverById(Long id) {

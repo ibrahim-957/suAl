@@ -12,12 +12,11 @@ import java.time.format.DateTimeFormatter;
 public class OrderNumberGenerator {
     private final OrderRepository orderRepository;
 
-    public synchronized String generateOrderNumber() {
+    public String generateOrderNumber() {
         String datePrefix = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd"));
 
         Long sequence = orderRepository.getNextOrderSequence();
-
-        return String.format("%s-%04d", datePrefix, sequence);
+        return String.format("ORD-%s-%04d", datePrefix, sequence);
     }
 }

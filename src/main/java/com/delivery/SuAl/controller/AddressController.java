@@ -33,7 +33,7 @@ public class AddressController {
 
     @PostMapping("/user")
     public ResponseEntity<AddressResponse> createAddressByUser(
-            @RequestHeader("X-User-Phone") String phoneNumber,
+            @RequestHeader("'X-Phone-Number") String phoneNumber,
             @Valid @RequestBody CreateAddressRequest createAddressRequest){
         log.info("POST /v1/api/addresses/user - User with phone {} creating address", phoneNumber);
 

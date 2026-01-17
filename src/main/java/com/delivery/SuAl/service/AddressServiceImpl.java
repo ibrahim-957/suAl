@@ -32,7 +32,6 @@ public class AddressServiceImpl implements AddressService {
 
         Address address = addressMapper.toEntity(request);
         address.setUser(user);
-        address.setIsActive(true);
 
         Address savedAddress = addressRepository.save(address);
 
@@ -49,7 +48,6 @@ public class AddressServiceImpl implements AddressService {
 
         Address address = addressMapper.toEntity(createAddressRequest);
         address.setUser(user);
-        address.setIsActive(true);
 
         Address savedAddress = addressRepository.save(address);
         log.info("Address created for user by ID {}", userId);
@@ -61,7 +59,7 @@ public class AddressServiceImpl implements AddressService {
     public AddressResponse getAddressById(Long userId, Long addressId) {
         log.info("Fetching address ID: {} for user by ID {}", addressId, userId);
 
-        Address address = addressRepository.findByIdAndUserIdAndIsActiveTrue(userId, addressId)
+        Address address = addressRepository.findByIdAndUserId(userId, addressId)
                 .orElseThrow(() -> new NotFoundException("Address not found with id: " + addressId));
         return addressMapper.toResponse(address);
     }
@@ -70,7 +68,7 @@ public class AddressServiceImpl implements AddressService {
     public AddressResponse updateAddress(Long userId, Long addressId, UpdateAddressRequest updateAddressRequest) {
         log.info("Updating address with ID: {}", addressId);
 
-        Address address = addressRepository.findByIdAndUserIdAndIsActiveTrue(addressId, userId)
+        Address address = addressRepository.findByIdAndUserId(addressId, userId)
                 .orElseThrow(() -> new NotFoundException("Address not found with id: " + addressId));
 
         addressMapper.updateEntityFromRequest(updateAddressRequest, address);
