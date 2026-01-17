@@ -106,10 +106,11 @@ public class OrderController {
     @PatchMapping("/user/{id}/reject")
     public ResponseEntity<ApiResponse<OrderResponse>> rejectOrderByUser(
             @RequestHeader("X-Phone-Number") String phoneNumber,
-            @PathVariable Long id
+            @PathVariable Long id,
+            @RequestBody String reason
     ){
         log.info("PATCH /v1/api/orders/user/{}/reject", id);
-        OrderResponse order = orderService.rejectOrderByUser(phoneNumber, id);
+        OrderResponse order = orderService.rejectOrderByUser(phoneNumber, id, reason);
         return ResponseEntity.ok(ApiResponse.success("Order rejected successfully", order));
     }
 

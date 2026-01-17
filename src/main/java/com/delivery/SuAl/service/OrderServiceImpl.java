@@ -228,7 +228,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse rejectOrderByUser(String phoneNumber, Long orderId) {
+    public OrderResponse rejectOrderByUser(String phoneNumber, Long orderId, String reason) {
         log.info("User {} rejecting order ID: {}", phoneNumber, orderId);
 
         Order order = findOrderById(orderId);
@@ -247,7 +247,7 @@ public class OrderServiceImpl implements OrderService {
         containerManagementService.releaseReservedContainers(order);
 
         order.setOrderStatus(OrderStatus.REJECTED);
-        order.setRejectionReason("Rejected by user");
+        order.setRejectionReason(reason);
         Order savedOrder = orderRepository.save(order);
 
         log.info("Order {} rejected by user {}", orderId, user.getId());

@@ -26,7 +26,7 @@ public interface OrderService {
 
     OrderResponse approveOrder(String operatorEmail, Long orderId);
 
-    OrderResponse rejectOrderByUser(String phoneNumber, Long orderId);
+    OrderResponse rejectOrderByUser(String phoneNumber, Long orderId, String reason);
 
     OrderResponse rejectOrderByOperator(String operatorEmail, Long orderId, String reason);
 
