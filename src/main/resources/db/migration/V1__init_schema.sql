@@ -1,11 +1,6 @@
--- ===============================
--- SEQUENCES
--- ===============================
 CREATE SEQUENCE IF NOT EXISTS order_number_seq START WITH 1 INCREMENT BY 1;
 
--- ===============================
--- USERS
--- ===============================
+
 CREATE TABLE users
 (
     id           BIGSERIAL PRIMARY KEY,
@@ -17,9 +12,7 @@ CREATE TABLE users
     updated_at   TIMESTAMP   NOT NULL
 );
 
--- ===============================
--- CATEGORIES
--- ===============================
+
 CREATE TABLE categories
 (
     id            BIGSERIAL PRIMARY KEY,
@@ -29,9 +22,7 @@ CREATE TABLE categories
     updated_at    TIMESTAMP   NOT NULL
 );
 
--- ===============================
--- COMPANIES
--- ===============================
+
 CREATE TABLE companies
 (
     id             BIGSERIAL PRIMARY KEY,
@@ -42,9 +33,7 @@ CREATE TABLE companies
     updated_at     TIMESTAMP    NOT NULL
 );
 
--- ===============================
--- PRODUCTS
--- ===============================
+
 CREATE TABLE products
 (
     id              BIGSERIAL PRIMARY KEY,
@@ -82,9 +71,7 @@ CREATE TABLE product_mineral_composition
         ON DELETE CASCADE
 );
 
--- ===============================
--- PRICES
--- ===============================
+
 CREATE TABLE prices
 (
     id         BIGSERIAL PRIMARY KEY,
@@ -97,9 +84,7 @@ CREATE TABLE prices
     CONSTRAINT fk_prices_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 );
 
--- ===============================
--- OPERATORS
--- ===============================
+
 CREATE TABLE operators
 (
     id              BIGSERIAL PRIMARY KEY,
@@ -112,9 +97,7 @@ CREATE TABLE operators
     updated_at      TIMESTAMP    NOT NULL
 );
 
--- ===============================
--- DRIVERS
--- ===============================
+
 CREATE TABLE drivers
 (
     id            BIGSERIAL PRIMARY KEY,
@@ -127,9 +110,7 @@ CREATE TABLE drivers
     updated_at    TIMESTAMP    NOT NULL
 );
 
--- ===============================
--- CARS
--- ===============================
+
 CREATE TABLE cars
 (
     id           BIGSERIAL PRIMARY KEY,
@@ -143,9 +124,7 @@ CREATE TABLE cars
     CONSTRAINT fk_cars_driver FOREIGN KEY (driver_id) REFERENCES drivers (id)
 );
 
--- ===============================
--- ADDRESSES
--- ===============================
+
 CREATE TABLE addresses
 (
     id               BIGSERIAL PRIMARY KEY,
@@ -165,9 +144,7 @@ CREATE TABLE addresses
     CONSTRAINT fk_addresses_user FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
--- ===============================
--- PROMOS
--- ===============================
+
 CREATE TABLE promos
 (
     id               BIGSERIAL PRIMARY KEY,
@@ -189,9 +166,7 @@ CREATE TABLE promos
     updated_at TIMESTAMP NOT NULL
 );
 
--- ===============================
--- CAMPAIGNS
--- ===============================
+
 CREATE TABLE campaigns
 (
     id                             BIGSERIAL PRIMARY KEY,
@@ -223,9 +198,7 @@ CREATE TABLE campaigns
     CONSTRAINT fk_campaign_free_product FOREIGN KEY (free_product_id) REFERENCES products (id)
 );
 
--- ===============================
--- WAREHOUSES
--- ===============================
+
 CREATE TABLE warehouses
 (
     id               BIGSERIAL PRIMARY KEY,
@@ -235,9 +208,7 @@ CREATE TABLE warehouses
     updated_at       TIMESTAMP    NOT NULL
 );
 
--- ===============================
--- WAREHOUSE STOCKS
--- ===============================
+
 CREATE TABLE warehouse_stocks
 (
     id                  BIGSERIAL PRIMARY KEY,
@@ -258,9 +229,7 @@ CREATE TABLE warehouse_stocks
     CONSTRAINT fk_ws_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 );
 
--- ===============================
--- ORDERS
--- ===============================
+
 CREATE TABLE orders
 (
     id                     BIGSERIAL PRIMARY KEY,
@@ -309,9 +278,7 @@ CREATE TABLE orders
     CONSTRAINT fk_orders_promo FOREIGN KEY (promo_id) REFERENCES promos (id)
 );
 
--- ===============================
--- ORDER DETAILS
--- ===============================
+
 CREATE TABLE order_details
 (
     id                  BIGSERIAL PRIMARY KEY,
@@ -342,9 +309,7 @@ CREATE TABLE order_details
     CONSTRAINT fk_od_category FOREIGN KEY (category_id) REFERENCES categories (id)
 );
 
--- ===============================
--- CAMPAIGN & PROMO USAGE
--- ===============================
+
 CREATE TABLE promo_code_usages
 (
     id               BIGSERIAL PRIMARY KEY,
@@ -379,9 +344,7 @@ CREATE TABLE campaign_usages
     CONSTRAINT fk_cu_order FOREIGN KEY (order_id) REFERENCES orders (id)
 );
 
--- ===============================
--- PAYMENTS
--- ===============================
+
 CREATE TABLE payments
 (
     id                     BIGSERIAL PRIMARY KEY,
