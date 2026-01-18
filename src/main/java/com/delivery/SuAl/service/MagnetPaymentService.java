@@ -11,14 +11,11 @@ import com.delivery.SuAl.model.dto.payment.CreatePaymentDTO;
 import com.delivery.SuAl.model.dto.payment.PaymentDTO;
 import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.response.payment.CreatePaymentResponse;
-import com.delivery.SuAl.model.response.payment.MagnetResponse;
 import com.delivery.SuAl.model.response.payment.PaymentStatusResponse;
 import com.delivery.SuAl.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.type.TypeFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,10 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.web.util.UriUtils;
 
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -105,7 +99,6 @@ public class MagnetPaymentService implements PaymentService {
                 throw new GatewayException("Invalid response format - check API credentials");
             }
 
-            // Direct parsing - no wrapper needed
             CreatePaymentResponse gatewayResponse;
             try {
                 gatewayResponse = objectMapper.readValue(body, CreatePaymentResponse.class);
