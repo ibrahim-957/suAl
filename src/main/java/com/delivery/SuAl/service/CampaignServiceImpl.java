@@ -32,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -53,9 +54,10 @@ public class CampaignServiceImpl implements CampaignService {
     private final CampaignMapper campaignMapper;
     private final UserService userService;
     private final OrderQueryService orderQueryService;
+    private final ImageUploadService imageUploadService;
 
     @Override
-    public CampaignResponse createCampaign(CreateCampaignRequest request) {
+    public CampaignResponse createCampaign(CreateCampaignRequest request, MultipartFile image) {
         log.info("Creating campaign with campaignCode: {}", request.getCampaignCode());
 
         validateCampaignDoesNotExist(request.getCampaignCode());
@@ -63,9 +65,12 @@ public class CampaignServiceImpl implements CampaignService {
         Product buyProduct = findProductById(request.getBuyProductId());
         Product freeProduct = findProductById(request.getFreeProductId());
 
+        String imageUrl = imageUploadService.uploadImageForCampaign(image);
+
         Campaign campaign = campaignMapper.toEntity(request);
         campaign.setBuyProduct(buyProduct);
         campaign.setFreeProduct(freeProduct);
+        campaign.setImageUrl(imageUrl);
 
         Campaign savedCampaign = campaignRepository.save(campaign);
 
@@ -88,12 +93,25 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     @Override
-    public CampaignResponse updateCampaign(Long id, UpdateCampaignRequest request) {
+    public CampaignResponse updateCampaign(Long id, UpdateCampaignRequest request, MultipartFile image) {
         log.info("Update campaign with id: {}", id);
         Campaign campaign = findByCampaignById(id);
 
         LocalDate oldValidFrom = campaign.getValidFrom();
         LocalDate oldValidTo = campaign.getValidTo();
+
+        if (image != null && !image.isEmpty()) {
+            if (campaign.getImageUrl() != null) {
+                try {
+                    imageUploadService.deleteImage(campaign.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete old image, continuing with update", e);
+                }
+            }
+
+            String newImageUrl = imageUploadService.uploadImageForProduct(image);
+            campaign.setImageUrl(newImageUrl);
+        }
 
         campaignMapper.updateEntityFromRequest(request, campaign);
 
@@ -109,6 +127,7 @@ public class CampaignServiceImpl implements CampaignService {
     public void deleteCampaignById(Long id) {
         Campaign campaign = findByCampaignById(id);
         campaign.setCampaignStatus(CampaignStatus.INACTIVE);
+
         campaignRepository.save(campaign);
 
         log.info("Campaign soft deleted with id: {}", id);

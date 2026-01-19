@@ -1,10 +1,8 @@
 package com.delivery.SuAl.mapper;
 
 import com.delivery.SuAl.entity.Payment;
-import com.delivery.SuAl.model.dto.payment.CreatePaymentDTO;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
-import com.delivery.SuAl.model.request.payment.CreatePaymentRequest;
 import com.delivery.SuAl.model.response.payment.PaymentStatusResponse;
 import com.delivery.SuAl.model.response.payment.RefundDetails;
 import org.mapstruct.Mapper;
@@ -13,10 +11,11 @@ import org.mapstruct.MappingTarget;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface MagnetGatewayMapper {
-    @Mapping(target = "amountInCoins", source = "amount")
+    @Mapping(target = "amountInCoins", expression = "java(mapAmountToCoins(response.getAmount()))")
     @Mapping(target = "currencyCode", source = "currency")
     @Mapping(target = "paymentMethod", expression = "java(mapPaymentMethod(response.getMethod()))")
     @Mapping(target = "gatewayStatusCode", source = "status")
@@ -29,6 +28,32 @@ public interface MagnetGatewayMapper {
     @Mapping(target = "refundedAt", expression = "java(mapRefundedAt(response.getRefund()))")
     @Mapping(target = "failureReason", expression = "java(mapFailureReason(response))")
     void updatePaymentFromStatusResponse(PaymentStatusResponse response, @MappingTarget Payment payment);
+
+    default Long mapAmountToCoins(Double amount) {
+        if (amount == null) return null;
+        return Math.round(amount * 100);
+    }
+
+    default Long mapRefundAmount(List<RefundDetails> refundList) {
+        if (refundList == null || refundList.isEmpty()) {
+            return null;
+        }
+        return refundList.stream()
+                .filter(refund -> refund.getAmount() != null)
+                .mapToLong(refund -> Math.round(refund.getAmount() * 100))
+                .sum();
+    }
+
+    default LocalDateTime mapRefundedAt(List<RefundDetails> refundList) {
+        if (refundList == null || refundList.isEmpty()) {
+            return null;
+        }
+        RefundDetails latestRefund = refundList.getLast();
+        if (latestRefund.getDatetime() != null) {
+            return parseDateTime(latestRefund.getDatetime());
+        }
+        return null;
+    }
 
     default PaymentMethod mapPaymentMethod(String method) {
         if (method == null) return PaymentMethod.CARD;
@@ -44,25 +69,18 @@ public interface MagnetGatewayMapper {
 
         return switch (status) {
             case "00" -> PaymentStatus.SUCCESS;
-
-            case "S0", "S1", "S2" ->
-                    PaymentStatus.PENDING;
-
-            case "S4" ->
-                    PaymentStatus.CANCELLED;
-
-            default ->
-                    PaymentStatus.FAILED;
+            case "S0", "S1", "S2" -> PaymentStatus.PENDING;
+            case "S4" -> PaymentStatus.CANCELLED;
+            default -> PaymentStatus.FAILED;
         };
     }
 
-
     default LocalDateTime parseDateTime(String datetime) {
         if (datetime == null) return null;
-        try{
+        try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS");
             return LocalDateTime.parse(datetime, formatter);
-        } catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
     }
@@ -74,17 +92,6 @@ public interface MagnetGatewayMapper {
         return null;
     }
 
-    default Long mapRefundAmount(RefundDetails refund) {
-        return refund != null ? refund.getAmount() : null;
-    }
-
-    default LocalDateTime mapRefundedAt(RefundDetails refund) {
-        if (refund != null && refund.getDatetime() != null) {
-            return parseDateTime(refund.getDatetime());
-        }
-        return null;
-    }
-
     default String mapFailureReason(PaymentStatusResponse response) {
         if (response == null) return "Unknown gateway error";
 
@@ -92,5 +99,4 @@ public interface MagnetGatewayMapper {
                 ? null
                 : response.getMessage();
     }
-
 }

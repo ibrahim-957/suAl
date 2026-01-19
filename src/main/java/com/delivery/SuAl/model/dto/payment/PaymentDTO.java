@@ -20,7 +20,7 @@ public class PaymentDTO {
     private Long orderId;
     private String referenceId;
     private BigDecimal amount;
-    private BigDecimal free;
+    private BigDecimal fee;
     private String currencyCode;
     private TransactionType transactionType;
     private PaymentMethod paymentMethod;

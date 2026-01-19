@@ -33,17 +33,13 @@ public class UserServiceImpl implements UserService {
 
         if (existingUser.isPresent()) {
             User user = existingUser.get();
-            if (user.getIsActive())
-                throw new AlreadyExistsException("User already exists: " + createUserRequest.getPhoneNumber());
-            else {
-                log.info("Reactivating user with phone number {}", createUserRequest.getPhoneNumber());
-                user.setFirstName(createUserRequest.getFirstName());
-                user.setLastName(createUserRequest.getLastName());
-                user.setIsActive(true);
-                User savedUser = userRepository.save(user);
-                log.info("User reactivated successfully with ID: {}", savedUser.getId());
-                return userMapper.toResponse(savedUser);
-            }
+            log.info("Reactivating user with phone number {}", createUserRequest.getPhoneNumber());
+            user.setFirstName(createUserRequest.getFirstName());
+            user.setLastName(createUserRequest.getLastName());
+            user.setIsActive(true);
+            User savedUser = userRepository.save(user);
+            log.info("User reactivated successfully with ID: {}", savedUser.getId());
+            return userMapper.toResponse(savedUser);
         }
 
         User user = userMapper.toEntity(createUserRequest);

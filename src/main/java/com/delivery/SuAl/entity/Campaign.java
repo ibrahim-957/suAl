@@ -42,6 +42,9 @@ public class Campaign {
 
     private String description;
 
+    @Column(nullable = false, name = "image_url")
+    private String imageUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "campaign_type", nullable = false)
     private CampaignType campaignType = CampaignType.BUY_X_GET_Y_FREE;

@@ -10,6 +10,8 @@ import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.CampaignService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,7 +31,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/v1/api/campaign")
@@ -38,12 +43,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class CampaignController {
     private final CampaignService campaignService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Create a new campaign")
     public ResponseEntity<ApiResponse<CampaignResponse>> createCampaign(
-            @Valid @RequestBody CreateCampaignRequest request) {
+            @Valid @RequestPart("createProductRequest") CreateCampaignRequest request,
+            @Parameter(description = "Product image file")
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         log.info("Creating campaign with code: {}", request.getCampaignCode());
 
-        CampaignResponse response = campaignService.createCampaign(request);
+        CampaignResponse response = campaignService.createCampaign(request, image);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -76,13 +84,15 @@ public class CampaignController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<CampaignResponse>> updateCampaign(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateCampaignRequest request) {
+            @Valid @RequestPart("updateProductRequest") UpdateCampaignRequest request,
+            @Parameter(description = "Product image file")
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         log.info("Updating campaign with id: {}", id);
 
-        CampaignResponse response = campaignService.updateCampaign(id, request);
+        CampaignResponse response = campaignService.updateCampaign(id, request, image);
 
         return ResponseEntity.ok(ApiResponse.success("Campaign updated successfully", response));
     }

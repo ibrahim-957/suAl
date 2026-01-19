@@ -2,16 +2,22 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.Payment;
+import com.delivery.SuAl.exception.AlreadyPaidException;
 import com.delivery.SuAl.exception.GatewayException;
+import com.delivery.SuAl.exception.InvalidPaymentStateException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.PaymentCreationException;
+import com.delivery.SuAl.exception.PaymentRefundException;
+import com.delivery.SuAl.exception.PaymentVerificationException;
 import com.delivery.SuAl.mapper.MagnetGatewayMapper;
 import com.delivery.SuAl.mapper.PaymentMapper;
 import com.delivery.SuAl.model.dto.payment.CreatePaymentDTO;
 import com.delivery.SuAl.model.dto.payment.PaymentDTO;
 import com.delivery.SuAl.model.enums.PaymentStatus;
+import com.delivery.SuAl.model.response.payment.CancelRefundResponse;
 import com.delivery.SuAl.model.response.payment.CreatePaymentResponse;
 import com.delivery.SuAl.model.response.payment.PaymentStatusResponse;
+import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -25,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -35,6 +42,7 @@ import java.util.UUID;
 public class MagnetPaymentService implements PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final OrderRepository orderRepository;
     private final PaymentMapper paymentMapper;
     private final MagnetGatewayMapper gatewayMapper;
     private final RestTemplate magnetRestTemplate;
@@ -57,7 +65,13 @@ public class MagnetPaymentService implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentDTO initialize(CreatePaymentDTO dto, Order order) {
+    public PaymentDTO initialize(CreatePaymentDTO dto) {
+        Order order = orderRepository.findById(dto.getOrderId())
+                .orElseThrow(() -> new NotFoundException("Order not found"));
+
+        if (paymentRepository.hasSuccessfulPayment(order.getId())) {
+            throw new AlreadyPaidException("Order already paid");
+        }
 
         Payment payment = paymentMapper.toEntity(dto);
         payment.setOrder(order);
@@ -144,56 +158,138 @@ public class MagnetPaymentService implements PaymentService {
         }
     }
 
-
     @Override
     @Transactional
-    public void handleCallback(String reference) {
-
+    public PaymentStatus handleCallback(String reference) {
         Payment payment = paymentRepository.findByReferenceId(reference)
                 .orElseThrow(() -> new NotFoundException("Payment not found: " + reference));
 
-        String url = UriComponentsBuilder.fromUriString(baseUrl)
-                .path("/payment/status")
-                .queryParam("reference", reference)
-                .toUriString();
+        PaymentStatusResponse statusResponse = fetchExternalStatus(reference);
+
+        PaymentStatus oldStatus = payment.getPaymentStatus();
+        gatewayMapper.updatePaymentFromStatusResponse(statusResponse, payment);
+        paymentRepository.save(payment);
+
+        if (payment.getOrder() != null && oldStatus != payment.getPaymentStatus()) {
+            updateOrderPaymentStatus(payment.getOrder(), payment);
+            orderRepository.save(payment.getOrder());
+        }
+
+        return payment.getPaymentStatus();
+    }
+
+    @Override
+    @Transactional
+    public PaymentDTO refundPayment(Long orderId) {
+        log.info("Attempting refund for order ID: {}", orderId);
+
+        Payment payment = paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.SUCCESS)
+                .orElseThrow(() -> new NotFoundException("No successful payment found for order with ID: " + orderId));
+
+        if (payment.getPaymentStatus() == PaymentStatus.REFUNDED) {
+            throw new InvalidPaymentStateException("Payment already refunded");
+        }
+
+        if (payment.getPaymentStatus() == PaymentStatus.CANCELLED) {
+            throw new InvalidPaymentStateException("Payment already cancelled");
+        }
+
+        PaymentStatusResponse currentStatus = fetchExternalStatus(payment.getReferenceId());
+
+        if (!"00".equals(currentStatus.getStatus())) {
+            throw new InvalidPaymentStateException("Payment not in approved state. Current status: " + currentStatus.getStatus());
+        }
+
+        boolean isSameDay = payment.getPaidAt() != null
+                && payment.getPaidAt().toLocalDate().equals(LocalDate.now());
 
         try {
-            log.info("MAGNET status check URL: {}", url);
-
-            ResponseEntity<String> response = magnetRestTemplate.getForEntity(url, String.class);
-            String body = response.getBody();
-
-            log.info("MAGNET status response: {}", body);
-
-            if (body == null || body.isBlank()) {
-                log.error("Empty status response for reference: {}", reference);
-                return;
+            if (isSameDay) {
+                log.info("Payment made today - using Cancel(instant reverse) for reference: {}",
+                        payment.getReferenceId());
+                cancelPayment(payment);
+            } else {
+                log.info("Payment made on {} - using Refund(post-settlement) for reference: {}",
+                        payment.getPaidAt().toLocalDate(), payment.getReferenceId());
+                refundPayment(payment);
             }
 
-            PaymentStatusResponse status;
-            try {
-                status = objectMapper.readValue(body, PaymentStatusResponse.class);
-            } catch (JsonProcessingException e) {
-                log.error("Failed to parse status response: {}", body, e);
-                return;
-            }
+            payment = paymentRepository.save(payment);
+            log.info("Refund/Cancel successful for order: {}", orderId);
 
-            log.info("Parsed status - code: {}, status: {}, message: {}",
-                    status.getCode(),
-                    status.getStatus(),
-                    status.getMessage());
-
-            gatewayMapper.updatePaymentFromStatusResponse(status, payment);
-            payment.setRawStatusResponse(body);
-            paymentRepository.save(payment);
-
-            log.info("Payment status updated: {} -> {}", reference, payment.getPaymentStatus());
-
+            return paymentMapper.toDto(payment);
         } catch (Exception ex) {
-            log.error("MAGNET status check failed for {}", reference, ex);
+            log.error("Refund/Cancel failed for order: {}", orderId, ex);
+            throw new PaymentRefundException("Failed to process refund: " + ex.getMessage(), ex);
         }
     }
 
+    @Override
+    @Transactional
+    public PaymentDTO checkPaymentStatus(Long orderId) {
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new NotFoundException("No payment found for order: " + orderId));
+
+        PaymentStatusResponse statusResponse = fetchExternalStatus(payment.getReferenceId());
+        gatewayMapper.updatePaymentFromStatusResponse(statusResponse, payment);
+        return paymentMapper.toDto(payment);
+    }
+
+
+    private PaymentStatusResponse fetchExternalStatus(String reference) {
+        try {
+            String url = UriComponentsBuilder.fromUriString(baseUrl)
+                    .path("/payment/status")
+                    .queryParam("reference", reference)
+                    .toUriString();
+
+            String body = magnetRestTemplate.getForObject(url, String.class);
+            return objectMapper.readValue(body, PaymentStatusResponse.class);
+        } catch (Exception e) {
+            throw new PaymentVerificationException("Could not verify payment with provider", e);
+        }
+    }
+
+    private void updateOrderPaymentStatus(Order order, Payment payment) {
+        PaymentStatus oldStatus = order.getPaymentStatus();
+        order.setPaymentMethod(payment.getPaymentMethod());
+
+        switch (payment.getPaymentStatus()) {
+            case SUCCESS -> {
+                order.setPaymentStatus(PaymentStatus.SUCCESS);
+                order.setPaidAt(payment.getPaidAt());
+
+                log.info("Order {} payment successful. Amount: {} {}",
+                        order.getOrderNumber(), payment.getAmountAsDecimal(), payment.getCurrencyCode());
+            }
+            case FAILED -> {
+                order.setPaymentStatus(PaymentStatus.FAILED);
+                log.warn("Payment failed for order{}. Reason: {}", order.getOrderNumber(), payment.getFailureReason());
+            }
+
+            case PENDING -> {
+                order.setPaymentStatus(PaymentStatus.PENDING);
+                log.info("Payment still pending for order {}", order.getOrderNumber());
+            }
+
+            case REFUNDED -> {
+                order.setPaymentStatus(PaymentStatus.REFUNDED);
+                log.info("Payment refunded for order {}. Amount: {} coins",
+                        order.getOrderNumber(),
+                        payment.getRefundAmountInCoins());
+            }
+
+            default -> log.warn("Unhandled payment status: {} for order: {}",
+                    payment.getPaymentStatus(),
+                    order.getOrderNumber());
+
+        }
+
+        if (oldStatus != order.getPaymentStatus()) {
+            log.info("Order {} payment status changed: {} -> {}",
+                    order.getOrderNumber(), oldStatus, payment.getPaymentStatus());
+        }
+    }
 
     private void failPayment(Payment payment, CreatePaymentResponse response, String fallbackReason) {
         payment.setPaymentStatus(PaymentStatus.FAILED);
@@ -217,5 +313,57 @@ public class MagnetPaymentService implements PaymentService {
                 LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE),
                 UUID.randomUUID().toString().substring(0, 8).toUpperCase()
         );
+    }
+
+    private void cancelPayment(Payment payment) {
+        String url = UriComponentsBuilder.fromUriString(baseUrl)
+                .path("/payment/cancel")
+                .queryParam("reference", payment.getReferenceId())
+                .queryParam("amount", payment.getAmountInCoins())
+                .toUriString();
+
+        try {
+            String body = magnetRestTemplate.getForObject(url, String.class);
+            CancelRefundResponse response = objectMapper.readValue(body, CancelRefundResponse.class);
+
+            if (response.getCode() != 0) {
+                throw new GatewayException("MAGNET cancel failed: " + response.getMessage());
+            }
+
+            payment.setPaymentStatus(PaymentStatus.CANCELLED);
+            payment.setRefundAmountInCoins(payment.getAmountInCoins());
+            payment.setRefundedAt(LocalDateTime.now());
+
+            log.info("Payment cancelled (reversed): {}", payment.getReferenceId());
+        } catch (Exception ex) {
+            log.error("Cancel request failed", ex);
+            throw new PaymentRefundException("Cancel failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    private void refundPayment(Payment payment) {
+        String url = UriComponentsBuilder.fromUriString(baseUrl)
+                .path("/payment/refund")
+                .queryParam("reference", payment.getReferenceId())
+                .queryParam("amount", payment.getAmountInCoins())
+                .toUriString();
+
+        try {
+            String body = magnetRestTemplate.getForObject(url, String.class);
+            CancelRefundResponse response = objectMapper.readValue(body, CancelRefundResponse.class);
+
+            if (response.getCode() != 0) {
+                throw new GatewayException("MAGNET refund failed: " + response.getMessage());
+            }
+
+            payment.setPaymentStatus(PaymentStatus.REFUNDED);
+            payment.setRefundAmountInCoins(payment.getAmountInCoins());
+            payment.setRefundedAt(LocalDateTime.now());
+
+            log.info("Payment refunded: {}", payment.getReferenceId());
+        } catch (Exception ex){
+            log.error("Refund request failed", ex);
+            throw new PaymentRefundException("Refund failed: " + ex.getMessage(), ex);
+        }
     }
 }

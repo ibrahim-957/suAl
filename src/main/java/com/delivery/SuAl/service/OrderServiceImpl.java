@@ -12,6 +12,7 @@ import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.exception.BusinessRuleViolationException;
 import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.exception.PaymentRefundException;
 import com.delivery.SuAl.exception.UnauthorizedOperationException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
@@ -80,6 +81,7 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
     private final OrderQueryService orderQueryService;
+    private final PaymentService paymentService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -244,6 +246,8 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderStateException("User can only reject PENDING orders");
         }
 
+        refundPayment(order);
+
         containerManagementService.releaseReservedContainers(order);
 
         order.setOrderStatus(OrderStatus.REJECTED);
@@ -271,6 +275,8 @@ public class OrderServiceImpl implements OrderService {
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
             throw new InvalidOrderStateException("Order must be PENDING or APPROVED to reject");
         }
+
+        refundPayment(order);
 
         if (order.getOrderStatus() == OrderStatus.APPROVED) {
             log.info("Order was APPROVED, releasing warehouse stock");
@@ -815,5 +821,18 @@ public class OrderServiceImpl implements OrderService {
         return order.getOrderDetails().stream()
                 .mapToInt(OrderDetail::getContainersReturned)
                 .sum();
+    }
+
+    private void refundPayment(Order order) {
+        if (order.getPaymentStatus() == PaymentStatus.SUCCESS){
+            try {
+                log.info("Order {} has successful payment, initiating refund", order.getId());
+                paymentService.refundPayment(order.getId());
+                order.setPaymentStatus(PaymentStatus.REFUNDED);
+            } catch(Exception e){
+                log.error("Failed to refund payment for order {}", order.getId(), e);
+                throw new PaymentRefundException("Could not process refund: " + e.getMessage(), e);
+            }
+        }
     }
 }

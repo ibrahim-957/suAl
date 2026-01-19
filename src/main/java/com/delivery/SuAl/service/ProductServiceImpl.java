@@ -60,7 +60,7 @@ public class ProductServiceImpl implements ProductService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new NotFoundException("Category not found with id: " + request.getCategoryId()));
 
-        String imageUrl = imageUploadService.uploadImage(image);
+        String imageUrl = imageUploadService.uploadImageForProduct(image);
 
         Product product = productMapper.toEntity(request);
         product.setCategory(category);
@@ -145,7 +145,7 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
 
-            String newImageUrl = imageUploadService.uploadImage(image);
+            String newImageUrl = imageUploadService.uploadImageForProduct(image);
             product.setImageUrl(newImageUrl);
         }
 

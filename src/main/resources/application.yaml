@@ -60,7 +60,3 @@ magnet:
 
   connection-timeout: ${MAGNET_CONNECTION_TIMEOUT}
   read-timeout: ${MAGNET_READ_TIMEOUT}
-
-frontend:
-  success-url: ${FRONTEND_SUCCESS_URL}
-  failure-url: ${FRONTEND_FAILURE_URL}

@@ -29,7 +29,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
             AlreadyExistsException.class,
             InvalidOrderStateException.class,
-            PromoUsageLimitExceededException.class
+            PromoUsageLimitExceededException.class,
+            AlreadyPaidException.class,
+            InvalidPaymentStateException.class
     })
     public ResponseEntity<ErrorResponse> handleConflict(
             RuntimeException ex,
@@ -67,6 +69,28 @@ public class GlobalExceptionHandler {
     ) {
         log.error("Image upload failed", ex);
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR, ex, request);
+    }
+
+    @ExceptionHandler({
+            PaymentCreationException.class,
+            PaymentRefundException.class,
+            PaymentVerificationException.class
+    })
+    public ResponseEntity<ErrorResponse> handlePaymentProcessingException(
+            RuntimeException ex,
+            HttpServletRequest request
+    ) {
+        log.error("Payment processing error: {}", ex.getMessage(), ex);
+        return buildError(HttpStatus.INTERNAL_SERVER_ERROR, ex, request);
+    }
+
+    @ExceptionHandler(GatewayException.class)
+    public ResponseEntity<ErrorResponse> handleGatewayException(
+            GatewayException ex,
+            HttpServletRequest request
+    ){
+        log.error("Payment gateway error: {}", ex.getMessage(), ex);
+        return buildError(HttpStatus.BAD_GATEWAY, ex, request);
     }
 
     @ExceptionHandler(Exception.class)
@@ -115,6 +139,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<String> handleNoResourceFound(NoResourceFoundException ex) {
+        log.error("No resource found: {}", ex.getMessage(), ex);
         return ResponseEntity.notFound().build();
     }
 

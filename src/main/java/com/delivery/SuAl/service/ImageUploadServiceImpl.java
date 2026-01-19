@@ -18,13 +18,22 @@ public class ImageUploadServiceImpl implements ImageUploadService {
     private final Cloudinary cloudinary;
 
     @Override
-    public String uploadImage(MultipartFile file) {
+    public String uploadImageForProduct(MultipartFile file) {
+        return generateUrl(file, "product");
+    }
+
+    @Override
+    public String uploadImageForCampaign(MultipartFile file) {
+        return generateUrl(file, "campaign");
+    }
+
+    private String generateUrl(MultipartFile file, String type) {
         try{
             validateFile(file);
 
             Map uploadResult = cloudinary.uploader().upload(file.getBytes(),
                     ObjectUtils.asMap(
-                            "folder", "products",
+                            "folder", type,
                             "resource_type", "image"
                     ));
 

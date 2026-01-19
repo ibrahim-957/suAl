@@ -3,7 +3,9 @@ package com.delivery.SuAl.service;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface ImageUploadService {
-    String uploadImage(MultipartFile file);
+    String uploadImageForProduct(MultipartFile file);
+
+    String uploadImageForCampaign(MultipartFile file);
 
     void deleteImage(String imageUrl);
 }

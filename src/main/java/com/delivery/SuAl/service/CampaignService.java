@@ -13,15 +13,16 @@ import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.ValidatePromoResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface CampaignService {
-    CampaignResponse createCampaign(CreateCampaignRequest request);
+    CampaignResponse createCampaign(CreateCampaignRequest request, MultipartFile image);
 
     CampaignResponse getCampaignById(Long id);
 
     Page<CampaignResponse> getCampaigns(Pageable pageable);
 
-    CampaignResponse updateCampaign(Long id, UpdateCampaignRequest request);
+    CampaignResponse updateCampaign(Long id, UpdateCampaignRequest request, MultipartFile image);
 
     void deleteCampaignById(Long id);
 
