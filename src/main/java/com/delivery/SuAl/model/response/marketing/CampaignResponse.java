@@ -19,6 +19,7 @@ public class CampaignResponse {
     private String campaignCode;
     private String name;
     private String description;
+    private String imageUrl;
 
     private CampaignType campaignType;
     private String campaignTypeDisplay;

@@ -46,13 +46,12 @@ public class CampaignController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create a new campaign")
     public ResponseEntity<ApiResponse<CampaignResponse>> createCampaign(
-            @Valid @RequestPart("createProductRequest") CreateCampaignRequest request,
-            @Parameter(description = "Product image file")
+            @Valid @RequestPart("request") CreateCampaignRequest request,
+            @Parameter(description = "Campaign image file")
             @RequestPart(value = "image", required = false) MultipartFile image) {
-        log.info("Creating campaign with code: {}", request.getCampaignCode());
 
+        log.info("Received create request: {}", request);
         CampaignResponse response = campaignService.createCampaign(request, image);
-
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Campaign created successfully", response));
@@ -88,7 +87,7 @@ public class CampaignController {
     public ResponseEntity<ApiResponse<CampaignResponse>> updateCampaign(
             @PathVariable Long id,
             @Valid @RequestPart("updateProductRequest") UpdateCampaignRequest request,
-            @Parameter(description = "Product image file")
+            @Parameter(description = "Campaign image file")
             @RequestPart(value = "image", required = false) MultipartFile image) {
         log.info("Updating campaign with id: {}", id);
 
