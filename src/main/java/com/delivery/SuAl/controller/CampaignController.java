@@ -86,7 +86,7 @@ public class CampaignController {
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<CampaignResponse>> updateCampaign(
             @PathVariable Long id,
-            @Valid @RequestPart("updateProductRequest") UpdateCampaignRequest request,
+            @Valid @RequestPart("request") UpdateCampaignRequest request,
             @Parameter(description = "Campaign image file")
             @RequestPart(value = "image", required = false) MultipartFile image) {
         log.info("Updating campaign with id: {}", id);
