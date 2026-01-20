@@ -6,6 +6,7 @@ import com.delivery.SuAl.exception.AlreadyPaidException;
 import com.delivery.SuAl.exception.GatewayException;
 import com.delivery.SuAl.exception.InvalidPaymentStateException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.exception.OrderDeletionException;
 import com.delivery.SuAl.exception.PaymentCreationException;
 import com.delivery.SuAl.exception.PaymentRefundException;
 import com.delivery.SuAl.exception.PaymentVerificationException;
@@ -17,6 +18,7 @@ import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.response.payment.CancelRefundResponse;
 import com.delivery.SuAl.model.response.payment.CreatePaymentResponse;
 import com.delivery.SuAl.model.response.payment.PaymentStatusResponse;
+import com.delivery.SuAl.repository.CampaignUsageRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -46,6 +48,7 @@ public class MagnetPaymentService implements PaymentService {
     private final PaymentMapper paymentMapper;
     private final MagnetGatewayMapper gatewayMapper;
     private final RestTemplate magnetRestTemplate;
+    private final CampaignUsageRepository campaignUsageRepository;
 
     @Value("${magnet.api.base-url}")
     private String baseUrl;
@@ -161,20 +164,53 @@ public class MagnetPaymentService implements PaymentService {
     @Override
     @Transactional
     public PaymentStatus handleCallback(String reference) {
+        log.info("=== CALLBACK START === Reference: {}", reference);
+
         Payment payment = paymentRepository.findByReferenceId(reference)
                 .orElseThrow(() -> new NotFoundException("Payment not found: " + reference));
+        log.info("Payment found - ID: {}, Current Status: {}, Order ID: {}",
+                payment.getId(), payment.getPaymentStatus(),
+                payment.getOrder() != null ? payment.getOrder().getId() : "NULL");
 
+        log.info("Fetching external payment status from gateway...");
         PaymentStatusResponse statusResponse = fetchExternalStatus(reference);
+        log.info("Gateway response received - Status: {}", statusResponse.getStatus());
 
         PaymentStatus oldStatus = payment.getPaymentStatus();
+        log.info("Updating payment from status response...");
         gatewayMapper.updatePaymentFromStatusResponse(statusResponse, payment);
-        paymentRepository.save(payment);
+        log.info("Payment status after mapper: {} (was: {})", payment.getPaymentStatus(), oldStatus);
 
-        if (payment.getOrder() != null && oldStatus != payment.getPaymentStatus()) {
-            updateOrderPaymentStatus(payment.getOrder(), payment);
-            orderRepository.save(payment.getOrder());
+        paymentRepository.save(payment);
+        log.info("Payment saved to database");
+
+        if (payment.getOrder() != null) {
+            log.info("Order exists - Order Number: {}, Order Status: {}",
+                    payment.getOrder().getOrderNumber(),
+                    payment.getOrder().getPaymentStatus());
+
+            if (oldStatus != payment.getPaymentStatus()) {
+                log.info("Payment status changed from {} to {}, updating order...",
+                        oldStatus, payment.getPaymentStatus());
+
+                updateOrderPaymentStatus(payment.getOrder(), payment);
+                log.info("Order payment status updated to: {}", payment.getOrder().getPaymentStatus());
+
+                if (payment.getPaymentStatus() == PaymentStatus.FAILED) {
+                    deleteFailedOrder(payment.getOrder());
+                } else {
+                    log.info("Payment status is {}, saving order...", payment.getPaymentStatus());
+                    orderRepository.save(payment.getOrder());
+                    log.info("Order saved successfully");
+                }
+            } else {
+                log.info("Payment status unchanged ({}), skipping order update", oldStatus);
+            }
+        } else {
+            log.warn("Payment has no associated order!");
         }
 
+        log.info("=== CALLBACK END === Final Payment Status: {}", payment.getPaymentStatus());
         return payment.getPaymentStatus();
     }
 
@@ -265,7 +301,7 @@ public class MagnetPaymentService implements PaymentService {
             }
             case FAILED -> {
                 order.setPaymentStatus(PaymentStatus.FAILED);
-                log.warn("Payment failed for order{}. Reason: {}", order.getOrderNumber(), payment.getFailureReason());
+                log.warn("Payment failed for order {}. Reason: {}", order.getOrderNumber(), payment.getFailureReason());
             }
 
             case PENDING -> {
@@ -314,6 +350,39 @@ public class MagnetPaymentService implements PaymentService {
                 LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE),
                 UUID.randomUUID().toString().substring(0, 8).toUpperCase()
         );
+    }
+
+    private void deleteFailedOrder(Order order) {
+        log.warn("!!! PAYMENT FAILED - DELETING ORDER !!!");
+        log.info("Order to delete - ID: {}, Number: {}", order.getId(), order.getOrderNumber());
+
+        try {
+            int deletedCampaignUsages = campaignUsageRepository.deleteByOrderId(order.getId());
+            if (deletedCampaignUsages > 0) {
+                log.info("Deleted {} campaign_usages for order {}",
+                        deletedCampaignUsages, order.getOrderNumber());
+            }
+
+            if (order.getOrderDetails() != null && !order.getOrderDetails().isEmpty()) {
+                log.info("Clearing {} order_details for order {}",
+                        order.getOrderDetails().size(), order.getOrderNumber());
+                order.getOrderDetails().clear();
+            }
+
+            if (order.getCampaignBonuses() != null && !order.getCampaignBonuses().isEmpty()) {
+                log.info("Clearing {} campaign_bonuses for order {}",
+                        order.getCampaignBonuses().size(), order.getOrderNumber());
+                order.getCampaignBonuses().clear();
+            }
+
+            orderRepository.saveAndFlush(order);
+            orderRepository.delete(order);
+
+            log.info("Order {} and all related entities deleted successfully", order.getOrderNumber());
+        } catch (Exception e) {
+            log.error("Failed to delete order {}: {}", order.getOrderNumber(), e.getMessage(), e);
+            throw new OrderDeletionException("Failed to delete order after payment failure: " + e.getMessage(), e);
+        }
     }
 
     private void cancelPayment(Payment payment) {

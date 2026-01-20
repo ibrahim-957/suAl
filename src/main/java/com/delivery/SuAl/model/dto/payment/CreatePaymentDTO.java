@@ -21,6 +21,4 @@ public class CreatePaymentDTO {
     private String language;
     private String cardToken;
     private boolean saveCard;
-    private String backUrl;
-    private String failUrl;
 }
