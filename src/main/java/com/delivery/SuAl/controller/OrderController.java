@@ -182,4 +182,14 @@ public class OrderController {
 
         return ResponseEntity.ok(ApiResponse.success(orders));
     }
+
+    @GetMapping("/my-orders")
+    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllUserOrders(
+            Pageable pageable,
+            @RequestHeader("X-Phone-Number") String phoneNumber
+    ){
+        log.info("GET /v1/api/orders/my-orders - Fetching order for user by phoneNumber: {}", phoneNumber);
+        PageResponse<OrderResponse> response = orderService.getAllOrdersByUser(pageable, phoneNumber);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

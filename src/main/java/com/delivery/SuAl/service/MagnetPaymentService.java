@@ -197,7 +197,8 @@ public class MagnetPaymentService implements PaymentService {
         PaymentStatusResponse currentStatus = fetchExternalStatus(payment.getReferenceId());
 
         if (!"00".equals(currentStatus.getStatus())) {
-            throw new InvalidPaymentStateException("Payment not in approved state. Current status: " + currentStatus.getStatus());
+            throw new InvalidPaymentStateException("Payment not in approved state. Current status: "
+                    + currentStatus.getStatus());
         }
 
         boolean isSameDay = payment.getPaidAt() != null

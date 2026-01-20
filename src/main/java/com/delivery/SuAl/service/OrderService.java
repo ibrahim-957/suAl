@@ -40,6 +40,8 @@ public interface OrderService {
 
     PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable);
 
+    PageResponse<OrderResponse> getAllOrdersByUser(Pageable pageable, String phoneNumber);
+
     int getCompletedOrderCount(Long userId);
 
     Order getOrderEntityById(Long orderId);

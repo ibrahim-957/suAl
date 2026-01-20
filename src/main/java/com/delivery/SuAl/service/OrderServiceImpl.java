@@ -404,6 +404,8 @@ public class OrderServiceImpl implements OrderService {
         return PageResponse.of(responses, orderPage);
     }
 
+
+
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable) {
@@ -417,6 +419,23 @@ public class OrderServiceImpl implements OrderService {
                 .map(orderMapper::toResponse)
                 .toList();
 
+        return PageResponse.of(responses, orderPage);
+    }
+
+    @Override
+    public PageResponse<OrderResponse> getAllOrdersByUser(Pageable pageable, String phoneNumber) {
+        log.info("Fetching all orders for user phoneNumber {}", phoneNumber);
+
+        User user = userRepository.findByPhoneNumber(phoneNumber)
+                .orElseThrow(() -> new NotFoundException("User not found with phoneNumber: " + phoneNumber));
+
+        Page<Order> orderPage = orderRepository.findByUserId(user.getId(), pageable);
+
+        List<Order> orders = orderPage.getContent();
+
+        List<OrderResponse> responses = orders.stream()
+                .map(orderMapper::toResponse)
+                .toList();
         return PageResponse.of(responses, orderPage);
     }
 
