@@ -5,6 +5,7 @@ import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
+import com.delivery.SuAl.model.response.order.DriverCollectionInfoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
@@ -190,6 +191,20 @@ public class OrderController {
     ){
         log.info("GET /v1/api/orders/my-orders - Fetching order for user by phoneNumber: {}", phoneNumber);
         PageResponse<OrderResponse> response = orderService.getAllOrdersByUser(pageable, phoneNumber);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{orderId}/driver-collection-info")
+    public ResponseEntity<ApiResponse<DriverCollectionInfoResponse>> getDriverCollectionInfo(
+            @PathVariable Long orderId
+    ){
+        log.info("GET /api/orders/{}/driver-collection-info - Fetching driver collection info", orderId);
+
+        DriverCollectionInfoResponse response = orderService.getDriverCollectionInfo(orderId);
+
+        if (Boolean.TRUE.equals(response.getHasInsufficientContainers())){
+            log.warn("Order {} has insufficient containers warning for driver", orderId);
+        }
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

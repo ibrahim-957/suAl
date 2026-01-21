@@ -75,4 +75,37 @@ public class Address {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    public String getFullAddress() {
+        StringBuilder fullAddress = new StringBuilder();
+
+        if (description != null && !description.isBlank()) {
+            fullAddress.append(description);
+        }
+
+        if (street != null && !street.isBlank()) {
+            if (fullAddress.length() > 0) fullAddress.append(", ");
+            fullAddress.append(street);
+        }
+
+        if (buildingNumber != null && !buildingNumber.isBlank()) {
+            fullAddress.append(" ").append(buildingNumber);
+        }
+
+        if (apartmentNumber != null && !apartmentNumber.isBlank()) {
+            fullAddress.append(", Apt ").append(apartmentNumber);
+        }
+
+        if (city != null && !city.isBlank()) {
+            if (fullAddress.length() > 0) fullAddress.append(", ");
+            fullAddress.append(city);
+        }
+
+        if (postalCode != null && !postalCode.isBlank()) {
+            fullAddress.append(", ").append(postalCode);
+        }
+
+        return fullAddress.toString();
+    }
+
 }
