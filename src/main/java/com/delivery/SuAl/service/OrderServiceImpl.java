@@ -9,6 +9,7 @@ import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.entity.UserContainer;
 import com.delivery.SuAl.exception.BusinessRuleViolationException;
 import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
@@ -37,7 +38,10 @@ import com.delivery.SuAl.model.response.cart.CartCalculationResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyCampaignResponse;
 import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
 import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
+import com.delivery.SuAl.model.response.order.BottleCollectionExpectation;
+import com.delivery.SuAl.model.response.order.DriverCollectionInfoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
+import com.delivery.SuAl.model.response.order.ProductDeliverItem;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.CampaignRepository;
@@ -45,6 +49,7 @@ import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.repository.UserContainerRepository;
 import com.delivery.SuAl.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,12 +59,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -80,12 +88,12 @@ public class OrderServiceImpl implements OrderService {
     private final CampaignService campaignService;
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
-    private final OrderQueryService orderQueryService;
     private final PaymentService paymentService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
     private final OrderMapper orderMapper;
+    private final UserContainerRepository userContainerRepository;
 
     @Override
     @Transactional
@@ -248,8 +256,6 @@ public class OrderServiceImpl implements OrderService {
 
         refundPayment(order);
 
-        containerManagementService.releaseReservedContainers(order);
-
         order.setOrderStatus(OrderStatus.REJECTED);
         order.setRejectionReason(reason);
         Order savedOrder = orderRepository.save(order);
@@ -311,8 +317,6 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        containerManagementService.releaseReservedContainers(order);
-
         order.setOrderStatus(OrderStatus.REJECTED);
         order.setRejectionReason(reason);
         order.setOperator(operator);
@@ -338,22 +342,50 @@ public class OrderServiceImpl implements OrderService {
 
         validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
 
+        log.info("Adding delivered products to user container balance");
+        containerManagementService.processDeliveredProducts(
+                order.getUser().getId(),
+                order.getOrderDetails()
+        );
+
+        log.info("Processing collected bottles");
         containerManagementService.processCollectedBottles(
                 order.getUser().getId(),
                 order.getOrderDetails(),
                 completeDeliveryRequest.getBottlesCollected()
         );
 
-        containerManagementService.processDeliveredProducts(
-                order.getUser().getId(),
-                order.getOrderDetails()
-        );
+        int totalExpected = order.getEmptyBottlesExpected();
+        int totalCollected = calculateTotalBottlesCollected(order);
+        int missingBottles = totalExpected - totalCollected;
+
+        log.info("Container collection -Expected: {}, Collected: {}, Missing: {}",
+                totalExpected, totalCollected, missingBottles);
 
         orderCalculationService.recalculateDepositsFromActualCollection(order);
 
-        int totalCollected = calculateTotalBottlesCollected(order);
-        order.setEmptyBottlesCollected(totalCollected);
+        if (missingBottles > 0) {
+            BigDecimal depositPerUnit = order.getOrderDetails().isEmpty()
+                    ? BigDecimal.ZERO
+                    : order.getOrderDetails().getFirst().getDepositPerUnit();
 
+            BigDecimal extraDepositCharge = depositPerUnit
+                    .multiply(BigDecimal.valueOf(missingBottles))
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            log.warn("USER DID NOT RETURN {} CONTAINERS - Extra deposit kept: {} ({}×{})",
+                    missingBottles, extraDepositCharge, missingBottles, depositPerUnit);
+
+            String missingContainerNote = String.format(
+                    "Missing containers: %d bottles not returned. Deposit not refunded: %s AZN (%s × %d)",
+                    missingBottles, extraDepositCharge, depositPerUnit, missingBottles
+            );
+            appendNotes(order, missingContainerNote);
+
+            log.info("Deposit kept for missing containers: {}", extraDepositCharge);
+        }
+
+        order.setEmptyBottlesCollected(totalCollected);
         order.setOrderStatus(OrderStatus.COMPLETED);
         order.setCompletedAt(LocalDateTime.now());
 
@@ -361,16 +393,31 @@ public class OrderServiceImpl implements OrderService {
                 order.getPaymentStatus() == PaymentStatus.PENDING) {
             order.setPaymentStatus(PaymentStatus.SUCCESS);
             order.setPaidAt(LocalDateTime.now());
+        } else if (order.getPaymentMethod() == PaymentMethod.CARD) {
+            if (missingBottles > 0){
+                BigDecimal originalAmount = order.getSubtotal().add(order.getTotalDepositCharged())
+                        .subtract(order.getTotalDepositRefunded());
+                BigDecimal difference = order.getTotalAmount().subtract(originalAmount);
+
+                if (difference.compareTo(BigDecimal.ZERO) > 0) {
+                    log.warn("Order was paid online but deposit of {} was not refunded. " +
+                            "Amount difference: {}", difference, difference);
+
+                    appendNotes(order,
+                            "Note: Online payment - Deposit " + difference +
+                            " AZN kept for " + missingBottles + " missing containers");
+                }
+            }
         }
 
         appendNotes(order, completeDeliveryRequest.getNotes());
 
         Order savedOrder = orderRepository.save(order);
 
-        log.info("Order {} completed - Expected bottles: {}, Collected: {}, Delivered: {}, Final amount: {}",
-                savedOrder.getOrderNumber(),
-                order.getEmptyBottlesExpected(),
-                totalCollected,
+        log.info("Order {} completed successfully", savedOrder.getOrderNumber());
+        log.info("Expected bottles: {}, Collected: {}, Missing: {}",
+                totalExpected, totalCollected, missingBottles);
+        log.info("Delivered: {}, Final amount: {}",
                 order.getOrderDetails().stream().mapToInt(OrderDetail::getCount).sum(),
                 savedOrder.getTotalAmount());
         return orderMapper.toResponse(savedOrder);
@@ -403,7 +450,6 @@ public class OrderServiceImpl implements OrderService {
 
         return PageResponse.of(responses, orderPage);
     }
-
 
 
     @Override
@@ -440,18 +486,98 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public int getCompletedOrderCount(Long userId) {
-        log.info("Getting completed orders for user {}", userId);
-        return orderQueryService.getCompletedOrderCount(userId);
-    }
+    public DriverCollectionInfoResponse getDriverCollectionInfo(Long orderId) {
+        log.info("Getting driver collection info for order {}", orderId);
 
-    @Override
-    public Order getOrderEntityById(Long orderId) {
-        log.info("Fetching order entity by id: {}", orderId);
+        Order order = findOrderById(orderId);
 
-        return orderRepository.findByUserId(orderId)
-                .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
+        if (order.getOrderStatus() != OrderStatus.APPROVED) {
+            throw new InvalidOrderStateException(
+                    "Order must be APPROVED to get driver collection info. Current state: "
+                            + order.getOrderStatus());
+        }
 
+        Map<Long, Integer> userContainerBalances = new HashMap<>();
+        for (OrderDetail detail : order.getOrderDetails()) {
+            Optional<UserContainer> containerOpt = userContainerRepository
+                    .findByUserIdAndProductId(order.getUser().getId(), detail.getProduct().getId());
+
+            int available = containerOpt.map(UserContainer::getQuantity).orElse(0);
+            userContainerBalances.put(detail.getProduct().getId(), available);
+        }
+
+        List<ProductDeliverItem> deliverItems = new ArrayList<>();
+        for (OrderDetail detail : order.getOrderDetails()) {
+            deliverItems.add(ProductDeliverItem.builder()
+                    .productId(detail.getProduct().getId())
+                    .productName(detail.getProduct().getName())
+                    .quantity(detail.getCount())
+                    .pricePerUnit(detail.getPricePerUnit())
+                    .depositPerUnit(detail.getDepositPerUnit())
+                    .build());
+        }
+
+        List<BottleCollectionExpectation> expectations = new ArrayList<>();
+        boolean hasInsufficientContainers = false;
+        BigDecimal totalPotentialExtraDeposit = BigDecimal.ZERO;
+        for (OrderDetail detail : order.getOrderDetails()) {
+            int expectedToCollect = detail.getContainersReturned();
+            int userHas = userContainerBalances.getOrDefault(detail.getProduct().getId(), 0);
+            int shortfall = Math.max(0, expectedToCollect - userHas);
+
+            BigDecimal extraDepositPerBottle = detail.getDepositPerUnit();
+            BigDecimal totalExtraDeposit = extraDepositPerBottle
+                    .multiply(BigDecimal.valueOf(shortfall))
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            String warningMessage = null;
+            if (shortfall > 0) {
+                hasInsufficientContainers = true;
+                totalPotentialExtraDeposit = totalPotentialExtraDeposit.add(totalExtraDeposit);
+                warningMessage = String.format(
+                        "User only has %d/%d containers. Collect extra %s AZN if missing!",
+                        userHas, expectedToCollect, totalExtraDeposit
+                );
+            }
+
+            expectations.add(BottleCollectionExpectation.builder()
+                    .productId(detail.getProduct().getId())
+                    .productName(detail.getProduct().getName())
+                    .expectedToCollect(expectedToCollect)
+                    .userHasAvailable(userHas)
+                    .shortfall(shortfall)
+                    .extraDepositPerBottle(extraDepositPerBottle)
+                    .totalExtraDeposit(totalExtraDeposit)
+                    .warningMessage(warningMessage)
+                    .build());
+        }
+
+        String collectionWarning = null;
+        if (hasInsufficientContainers) {
+            collectionWarning = String.format(
+                    "ATTENTION: User doesn't have all expected containers! \" +\n" +
+                            "            \"If user cannot return missing containers, collect EXTRA %s AZN deposit. \" +\n" +
+                            "            \"Original amount: %s → Possible amount: %s",
+                    totalPotentialExtraDeposit,
+                    order.getTotalAmount(),
+                    order.getTotalAmount().add(totalPotentialExtraDeposit)
+            );
+        }
+        return DriverCollectionInfoResponse.builder()
+                .orderId(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .userName(order.getUser().getFirstName() + " " + order.getUser().getLastName())
+                .userPhone(order.getUser().getPhoneNumber())
+                .deliveryAddress(order.getAddress().getFullAddress())
+                .productsToDeliver(deliverItems)
+                .totalBottlesExpected(order.getEmptyBottlesExpected())
+                .expectedCollections(expectations)
+                .estimatedTotalAmount(order.getTotalAmount())
+                .paymentMethod(order.getPaymentMethod())
+                .paymentStatus(order.getPaymentStatus())
+                .hasInsufficientContainers(hasInsufficientContainers)
+                .collectionWarning(collectionWarning)
+                .build();
     }
 
     private User findUserById(Long userId) {
@@ -541,9 +667,38 @@ public class OrderServiceImpl implements OrderService {
         order.setPromoDiscount(pricing.getPromoDiscount() != null
                 ? pricing.getPromoDiscount()
                 : BigDecimal.ZERO);
-        order.setCampaignDiscount(BigDecimal.ZERO);
-        order.setAmount(pricing.getAmount());
-        order.setTotalAmount(pricing.getTotalAmount());
+
+        boolean willUserPromo = promoCode != null && !promoCode.trim().isEmpty();
+        BigDecimal campaignBonusValue = BigDecimal.ZERO;
+        List<EligibleCampaignInfo> campaignToApply = List.of();
+
+        if (!willUserPromo) {
+            GetEligibleCampaignsRequest campaignsRequest = GetEligibleCampaignsRequest.builder()
+                    .userId(user.getId())
+                    .productQuantities(productQuantities)
+                    .willUsePromoCode(willUserPromo)
+                    .build();
+
+            EligibleCampaignsResponse eligibleCampaigns =
+                    campaignService.getEligibleCampaigns(campaignsRequest);
+
+            campaignToApply = eligibleCampaigns
+                    .getEligibleCampaigns()
+                    .stream()
+                    .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
+                    .toList();
+
+            campaignBonusValue = eligibleCampaigns.getTotalCampaignDiscount();
+        }
+
+        order.setCampaignDiscount(campaignBonusValue);
+
+        BigDecimal amount = order.getSubtotal()
+                .subtract(order.getPromoDiscount());
+        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+
+        order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
 
         List<OrderDetail> orderDetails = orderDetailFactory.createOrderDetailsFromCart(
                 items,
@@ -581,91 +736,19 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        boolean willUsePromo = promoCode != null && !promoCode.trim().isEmpty();
-        BigDecimal campaignBonusValue = applyCampaigns(
-                savedOrder,
-                user.getId(),
-                productQuantities,
-                willUsePromo
-        );
-
-        if (campaignBonusValue.compareTo(BigDecimal.ZERO) > 0) {
-            savedOrder.setCampaignDiscount(campaignBonusValue);
-
-            BigDecimal amount = savedOrder.getSubtotal()
-                    .subtract(savedOrder.getPromoDiscount());
-            BigDecimal totalAmount = amount.add(savedOrder.getNetDeposit());
-
-            savedOrder.setAmount(amount);
-            savedOrder.setTotalAmount(totalAmount);
-
-            log.info("Campaign bonus applied: {}, New total: {}",
-                    campaignBonusValue,
-                    totalAmount);
-        }
-
-        containerManagementService.reserveContainers(user.getId(), depositSummary);
-
-        log.debug("Reserved {} containers from user balance",
-                depositSummary.getTotalContainersUsed());
-
-        Order finalOrder = orderRepository.save(savedOrder);
-
-        log.info("Order created successfully: {} - Subtotal: {}, Promo: {}, Campaign: {}, Deposits: {}, Total: {}",
-                finalOrder.getOrderNumber(),
-                finalOrder.getSubtotal(),
-                finalOrder.getPromoDiscount(),
-                campaignBonusValue,
-                finalOrder.getNetDeposit(),
-                finalOrder.getTotalAmount());
-
-        return orderMapper.toResponse(finalOrder);
-    }
-
-    private BigDecimal applyCampaigns(
-            Order order,
-            Long userId,
-            Map<Long, Integer> productQuantities,
-            boolean willUsePromo) {
-
-        BigDecimal campaignBonusValue = BigDecimal.ZERO;
-
-        GetEligibleCampaignsRequest campaignRequest = GetEligibleCampaignsRequest.builder()
-                .userId(userId)
-                .productQuantities(productQuantities)
-                .willUsePromoCode(willUsePromo)
-                .build();
-
-        EligibleCampaignsResponse eligibleCampaigns =
-                campaignService.getEligibleCampaigns(campaignRequest);
-
-        List<EligibleCampaignInfo> campaignsToApply = eligibleCampaigns
-                .getEligibleCampaigns()
-                .stream()
-                .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
-                .toList();
-
-        if (campaignsToApply.isEmpty()) {
-            log.debug("No campaigns to apply for order");
-            return campaignBonusValue;
-        }
-
-        log.info("Applying {} campaigns to order", campaignsToApply.size());
-
-        for (EligibleCampaignInfo campaignInfo : campaignsToApply) {
+        for (EligibleCampaignInfo campaignInfo : campaignToApply) {
             try {
                 ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
                         .campaignCode(campaignInfo.getCampaignCode())
-                        .userId(userId)
-                        .order(order)
+                        .userId(user.getId())
+                        .order(savedOrder)
                         .build();
 
                 ApplyCampaignResponse campaignResult =
                         campaignService.applyCampaign(applyCampaignRequest);
 
                 if (Boolean.TRUE.equals(campaignResult.getSuccess())) {
-                    addCampaignFreeProduct(order, campaignResult);
-                    campaignBonusValue = campaignBonusValue.add(campaignResult.getBonusValue());
+                    addCampaignFreeProduct(savedOrder, campaignResult);
 
                     log.info("Campaign applied: {} - Free product: {} x {}, Bonus value: {}",
                             campaignResult.getCampaignName(),
@@ -678,7 +761,17 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        return campaignBonusValue;
+        Order finalOrder = orderRepository.save(savedOrder);
+
+        log.info("Order created successfully: {} - Subtotal: {}, Promo: {}, Campaign: {}, Deposits: {}, Total: {}",
+                finalOrder.getOrderNumber(),
+                finalOrder.getSubtotal(),
+                finalOrder.getPromoDiscount(),
+                campaignBonusValue,
+                finalOrder.getNetDeposit(),
+                finalOrder.getTotalAmount());
+
+        return orderMapper.toResponse(finalOrder);
     }
 
     private void addCampaignFreeProduct(Order order, ApplyCampaignResponse campaignResult) {
@@ -843,12 +936,12 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void refundPayment(Order order) {
-        if (order.getPaymentStatus() == PaymentStatus.SUCCESS){
+        if (order.getPaymentStatus() == PaymentStatus.SUCCESS) {
             try {
                 log.info("Order {} has successful payment, initiating refund", order.getId());
                 paymentService.refundPayment(order.getId());
                 order.setPaymentStatus(PaymentStatus.REFUNDED);
-            } catch(Exception e){
+            } catch (Exception e) {
                 log.error("Failed to refund payment for order {}", order.getId(), e);
                 throw new PaymentRefundException("Could not process refund: " + e.getMessage(), e);
             }

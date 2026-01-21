@@ -33,7 +33,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -237,7 +236,7 @@ public class MagnetPaymentService implements PaymentService {
                     + currentStatus.getStatus());
         }
 
-        boolean isSameDay = payment.getPaidAt() != null
+        /*boolean isSameDay = payment.getPaidAt() != null
                 && payment.getPaidAt().toLocalDate().equals(LocalDate.now());
 
         try {
@@ -258,7 +257,17 @@ public class MagnetPaymentService implements PaymentService {
         } catch (Exception ex) {
             log.error("Refund/Cancel failed for order: {}", orderId, ex);
             throw new PaymentRefundException("Failed to process refund: " + ex.getMessage(), ex);
-        }
+        }*/
+
+        log.info("Payment made on {} - using Refund(post-settlement) for reference: {}",
+                payment.getPaidAt().toLocalDate(), payment.getReferenceId());
+        refundPayment(payment);
+
+
+        payment = paymentRepository.save(payment);
+        log.info("Refund/Cancel successful for order: {}", orderId);
+
+        return paymentMapper.toDto(payment);
     }
 
     @Override
@@ -431,7 +440,7 @@ public class MagnetPaymentService implements PaymentService {
             payment.setRefundedAt(LocalDateTime.now());
 
             log.info("Payment refunded: {}", payment.getReferenceId());
-        } catch (Exception ex){
+        } catch (Exception ex) {
             log.error("Refund request failed", ex);
             throw new PaymentRefundException("Refund failed: " + ex.getMessage(), ex);
         }
