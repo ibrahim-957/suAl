@@ -118,6 +118,8 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
+        productMapper.updateEntityFromRequest(request, product);
+
         if (request.getCompanyId() != null && !request.getCompanyId().equals(product.getCompany().getId())) {
             Company company = companyRepository.findById(request.getCompanyId())
                     .orElseThrow(() -> new NotFoundException("Company not found with ID: " + request.getCompanyId()));
@@ -149,7 +151,6 @@ public class ProductServiceImpl implements ProductService {
             product.setImageUrl(newImageUrl);
         }
 
-        productMapper.updateEntityFromRequest(request, product);
         Product updatedProduct = productRepository.save(product);
 
         if (request.getBuyPrice() != null || request.getSellPrice() != null) {
