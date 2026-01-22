@@ -1,13 +1,12 @@
 package com.delivery.SuAl.service;
 
-import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
+import com.delivery.SuAl.model.response.order.DriverCollectionInfoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
-import org.aspectj.weaver.ast.Or;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
@@ -42,7 +41,5 @@ public interface OrderService {
 
     PageResponse<OrderResponse> getAllOrdersByUser(Pageable pageable, String phoneNumber);
 
-    int getCompletedOrderCount(Long userId);
-
-    Order getOrderEntityById(Long orderId);
+    DriverCollectionInfoResponse getDriverCollectionInfo(Long orderId);
 }

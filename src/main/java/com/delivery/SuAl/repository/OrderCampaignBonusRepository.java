@@ -11,11 +11,7 @@ import java.util.List;
 
 @Repository
 public interface OrderCampaignBonusRepository extends JpaRepository<OrderCampaignBonus, Long> {
-    List<OrderCampaignBonus> findByOrderId(Long orderId);
-
-    List<OrderCampaignBonus> findByCampaignId(Long campaignId);
-
-    @Query("SELECT SUM(ocb.originalValue) FROM OrderCampaignBonus ocb " +
+    @Query("SELECT SUM(ocb.bonusValue) FROM OrderCampaignBonus ocb " +
             "WHERE ocb.campaign.id = :campaignId")
     BigDecimal sumOriginalValueByCampaignId(@Param("campaignId") Long campaignId);
 

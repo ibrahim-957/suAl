@@ -453,7 +453,7 @@ public class CampaignServiceImpl implements CampaignService {
         BigDecimal freeProductPrice = getFreeProductPrice(campaign.getFreeProduct());
         BigDecimal bonusValue = freeProductPrice.multiply(BigDecimal.valueOf(eligibleFreeQuantity));
 
-        boolean hasDeposit = Boolean.TRUE.equals(campaign.getFreeProduct().getHasDeposit());
+        boolean hasDeposit = campaign.getFreeProduct().getHasDeposit();
         BigDecimal depositPerUnit = hasDeposit ? campaign.getFreeProduct().getDepositAmount() : BigDecimal.ZERO;
         BigDecimal totalDeposit = depositPerUnit.multiply(BigDecimal.valueOf(eligibleFreeQuantity));
 

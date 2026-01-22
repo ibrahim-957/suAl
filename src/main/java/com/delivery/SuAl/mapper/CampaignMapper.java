@@ -24,6 +24,8 @@ public interface CampaignMapper {
     @Mapping(target = "campaignTypeDisplay", source = "campaignType")
     @Mapping(target = "usageRemaining", expression = "java(calculateUsageRemaining(campaign))")
     @Mapping(target = "isCurrentlyActive", expression = "java(campaign.isActive())")
+    @Mapping(source = "bonusAmount", target = "bonusAmount")
+    @Mapping(source = "bonusPercentage", target = "bonusPercentage")
     CampaignResponse toResponse(Campaign campaign);
 
     default Integer calculateUsageRemaining(Campaign campaign){
