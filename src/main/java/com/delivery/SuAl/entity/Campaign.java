@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -50,18 +51,24 @@ public class Campaign {
     private CampaignType campaignType = CampaignType.BUY_X_GET_Y_FREE;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buy_product_id", nullable = false)
+    @JoinColumn(name = "buy_product_id")
     private Product buyProduct;
 
-    @Column(name = "buy_quantity", nullable = false)
-    private int buyQuantity;
+    @Column(name = "buy_quantity")
+    private Integer buyQuantity;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "free_product_id", nullable = false)
+    @JoinColumn(name = "free_product_id")
     private Product freeProduct;
 
-    @Column(name = "free_quantity", nullable = false)
-    private int freeQuantity;
+    @Column(name = "free_quantity")
+    private Integer freeQuantity;
+
+    @Column(name = "bonus_amount", precision = 10, scale = 2)
+    private BigDecimal bonusAmount;
+
+    @Column(name = "bonus_percentage", precision = 15, scale = 2)
+    private BigDecimal bonusPercentage;
 
     @Column(name = "first_order_only")
     private Boolean firstOrderOnly = false;
@@ -101,11 +108,13 @@ public class Campaign {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        validateCampaignFields();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        validateCampaignFields();
     }
 
     public boolean isActive(){
@@ -123,20 +132,61 @@ public class Campaign {
         this.currentTotalUses++;
     }
 
-    private boolean meetsRegistrationRequirement(LocalDateTime userRegistrationDate){
-        if (minDaysSinceRegistration == null || minDaysSinceRegistration == 0){
-            return true;
-        }
-
-        LocalDateTime requiredDate = userRegistrationDate.plusDays(minDaysSinceRegistration);
-        return LocalDateTime.now().isAfter(requiredDate);
-    }
-
     public boolean isFirstOrderOnly(){
         return Boolean.TRUE.equals(firstOrderOnly);
     }
 
     public boolean allowPromoCode(){
         return !Boolean.TRUE.equals(requiresPromoAbsence);
+    }
+
+    public boolean isProductBasedCampaign(){
+        return campaignType == CampaignType.BUY_X_GET_Y_FREE ||
+                campaignType == CampaignType.BUY_X_PAY_FOR_Y;
+    }
+
+    public boolean isBonusBasedCampaign(){
+        return campaignType == CampaignType.FIRST_ORDER_BONUS ||
+                campaignType == CampaignType.LOYALTY_BONUS;
+    }
+
+    private void validateCampaignFields() {
+        switch (campaignType) {
+            case BUY_X_GET_Y_FREE:
+            case BUY_X_PAY_FOR_Y:
+                if (buyProduct == null || freeProduct == null) {
+                    throw new IllegalStateException(
+                            campaignType + " requires both buyProduct and freeProduct");
+                }
+                if (buyQuantity == null || buyQuantity <= 0) {
+                    throw new IllegalStateException(
+                            campaignType + " requires valid buyQuantity");
+                }
+                if (freeQuantity == null || freeQuantity <= 0) {
+                    throw new IllegalStateException(
+                            campaignType + " requires valid freeQuantity");
+                }
+                break;
+
+            case FIRST_ORDER_BONUS:
+                if (bonusAmount == null || bonusAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalStateException(
+                            "FIRST_ORDER_BONUS requires valid bonusAmount");
+                }
+                this.firstOrderOnly = true;
+                break;
+
+            case LOYALTY_BONUS:
+                if (minDaysSinceRegistration == null || minDaysSinceRegistration <= 0) {
+                    throw new IllegalStateException(
+                            "LOYALTY_BONUS requires minDaysSinceRegistration");
+                }
+                if ((bonusAmount == null || bonusAmount.compareTo(BigDecimal.ZERO) <= 0) &&
+                        (bonusPercentage == null || bonusPercentage.compareTo(BigDecimal.ZERO) <= 0)) {
+                    throw new IllegalStateException(
+                            "LOYALTY_BONUS requires either bonusAmount or bonusPercentage");
+                }
+                break;
+        }
     }
 }

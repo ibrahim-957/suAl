@@ -8,13 +8,22 @@ import com.delivery.SuAl.model.response.marketing.CampaignResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.math.BigDecimal;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+
 public interface CampaignMapper {
     Campaign toEntity(CreateCampaignRequest request);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "buyProduct", ignore = true)
+    @Mapping(target = "freeProduct", ignore = true)
+    @Mapping(target = "currentTotalUses", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     void updateEntityFromRequest(UpdateCampaignRequest request, @MappingTarget Campaign campaign);
 
     @Mapping(source = "buyProduct.id", target = "buyProductId")
@@ -24,6 +33,8 @@ public interface CampaignMapper {
     @Mapping(target = "campaignTypeDisplay", source = "campaignType")
     @Mapping(target = "usageRemaining", expression = "java(calculateUsageRemaining(campaign))")
     @Mapping(target = "isCurrentlyActive", expression = "java(campaign.isActive())")
+    @Mapping(source = "bonusAmount", target = "bonusAmount")
+    @Mapping(source = "bonusPercentage", target = "bonusPercentage")
     CampaignResponse toResponse(Campaign campaign);
 
     default Integer calculateUsageRemaining(Campaign campaign){

@@ -15,6 +15,7 @@ import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.PaymentRefundException;
 import com.delivery.SuAl.exception.UnauthorizedOperationException;
+import com.delivery.SuAl.helper.CampaignApplicationResult;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
 import com.delivery.SuAl.helper.ProductDepositInfo;
@@ -394,7 +395,7 @@ public class OrderServiceImpl implements OrderService {
             order.setPaymentStatus(PaymentStatus.SUCCESS);
             order.setPaidAt(LocalDateTime.now());
         } else if (order.getPaymentMethod() == PaymentMethod.CARD) {
-            if (missingBottles > 0){
+            if (missingBottles > 0) {
                 BigDecimal originalAmount = order.getSubtotal().add(order.getTotalDepositCharged())
                         .subtract(order.getTotalDepositRefunded());
                 BigDecimal difference = order.getTotalAmount().subtract(originalAmount);
@@ -405,7 +406,7 @@ public class OrderServiceImpl implements OrderService {
 
                     appendNotes(order,
                             "Note: Online payment - Deposit " + difference +
-                            " AZN kept for " + missingBottles + " missing containers");
+                                    " AZN kept for " + missingBottles + " missing containers");
                 }
             }
         }
@@ -602,6 +603,17 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException("Driver Not Found with id " + id));
     }
 
+    private Campaign findCampaignByCampaignCode(String campaignCode) {
+        return campaignRepository.findByCampaignCode(campaignCode)
+                .orElseThrow(() -> new NotFoundException(
+                        "Campaign not found: " + campaignCode));
+    }
+
+    private Product findProductById(Long productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
+    }
+
     private OrderResponse createOrderInternal(
             User user,
             Operator operator,
@@ -667,36 +679,10 @@ public class OrderServiceImpl implements OrderService {
         order.setPromoDiscount(pricing.getPromoDiscount() != null
                 ? pricing.getPromoDiscount()
                 : BigDecimal.ZERO);
+        order.setCampaignDiscount(BigDecimal.ZERO);
 
-        boolean willUserPromo = promoCode != null && !promoCode.trim().isEmpty();
-        BigDecimal campaignBonusValue = BigDecimal.ZERO;
-        List<EligibleCampaignInfo> campaignToApply = List.of();
-
-        if (!willUserPromo) {
-            GetEligibleCampaignsRequest campaignsRequest = GetEligibleCampaignsRequest.builder()
-                    .userId(user.getId())
-                    .productQuantities(productQuantities)
-                    .willUsePromoCode(willUserPromo)
-                    .build();
-
-            EligibleCampaignsResponse eligibleCampaigns =
-                    campaignService.getEligibleCampaigns(campaignsRequest);
-
-            campaignToApply = eligibleCampaigns
-                    .getEligibleCampaigns()
-                    .stream()
-                    .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
-                    .toList();
-
-            campaignBonusValue = eligibleCampaigns.getTotalCampaignDiscount();
-        }
-
-        order.setCampaignDiscount(campaignBonusValue);
-
-        BigDecimal amount = order.getSubtotal()
-                .subtract(order.getPromoDiscount());
+        BigDecimal amount = order.getSubtotal().subtract(order.getPromoDiscount());
         BigDecimal totalAmount = amount.add(order.getNetDeposit());
-
         order.setAmount(amount);
         order.setTotalAmount(totalAmount);
 
@@ -712,6 +698,7 @@ public class OrderServiceImpl implements OrderService {
 
         log.info("Order saved with ID: {}, number: {}", savedOrder.getId(), savedOrder.getOrderNumber());
 
+        boolean promoApplied = false;
         if (promoCode != null
                 && !promoCode.trim().isEmpty()
                 && Boolean.TRUE.equals(pricing.getPromoValid())) {
@@ -727,6 +714,7 @@ public class OrderServiceImpl implements OrderService {
 
                 if (Boolean.TRUE.equals(promoResult.getSuccess())) {
                     savedOrder.setPromo(promoService.getPromoEntityByCode(promoCode));
+                    promoApplied = true;
                     log.info("Promo applied: {}, Discount: {}",
                             promoCode,
                             pricing.getPromoDiscount());
@@ -736,30 +724,34 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        for (EligibleCampaignInfo campaignInfo : campaignToApply) {
-            try {
-                ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
-                        .campaignCode(campaignInfo.getCampaignCode())
-                        .userId(user.getId())
-                        .order(savedOrder)
-                        .build();
+        CampaignApplicationResult campaignResult = applyCampaigns(
+                savedOrder,
+                user,
+                productQuantities,
+                promoApplied,
+                savedOrder.getSubtotal()
+        );
 
-                ApplyCampaignResponse campaignResult =
-                        campaignService.applyCampaign(applyCampaignRequest);
+        if (campaignResult.getTotalDiscount().compareTo(BigDecimal.ZERO) > 0) {
+            savedOrder.setCampaignDiscount(campaignResult.getTotalDiscount());
 
-                if (Boolean.TRUE.equals(campaignResult.getSuccess())) {
-                    addCampaignFreeProduct(savedOrder, campaignResult);
+            BigDecimal finalAmount = savedOrder.getSubtotal()
+                    .subtract(savedOrder.getPromoDiscount());
 
-                    log.info("Campaign applied: {} - Free product: {} x {}, Bonus value: {}",
-                            campaignResult.getCampaignName(),
-                            campaignResult.getFreeProductName(),
-                            campaignResult.getFreeQuantity(),
-                            campaignResult.getBonusValue());
-                }
-            } catch (Exception e) {
-                log.error("Error applying campaign: {}", campaignInfo.getCampaignCode(), e);
-            }
+            BigDecimal finalTotal = finalAmount.add(savedOrder.getNetDeposit());
+
+            savedOrder.setAmount(finalAmount);
+            savedOrder.setTotalAmount(finalTotal);
+
+            log.info("Campaign discount applied: {}, New total: {}",
+                    campaignResult.getTotalDiscount(),
+                    finalTotal);
         }
+
+        containerManagementService.reserveContainers(user.getId(), depositSummary);
+
+        log.debug("Reserved {} containers from user balance",
+                depositSummary.getTotalContainersUsed());
 
         Order finalOrder = orderRepository.save(savedOrder);
 
@@ -767,35 +759,200 @@ public class OrderServiceImpl implements OrderService {
                 finalOrder.getOrderNumber(),
                 finalOrder.getSubtotal(),
                 finalOrder.getPromoDiscount(),
-                campaignBonusValue,
+                campaignResult.getTotalDiscount(),
                 finalOrder.getNetDeposit(),
                 finalOrder.getTotalAmount());
 
         return orderMapper.toResponse(finalOrder);
     }
 
-    private void addCampaignFreeProduct(Order order, ApplyCampaignResponse campaignResult) {
-        Product freeProduct = productRepository.findById(campaignResult.getFreeProductId())
-                .orElseThrow(() -> new NotFoundException(
-                        "Free product not found: " + campaignResult.getFreeProductId()));
+    private CampaignApplicationResult applyCampaigns(
+            Order order,
+            User user,
+            Map<Long, Integer> productQuantities,
+            boolean willUsePromo,
+            BigDecimal orderTotal) {
 
-        Campaign campaign = campaignRepository.findByCampaignCode(campaignResult.getCampaignCode())
-                .orElseThrow(() -> new NotFoundException(
-                        "Campaign not found: " + campaignResult.getCampaignCode()));
+        CampaignApplicationResult result = new CampaignApplicationResult();
+
+        GetEligibleCampaignsRequest campaignRequest = GetEligibleCampaignsRequest.builder()
+                .userId(user.getId())
+                .productQuantities(productQuantities)
+                .willUsePromoCode(willUsePromo)
+                .orderTotal(orderTotal)
+                .build();
+
+        EligibleCampaignsResponse eligibleCampaigns =
+                campaignService.getEligibleCampaigns(campaignRequest);
+
+        List<EligibleCampaignInfo> campaignsToApply = eligibleCampaigns
+                .getEligibleCampaigns()
+                .stream()
+                .filter(c -> Boolean.TRUE.equals(c.getWillBeApplied()))
+                .toList();
+
+        if (campaignsToApply.isEmpty()) {
+            log.debug("No campaigns to apply for order");
+            return result;
+        }
+
+        log.info("Applying {} campaigns to order", campaignsToApply.size());
+
+        for (EligibleCampaignInfo campaignInfo : campaignsToApply) {
+            try {
+                ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
+                        .campaignCode(campaignInfo.getCampaignCode())
+                        .userId(user.getId())
+                        .order(order)
+                        .build();
+
+                ApplyCampaignResponse campaignResponse =
+                        campaignService.applyCampaign(applyCampaignRequest);
+
+                if (Boolean.TRUE.equals(campaignResponse.getSuccess())) {
+                    processCampaignByType(order, campaignInfo, campaignResponse, result);
+
+                    log.info("Campaign applied: {} ({}), Bonus value: {}",
+                            campaignResponse.getCampaignName(),
+                            campaignInfo.getCampaignType(),
+                            campaignResponse.getBonusValue());
+                }
+            } catch (Exception e) {
+                log.error("Error applying campaign: {}", campaignInfo.getCampaignCode(), e);
+            }
+        }
+
+        log.info("Total campaigns applied: {}, Total discount: {}",
+                result.getAppliedCampaignsCount(),
+                result.getTotalDiscount());
+
+        return result;
+    }
+
+    private void processCampaignByType(
+            Order order,
+            EligibleCampaignInfo campaignInfo,
+            ApplyCampaignResponse campaignResponse,
+            CampaignApplicationResult result
+    ) {
+        switch (campaignInfo.getCampaignType()) {
+            case BUY_X_GET_Y_FREE -> processBuyXGetYFreeCampaign(order, campaignResponse, result);
+            case BUY_X_PAY_FOR_Y -> processBuyXPayForYCampaign(order, campaignResponse, result);
+            case FIRST_ORDER_BONUS -> processFirstOrderBonusCampaign(order, campaignResponse, result);
+            case LOYALTY_BONUS -> processLoyaltyBonusCampaign(order, campaignResponse, result);
+            default -> log.warn("Unknow campaign type: {}", campaignInfo.getCampaignType());
+        }
+
+        result.incrementAppliedCampaigns();
+        result.addDiscount(campaignResponse.getBonusValue());
+    }
+
+    private void processBuyXGetYFreeCampaign(
+            Order order,
+            ApplyCampaignResponse campaignResponse,
+            CampaignApplicationResult result
+    ) {
+        if (campaignResponse.getFreeQuantity() == null || campaignResponse.getFreeQuantity() <= 0) {
+            log.warn("No free product for campaign: {}", campaignResponse.getCampaignCode());
+            return;
+        }
+
+        Product freeProduct = findProductById(campaignResponse.getFreeProductId());
+
+        Campaign campaign = findCampaignByCampaignCode(campaignResponse.getCampaignCode());
 
         OrderCampaignBonus campaignBonus = new OrderCampaignBonus();
         campaignBonus.setOrder(order);
         campaignBonus.setCampaign(campaign);
         campaignBonus.setProduct(freeProduct);
-        campaignBonus.setQuantity(campaignResult.getFreeQuantity());
-        campaignBonus.setOriginalValue(campaignResult.getBonusValue());
+        campaignBonus.setQuantity(campaignResponse.getFreeQuantity());
+        campaignBonus.setBonusValue(campaignResponse.getBonusValue());
+        campaignBonus.setBonusType("FREE_PRODUCT");
 
         order.getCampaignBonuses().add(campaignBonus);
 
-        log.info("Added campaign bonus: {} x {} - value: {}",
+        result.addFreeProduct(freeProduct.getName(), campaignResponse.getFreeQuantity());
+
+        log.info("Added FREE product: {} x {} - value: {}",
                 freeProduct.getName(),
-                campaignResult.getFreeQuantity(),
-                campaignResult.getBonusValue());
+                campaignResponse.getFreeQuantity(),
+                campaignResponse.getBonusValue());
+    }
+
+    private void processBuyXPayForYCampaign(
+            Order order,
+            ApplyCampaignResponse campaignResponse,
+            CampaignApplicationResult result
+    ) {
+        if (campaignResponse.getFreeQuantity() == null || campaignResponse.getFreeQuantity() <= 0) {
+            log.warn("No discounted quantity for campaign: {}", campaignResponse.getCampaignCode());
+            return;
+        }
+
+        Product discountedProduct = findProductById(campaignResponse.getFreeProductId());
+
+        Campaign campaign = findCampaignByCampaignCode(campaignResponse.getCampaignCode());
+
+        OrderCampaignBonus campaignBonus = new OrderCampaignBonus();
+        campaignBonus.setOrder(order);
+        campaignBonus.setCampaign(campaign);
+        campaignBonus.setProduct(discountedProduct);
+        campaignBonus.setQuantity(campaignResponse.getFreeQuantity());
+        campaignBonus.setBonusValue(campaignResponse.getBonusValue());
+        campaignBonus.setBonusType("DISCOUNTED_PRODUCT");
+
+        order.getCampaignBonuses().add(campaignBonus);
+
+        result.addDiscountedProduct(discountedProduct.getName(), campaignResponse.getFreeQuantity());
+
+        log.info("Added DISCOUNT for product: {} x {} - discount: {}",
+                discountedProduct.getName(),
+                campaignResponse.getFreeQuantity(),
+                campaignResponse.getBonusValue());
+    }
+
+    private void processFirstOrderBonusCampaign(
+            Order order,
+            ApplyCampaignResponse campaignResponse,
+            CampaignApplicationResult result
+    ) {
+        Campaign campaign = findCampaignByCampaignCode(campaignResponse.getCampaignCode());
+
+        OrderCampaignBonus campaignBonus = new OrderCampaignBonus();
+        campaignBonus.setOrder(order);
+        campaignBonus.setCampaign(campaign);
+        campaignBonus.setProduct(null);
+        campaignBonus.setQuantity(0);
+        campaignBonus.setBonusValue(campaignResponse.getBonusValue());
+        campaignBonus.setBonusType("FIRST_ORDER_BONUS");
+
+        order.getCampaignBonuses().add(campaignBonus);
+
+        result.addBonusDiscount("Loyalty Bonus", campaignResponse.getBonusValue());
+
+        log.info("Added FIRST ORDER BONUS - discount: {}", campaignResponse.getBonusValue());
+    }
+
+    private void processLoyaltyBonusCampaign(
+            Order order,
+            ApplyCampaignResponse campaignResponse,
+            CampaignApplicationResult result
+    ) {
+        Campaign campaign = findCampaignByCampaignCode(campaignResponse.getCampaignCode());
+
+        OrderCampaignBonus campaignBonus = new OrderCampaignBonus();
+        campaignBonus.setOrder(order);
+        campaignBonus.setCampaign(campaign);
+        campaignBonus.setProduct(null);
+        campaignBonus.setQuantity(0);
+        campaignBonus.setBonusValue(campaignResponse.getBonusValue());
+        campaignBonus.setBonusType("LOYALTY_BONUS");
+
+        order.getCampaignBonuses().add(campaignBonus);
+
+        result.addBonusDiscount("Loyalty Bonus", campaignResponse.getBonusValue());
+
+        log.info("Added LOYALTY BONUS - discount: {}", campaignResponse.getBonusValue());
     }
 
     private void applyContainerInfoToOrderDetails(

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Data
@@ -20,4 +21,6 @@ public class GetEligibleCampaignsRequest {
     private Map<Long, Integer> productQuantities;
 
     private Boolean willUsePromoCode;
+
+    private BigDecimal orderTotal;
 }
