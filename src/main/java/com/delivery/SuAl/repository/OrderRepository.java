@@ -23,13 +23,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     boolean existsByDriverIdAndOrderStatusIn(Long driverId, List<OrderStatus> orderStatus);
 
-    @Query(value = "SELECT nextval('order_number_seq')",  nativeQuery = true)
+    @Query(value = "SELECT nextval('order_number_seq')", nativeQuery = true)
     Long getNextOrderSequence();
 
     @Query("SELECT COUNT(o) FROM Order o " +
             "WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay")
     Long countTodayOrders(@Param("startOfDay") LocalDateTime startOfDay,
-                           @Param("endOfDay") LocalDateTime endOfDay);
+                          @Param("endOfDay") LocalDateTime endOfDay);
 
     @Query("SELECT SUM(o.amount) FROM Order o " +
             "WHERE o.paymentStatus = 'PAID' AND o.createdAt " +
@@ -37,9 +37,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     BigDecimal calculateRevenue(@Param("startDate") LocalDateTime startDate,
                                 @Param("endDate") LocalDateTime endDate);
 
-    Optional<Order> findByUserId(Long userId);
+    Optional<Order> findByCustomerId(Long customerId);
 
-    Page<Order> findByUserId(Long userId, Pageable pageable);
+    Page<Order> findByCustomerId(Long customerId, Pageable pageable);
 
-    int countByUserIdAndOrderStatus(Long userId, OrderStatus orderStatus);
+    int countByCustomerIdAndOrderStatus(Long customerId, OrderStatus orderStatus);
+
+    @Query("SELECT o FROM Order o WHERE o.customer.id = :customerId ORDER BY o.createdAt DESC")
+    Page<Order> findCustomerOrdersOrderByDateDesc(@Param("customerId") Long customerId, Pageable pageable);
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.driver.id = :driverId")
+    Long countByDriverId(@Param("driverId") Long driverId);
+
+    @Query("SELECT o FROM Order o WHERE o.driver.id = :driverId ORDER BY o.createdAt DESC")
+    Page<Order> findDriverOrdersOrderByDateDesc(@Param("driverId") Long driverId, Pageable pageable);
 }

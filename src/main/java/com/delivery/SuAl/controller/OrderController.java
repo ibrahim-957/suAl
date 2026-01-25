@@ -2,8 +2,8 @@ package com.delivery.SuAl.controller;
 
 import com.delivery.SuAl.model.request.operation.AssignDriverRequest;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByCustomerRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
-import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.DriverCollectionInfoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
@@ -42,14 +42,14 @@ import java.time.LocalDateTime;
 public class OrderController {
     private final OrderService orderService;
 
-    @PostMapping("/create-by-user")
-    public ResponseEntity<ApiResponse<OrderResponse>> createOrderByUser(
+    @PostMapping("/create-by-customer")
+    public ResponseEntity<ApiResponse<OrderResponse>> createOrderByCustomer(
             @RequestHeader ("X-Phone-Number") String phoneNumber,
-            @RequestBody @Valid CreateOrderByUserRequest request
+            @RequestBody @Valid CreateOrderByCustomerRequest request
             ){
-        log.info("Order creation request from user: {}", phoneNumber);
+        log.info("Order creation request from customer: {}", phoneNumber);
 
-        OrderResponse response = orderService.createOrderByUser(phoneNumber, request);
+        OrderResponse response = orderService.createOrderByCustomer(phoneNumber, request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Order created successfully", response));
@@ -60,7 +60,7 @@ public class OrderController {
             @RequestHeader("X-Operator-Email") String operatorEmail,
             @RequestBody @Valid CreateOrderByOperatorRequest request
     ){
-        log.info("Order creation by operator: {} for userId: {}", operatorEmail, request.getUserId());
+        log.info("Order creation by operator: {} for customerId: {}", operatorEmail, request.getCustomerId());
 
         OrderResponse response = orderService.createOrderByOperator(operatorEmail, request);
         return ResponseEntity
@@ -104,14 +104,14 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order approved successfully", order));
     }
 
-    @PatchMapping("/user/{id}/reject")
-    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrderByUser(
+    @PatchMapping("/customer/{id}/reject")
+    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrderByCustomer(
             @RequestHeader("X-Phone-Number") String phoneNumber,
             @PathVariable Long id,
             @RequestBody String reason
     ){
-        log.info("PATCH /v1/api/orders/user/{}/reject", id);
-        OrderResponse order = orderService.rejectOrderByUser(phoneNumber, id, reason);
+        log.info("PATCH /v1/api/orders/customer/{}/reject", id);
+        OrderResponse order = orderService.rejectOrderByCustomer(phoneNumber, id, reason);
         return ResponseEntity.ok(ApiResponse.success("Order rejected successfully", order));
     }
 
@@ -185,12 +185,12 @@ public class OrderController {
     }
 
     @GetMapping("/my-orders")
-    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllUserOrders(
+    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllCustomerOrders(
             Pageable pageable,
             @RequestHeader("X-Phone-Number") String phoneNumber
     ){
-        log.info("GET /v1/api/orders/my-orders - Fetching order for user by phoneNumber: {}", phoneNumber);
-        PageResponse<OrderResponse> response = orderService.getAllOrdersByUser(pageable, phoneNumber);
+        log.info("GET /v1/api/orders/my-orders - Fetching order for customer by phoneNumber: {}", phoneNumber);
+        PageResponse<OrderResponse> response = orderService.getAllOrdersByCustomer(pageable, phoneNumber);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

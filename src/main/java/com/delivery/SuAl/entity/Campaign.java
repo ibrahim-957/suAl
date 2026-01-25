@@ -79,8 +79,8 @@ public class Campaign {
     @Column(name = "requires_promo_absence")
     private Boolean requiresPromoAbsence = false;
 
-    @Column(name = "max_uses_per_user")
-    private Integer maxUsesPerUser;
+    @Column(name = "max_uses_per_customer")
+    private Integer maxUsesPerCustomer;
 
     @Column(name = "max_total_uses")
     private Integer maxTotalUses;

@@ -16,6 +16,6 @@ public class ValidatePromoResponse {
     private String message;
     private PromoResponse promoResponse;
     private BigDecimal estimatedDiscount;
-    private Boolean userCanUse;
-    private Integer userUsageCount;
+    private Boolean customerCanUse;
+    private Integer customerUsageCount;
 }

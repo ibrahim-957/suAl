@@ -14,5 +14,5 @@ import java.math.BigDecimal;
 public class ValidatePromoRequest {
     private String promoCode;
     private BigDecimal orderAmount;
-    private Long userId;
+    private Long customerId;
 }

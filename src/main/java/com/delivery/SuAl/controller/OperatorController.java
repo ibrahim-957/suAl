@@ -3,7 +3,6 @@ package com.delivery.SuAl.controller;
 import com.delivery.SuAl.model.request.operation.CreateOperatorRequest;
 import com.delivery.SuAl.model.request.operation.UpdateOperatorRequest;
 import com.delivery.SuAl.model.response.operation.OperatorResponse;
-import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.OperatorService;

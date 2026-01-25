@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model.response.user;
+package com.delivery.SuAl.model.response.customer;
 
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import lombok.AllArgsConstructor;
@@ -13,14 +13,15 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class UserResponse {
+public class CustomerResponse {
     private Long id;
+    private Long userId;
     private String firstName;
     private String lastName;
     private String phoneNumber;
     private Boolean isActive;
     private List<AddressResponse> addresses;
-    private List<UserContainerResponse> userContainers;
+    private List<CustomerContainerResponse> customerContainers;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

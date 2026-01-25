@@ -6,10 +6,12 @@ import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.response.order.OrderDetailResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OrderDetailMapper {
     @Mapping(target = "count", source = "quantity")
     OrderDetail toEntity(CartItem cartItem);

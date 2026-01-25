@@ -1,18 +1,15 @@
-package com.delivery.SuAl.model.request.user;
+package com.delivery.SuAl.model.request.customer;
 
-import com.delivery.SuAl.model.request.address.CreateAddressRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CreateUserRequest {
+public class CreateCustomerRequest {
     @NotBlank
     private String firstName;
 

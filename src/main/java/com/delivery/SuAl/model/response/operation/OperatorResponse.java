@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class OperatorResponse {
     private Long id;
+    private Long userId;
     private String firstName;
     private String lastName;
     private String email;

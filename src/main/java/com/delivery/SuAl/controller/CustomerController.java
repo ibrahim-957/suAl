@@ -1,11 +1,11 @@
 package com.delivery.SuAl.controller;
 
-import com.delivery.SuAl.model.request.user.CreateUserRequest;
-import com.delivery.SuAl.model.request.user.UpdateUserRequest;
-import com.delivery.SuAl.model.response.user.UserResponse;
+import com.delivery.SuAl.model.request.customer.CreateCustomerRequest;
+import com.delivery.SuAl.model.request.customer.UpdateCustomerRequest;
+import com.delivery.SuAl.model.response.customer.CustomerResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
-import com.delivery.SuAl.service.UserService;
+import com.delivery.SuAl.service.CustomerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -24,52 +24,52 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/v1/api/users")
+@RequestMapping("/v1/api/customers")
 @RequiredArgsConstructor
 @Slf4j
 @Validated
-public class UserController {
-    private final UserService userService;
+public class CustomerController {
+    private final CustomerService customerService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<UserResponse>> createUser(
-            @RequestBody @Validated CreateUserRequest createUserRequest
+    public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(
+            @RequestBody @Validated CreateCustomerRequest createCustomerRequest
     ) {
-        log.info("POST api/users - Creating new user");
-        UserResponse response = userService.createUser(createUserRequest);
+        log.info("POST api/customers - Creating new customer");
+        CustomerResponse response = customerService.createCustomer(createCustomerRequest);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> updateUser(
+    public ResponseEntity<ApiResponse<CustomerResponse>> updateCustomer(
             @PathVariable Long id,
-            @RequestBody @Validated UpdateUserRequest updateUserRequest
+            @RequestBody @Validated UpdateCustomerRequest updateCustomerRequest
     ){
-        log.info("PUT api/users - Updating user");
-        UserResponse response = userService.updateUser(id, updateUserRequest);
+        log.info("PUT api/customers - Updating customer");
+        CustomerResponse response = customerService.updateCustomer(id, updateCustomerRequest);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> getUserById(
+    public ResponseEntity<ApiResponse<CustomerResponse>> getCustomerById(
             @PathVariable Long id
     ){
-        log.info("GET api/users - Getting user");
-        UserResponse response = userService.getUserById(id);
+        log.info("GET api/customers - Getting customer");
+        CustomerResponse response = customerService.getCustomerById(id);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> deleteUser(
+    public ResponseEntity<ApiResponse<CustomerResponse>> deleteCustomer(
             @PathVariable Long id
     ){
-        log.info("DELETE /api/users - Deleting user");
-        userService.deleteUser(id);
+        log.info("DELETE /api/customers - Deleting customer");
+        customerService.deleteCustomer(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<UserResponse>>> getAllUsers(
+    public ResponseEntity<ApiResponse<PageResponse<CustomerResponse>>> getAllCustomers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id") String sortBy,
@@ -78,7 +78,7 @@ public class UserController {
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
         Pageable pageable = PageRequest.of(page, size, sortDirection, sortBy);
 
-        PageResponse<UserResponse> pageResponse = userService.getAllUsers(pageable);
+        PageResponse<CustomerResponse> pageResponse = customerService.getAllCustomers(pageable);
         return ResponseEntity.ok(ApiResponse.success(pageResponse));
     }
 }

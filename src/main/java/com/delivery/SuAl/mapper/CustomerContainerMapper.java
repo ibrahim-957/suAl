@@ -1,13 +1,15 @@
 package com.delivery.SuAl.mapper;
 
-import com.delivery.SuAl.entity.UserContainer;
-import com.delivery.SuAl.model.response.user.UserContainerResponse;
+import com.delivery.SuAl.entity.CustomerContainer;
+import com.delivery.SuAl.model.response.customer.CustomerContainerResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring")
-public interface UserContainerMapper {
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+public interface CustomerContainerMapper {
     @Mappings({
             @Mapping(target = "productId", source = "product.id"),
             @Mapping(target = "productName", source = "product.name"),
@@ -15,6 +17,5 @@ public interface UserContainerMapper {
             @Mapping(target = "companyName", source = "product.company.name"),
             @Mapping(target = "depositAmount", source = "product.depositAmount")
     })
-    UserContainerResponse toResponse(UserContainer userContainer);
-
+    CustomerContainerResponse toResponse(CustomerContainer customerContainer);
 }

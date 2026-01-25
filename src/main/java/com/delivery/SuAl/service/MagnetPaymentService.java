@@ -215,7 +215,7 @@ public class MagnetPaymentService implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentDTO refundPayment(Long orderId) {
+    public void refundPayment(Long orderId) {
         log.info("Attempting refund for order ID: {}", orderId);
 
         Payment payment = paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.SUCCESS)
@@ -267,7 +267,7 @@ public class MagnetPaymentService implements PaymentService {
         payment = paymentRepository.save(payment);
         log.info("Refund/Cancel successful for order: {}", orderId);
 
-        return paymentMapper.toDto(payment);
+        paymentMapper.toDto(payment);
     }
 
     @Override

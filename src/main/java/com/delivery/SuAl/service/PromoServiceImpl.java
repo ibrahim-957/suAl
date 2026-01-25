@@ -1,9 +1,9 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.Promo;
 import com.delivery.SuAl.entity.PromoUsage;
-import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.NotValidException;
@@ -121,20 +121,20 @@ public class PromoServiceImpl implements PromoService {
     @Override
     @Transactional(readOnly = true)
     public ValidatePromoResponse validatePromo(ValidatePromoRequest request) {
-        log.info("Validation promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
+        log.info("Validation promo code: {} for customer: {}", request.getPromoCode(), request.getCustomerId());
 
         try{
             Promo promo = promoRepository.findByPromoCode(request.getPromoCode())
                     .orElseThrow(() -> new NotFoundException("Promo not found with code: " + request.getPromoCode()));
 
-            validatePromoEligibility(promo, request.getUserId(), request.getOrderAmount());
+            validatePromoEligibility(promo, request.getCustomerId(), request.getOrderAmount());
 
             BigDecimal estimatedDiscount = promo.calculateDiscount(request.getOrderAmount());
 
-            Integer userUsageCount = promoUsageRepository.countUsagesByUserAndPromo(
-                    request.getUserId(), promo.getId());
+            Integer customerUsageCount = promoUsageRepository.countUsagesByCustomerAndPromo(
+                    request.getCustomerId(), promo.getId());
 
-            Boolean userCanUse = promo.getMaxUsesPerUser() == null || userUsageCount < promo.getMaxUsesPerUser();
+            Boolean customerCanUse = promo.getMaxUsesPerCustomer() == null || customerUsageCount < promo.getMaxUsesPerCustomer();
 
             log.info("Promo validation successful. Estimated discount: {}", estimatedDiscount);
 
@@ -143,8 +143,8 @@ public class PromoServiceImpl implements PromoService {
                     .message("Promo code is valid")
                     .promoResponse(promoMapper.toResponse(promo))
                     .estimatedDiscount(estimatedDiscount)
-                    .userCanUse(userCanUse)
-                    .userUsageCount(userUsageCount)
+                    .customerCanUse(customerCanUse)
+                    .customerUsageCount(customerUsageCount)
                     .build();
         } catch (NotFoundException e) {
             log.warn("Promo not found: {}", e.getMessage());
@@ -153,8 +153,8 @@ public class PromoServiceImpl implements PromoService {
                     .message(e.getMessage())
                     .promoResponse(null)
                     .estimatedDiscount(BigDecimal.ZERO)
-                    .userCanUse(false)
-                    .userUsageCount(0)
+                    .customerCanUse(false)
+                    .customerUsageCount(0)
                     .build();
         } catch (NotValidException | PromoUsageLimitExceededException e) {
             log.warn("Promo validation failed: {}", e.getMessage());
@@ -163,8 +163,8 @@ public class PromoServiceImpl implements PromoService {
                     .message(e.getMessage())
                     .promoResponse(null)
                     .estimatedDiscount(BigDecimal.ZERO)
-                    .userCanUse(false)
-                    .userUsageCount(0)
+                    .customerCanUse(false)
+                    .customerUsageCount(0)
                     .build();
         } catch (IllegalArgumentException e) {
             log.warn("Promo calculation error: {}", e.getMessage());
@@ -173,20 +173,20 @@ public class PromoServiceImpl implements PromoService {
                     .message(e.getMessage())
                     .promoResponse(null)
                     .estimatedDiscount(BigDecimal.ZERO)
-                    .userCanUse(false)
-                    .userUsageCount(0)
+                    .customerCanUse(false)
+                    .customerUsageCount(0)
                     .build();
         }
     }
 
     @Override
     public ApplyPromoResponse applyPromo(ApplyPromoRequest request) {
-        log.info("Applying promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
+        log.info("Applying promo code: {} for customer: {}", request.getPromoCode(), request.getCustomerId());
 
         Promo promo = promoRepository.findByPromoCode(request.getPromoCode())
                 .orElseThrow(() -> new NotFoundException("Promo not found with code: " + request.getPromoCode()));
 
-        validatePromoEligibility(promo, request.getUserId(), request.getOrderAmount());
+        validatePromoEligibility(promo, request.getCustomerId(), request.getOrderAmount());
 
         BigDecimal discountAmount;
 
@@ -198,9 +198,9 @@ public class PromoServiceImpl implements PromoService {
 
         PromoUsage promoUsage = new PromoUsage();
 
-        User user = new User();
-        user.setId(request.getUserId());
-        promoUsage.setUser(user);
+        Customer customer = new Customer();
+        customer.setId(request.getCustomerId());
+        promoUsage.setCustomer(customer);
 
         if (request.getOrderId() != null) {
             Order order = new Order();
@@ -248,7 +248,7 @@ public class PromoServiceImpl implements PromoService {
         }
     }
 
-    private void validatePromoEligibility(Promo promo, Long userId, BigDecimal orderAmount) {
+    private void validatePromoEligibility(Promo promo, Long customerId, BigDecimal orderAmount) {
         LocalDate now = LocalDate.now();
 
         if (promo.getPromoStatus() != PromoStatus.ACTIVE){
@@ -268,12 +268,12 @@ public class PromoServiceImpl implements PromoService {
             throw new PromoUsageLimitExceededException("Promo has reached the maximum total limit.");
 
 
-        if (promo.getMaxUsesPerUser() != null){
-            Integer userUsageCount = promoUsageRepository.countUsagesByUserAndPromo(userId, promo.getId());
-            if (userUsageCount >= promo.getMaxUsesPerUser()){
+        if (promo.getMaxUsesPerCustomer() != null){
+            Integer customerUsageCount = promoUsageRepository.countUsagesByCustomerAndPromo(customerId, promo.getId());
+            if (customerUsageCount >= promo.getMaxUsesPerCustomer()){
                 throw new PromoUsageLimitExceededException(
                         String.format("You have already used this promo %d times. Maximum allowed: %d",
-                                userUsageCount, promo.getMaxUsesPerUser())
+                                customerUsageCount, promo.getMaxUsesPerCustomer())
                 );
             }
         }

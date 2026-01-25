@@ -14,7 +14,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CreateOrderByUserRequest {
+public class CreateOrderByCustomerRequest {
     @NotNull
     private Long addressId;
 

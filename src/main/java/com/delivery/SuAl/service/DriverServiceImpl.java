@@ -73,7 +73,7 @@ public class DriverServiceImpl implements DriverService {
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Driver with id " + id + " not found"));
 
-        if (updateDriverRequest.getPhoneNumber() != null && !updateDriverRequest.getPhoneNumber().equals(driver.getPhoneNumber())) {
+        if (updateDriverRequest.getPhoneNumber() != null && !updateDriverRequest.getPhoneNumber().equals(driver.getUser().getPhoneNumber())) {
             driverRepository.findByPhoneNumber(updateDriverRequest.getPhoneNumber()).ifPresent(existing -> {
                 throw new AlreadyExistsException("Driver already exists with phone number: " + updateDriverRequest.getPhoneNumber());
             });
@@ -135,7 +135,7 @@ public class DriverServiceImpl implements DriverService {
     }
 
     private void enrichWithAvailability(DriverResponse driverResponse, Long driverId) {
-        List<OrderStatus> activeStatuses = Arrays.asList(
+        List<OrderStatus> activeStatuses = List.of(
                 OrderStatus.APPROVED
         );
         boolean hasActiveOrders = orderRepository.existsByDriverIdAndOrderStatusIn(driverId, activeStatuses);

@@ -15,7 +15,7 @@ import java.util.Map;
 @Builder
 public class GetEligibleCampaignsRequest {
     @NotNull
-    private Long userId;
+    private Long customerId;
 
     @NotNull
     private Map<Long, Integer> productQuantities;

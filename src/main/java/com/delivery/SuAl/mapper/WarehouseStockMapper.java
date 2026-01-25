@@ -4,10 +4,12 @@ import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.model.response.warehouse.WarehouseStockResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface WarehouseStockMapper {
     @Mapping(target = "totalCount", expression = "java(calculateTotalCount(warehouseStock))")
     @Mapping(target = "lowStock", expression = "java(isLowStock(warehouseStock))")

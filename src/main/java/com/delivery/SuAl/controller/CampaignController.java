@@ -108,7 +108,7 @@ public class CampaignController {
     @PostMapping("/validate")
     public ResponseEntity<ApiResponse<ValidateCampaignResponse>> validateCampaign(
             @Valid @RequestBody ValidateCampaignRequest request) {
-        log.info("Validating campaign: {} for user: {}", request.getCampaignCode(), request.getUserId());
+        log.info("Validating campaign: {} for customer: {}", request.getCampaignCode(), request.getCustomerId());
 
         ValidateCampaignResponse response = campaignService.validateCampaign(request);
 
@@ -122,7 +122,7 @@ public class CampaignController {
     @PostMapping("/eligible")
     public ResponseEntity<ApiResponse<EligibleCampaignsResponse>> getEligibleCampaigns(
             @Valid @RequestBody GetEligibleCampaignsRequest request) {
-        log.info("Getting eligible campaigns for user: {}", request.getUserId());
+        log.info("Getting eligible campaigns for customer: {}", request.getCustomerId());
 
         EligibleCampaignsResponse response = campaignService.getEligibleCampaigns(request);
 

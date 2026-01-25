@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CreateOrderByOperatorRequest {
-    private Long userId;
+    private Long customerId;
 
     @NotNull(message = "Address ID is required")
     private Long addressId;

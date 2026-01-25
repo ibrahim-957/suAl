@@ -6,12 +6,14 @@ import com.delivery.SuAl.model.dto.payment.PaymentDTO;
 import com.delivery.SuAl.model.dto.payment.PaymentStatusDTO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses = {CurrencyMapper.class})
+@Mapper(componentModel = "spring", uses = {CurrencyMapper.class},
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface PaymentMapper {
     @Mapping(target = "amountInCoins", expression = "java(convertToCoins(dto.getAmount()))")
     @Mapping(target = "transactionType", source = "type", defaultValue = "SMS")

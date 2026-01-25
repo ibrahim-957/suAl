@@ -1,4 +1,4 @@
-package com.delivery.SuAl.model.response.user;
+package com.delivery.SuAl.model.response.customer;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class UserContainerResponse {
+public class CustomerContainerResponse {
     private Long id;
     private Long productId;
     private String productName;

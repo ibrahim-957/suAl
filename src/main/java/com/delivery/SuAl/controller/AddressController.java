@@ -24,20 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/v1/api/users/{userId}/addresses")
+@RequestMapping("/v1/api/customers/{customerId}/addresses")
 @RequiredArgsConstructor
 @Slf4j
 @Validated
 public class AddressController {
     private final AddressService addressService;
 
-    @PostMapping("/user")
-    public ResponseEntity<AddressResponse> createAddressByUser(
+    @PostMapping("/customer")
+    public ResponseEntity<AddressResponse> createAddressByCustomer(
             @RequestHeader("X-Phone-Number") String phoneNumber,
-            @Valid @RequestBody CreateAddressRequest createAddressRequest){
-        log.info("POST /v1/api/addresses/user - User with phone {} creating address", phoneNumber);
+            @Valid @RequestBody CreateAddressRequest createAddressRequest) {
+        log.info("POST /v1/api/addresses/customer - Customer with phone {} creating address", phoneNumber);
 
-        AddressResponse response = addressService.createAddressByUser(phoneNumber, createAddressRequest);
+        AddressResponse response = addressService.createAddressByCustomer(phoneNumber, createAddressRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
@@ -45,49 +45,49 @@ public class AddressController {
 
     @PostMapping("/operator")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
-            @PathVariable Long userId,
+            @PathVariable Long customerId,
             @Valid @RequestBody CreateAddressRequest createAddressRequest
     ) {
-        log.info("POST /api/users/{}/addresses - Creating address", userId);
-        AddressResponse addressResponse = addressService.createAddress(userId, createAddressRequest);
+        log.info("POST /api/customers/{}/addresses - Creating address", customerId);
+        AddressResponse addressResponse = addressService.createAddress(customerId, createAddressRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(addressResponse));
     }
 
     @GetMapping("/{addressId}")
     public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(
-            @PathVariable Long userId,
+            @PathVariable Long customerId,
             @PathVariable Long addressId
     ) {
-        log.info("GET /api/users/{}/addresses/{}", userId, addressId);
-        AddressResponse addressResponse = addressService.getAddressById(userId, addressId);
+        log.info("GET /api/customers/{}/addresses/{}", customerId, addressId);
+        AddressResponse addressResponse = addressService.getAddressById(customerId, addressId);
         return ResponseEntity.ok(ApiResponse.success(addressResponse));
     }
 
     @PutMapping("/{addressId}")
     public ResponseEntity<ApiResponse<AddressResponse>> updateAddress(
-            @PathVariable Long userId,
+            @PathVariable Long customerId,
             @PathVariable Long addressId,
             @Valid @RequestBody UpdateAddressRequest updateAddressRequest
     ) {
-        log.info("PUT /api/users/{}/addresses/{}", userId, addressId);
-        AddressResponse addressResponse = addressService.updateAddress(userId, addressId, updateAddressRequest);
+        log.info("PUT /api/customers/{}/addresses/{}", customerId, addressId);
+        AddressResponse addressResponse = addressService.updateAddress(customerId, addressId, updateAddressRequest);
         return ResponseEntity.ok(ApiResponse.success("Address updated successfully", addressResponse));
     }
 
     @DeleteMapping("/{addressId}")
     public ResponseEntity<Void> deleteAddress(
-            @PathVariable Long userId,
+            @PathVariable Long customerId,
             @PathVariable Long addressId
     ) {
-        log.info("DELETE /api/users/{}/addresses/{} - Deleting address", userId, addressId);
+        log.info("DELETE /api/customers/{}/addresses/{} - Deleting address", customerId, addressId);
         addressService.deleteAddress(addressId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AddressResponse>>> getUserAddresses(@PathVariable Long userId) {
-        log.info("GET /api/users/{}/addresses", userId);
-        List<AddressResponse> addressResponseList = addressService.getUserAddresses(userId);
+    public ResponseEntity<ApiResponse<List<AddressResponse>>> getCustomerAddresses(@PathVariable Long customerId) {
+        log.info("GET /api/customers/{}/addresses", customerId);
+        List<AddressResponse> addressResponseList = addressService.getCustomerAddresses(customerId);
         return ResponseEntity.ok(ApiResponse.success(addressResponseList));
     }
 }

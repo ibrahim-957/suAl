@@ -19,8 +19,5 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             "FROM Payment p WHERE p.order.id = :orderId AND p.paymentStatus = 'SUCCESS'")
     boolean hasSuccessfulPayment(@Param("orderId") Long orderId);
 
-    Optional<Payment> findByOrder_IdAndPaymentStatus(Long orderId, PaymentStatus status);
-
-
     Optional<Payment> findByOrderIdAndPaymentStatus(Long orderId, PaymentStatus paymentStatus);
 }

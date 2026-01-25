@@ -25,7 +25,7 @@ RUN ./gradlew clean build -x test --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Create a non-root user for security
+# Create a non-root customer for security
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 

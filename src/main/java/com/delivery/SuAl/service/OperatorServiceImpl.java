@@ -66,13 +66,13 @@ public class OperatorServiceImpl implements OperatorService {
         Operator operator = operatorRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Operator with id " + id + " not found"));
 
-        if (updateOperatorRequest.getPhoneNumber() != null && !updateOperatorRequest.getPhoneNumber().equals(operator.getPhoneNumber())) {
+        if (updateOperatorRequest.getPhoneNumber() != null && !updateOperatorRequest.getPhoneNumber().equals(operator.getUser().getPhoneNumber())) {
             operatorRepository.findByPhoneNumber(updateOperatorRequest.getPhoneNumber()).ifPresent(existing -> {
                 throw new AlreadyExistsException("Operator already exists with phone number: " + updateOperatorRequest.getPhoneNumber());
             });
         }
 
-        if (updateOperatorRequest.getEmail() != null && !updateOperatorRequest.getEmail().equals(operator.getEmail())) {
+        if (updateOperatorRequest.getEmail() != null && !updateOperatorRequest.getEmail().equals(operator.getUser().getEmail())) {
             operatorRepository.findByEmail(updateOperatorRequest.getEmail()).ifPresent(existing -> {
                 throw new AlreadyExistsException("Operator already exists with email: " + updateOperatorRequest.getEmail());
             });
