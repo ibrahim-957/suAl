@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -80,14 +81,14 @@ public class DriverController {
         return ResponseEntity.ok(ApiResponse.success(driverResponsePageResponse));
     }
 
-    @GetMapping("/{driverId}/orders")
+    @GetMapping("/orders")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getMyAssignedOrders(
-            @PathVariable Long driverId,
+            @RequestHeader("X-Operator-Email") String email,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        PageResponse<OrderResponse> orders = driverService.getMyAssignedOrders(driverId, pageable);
+        PageResponse<OrderResponse> orders = driverService.getMyAssignedOrders(email, pageable);
 
         return ResponseEntity.ok(ApiResponse.success(orders));
     }

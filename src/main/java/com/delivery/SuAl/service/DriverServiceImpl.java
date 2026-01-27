@@ -24,7 +24,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -119,14 +118,16 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getMyAssignedOrders(Long driverId, Pageable pageable) {
+    public PageResponse<OrderResponse> getMyAssignedOrders(String email, Pageable pageable) {
+        Driver driver = driverRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("Driver with email " + email + " not found"));
         Pageable sortedPageable = PageRequest.of(
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 Sort.by(Sort.Direction.DESC, "deliveryDate", "createdAt"));
 
         Page<Order> orderPage = orderRepository.findByDriverIdAndOrderStatus(
-                driverId, OrderStatus.APPROVED, sortedPageable);
+                driver.getId(), OrderStatus.APPROVED, sortedPageable);
 
         List<OrderResponse> responses = orderPage.getContent().stream()
                 .map(orderMapper::toResponse)

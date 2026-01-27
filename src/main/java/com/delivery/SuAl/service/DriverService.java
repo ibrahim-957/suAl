@@ -18,5 +18,5 @@ public interface DriverService {
 
     PageResponse<DriverResponse> getAllDrivers(Pageable pageable);
 
-    PageResponse<OrderResponse> getMyAssignedOrders(Long driverId, Pageable pageable);
+    PageResponse<OrderResponse> getMyAssignedOrders(String email, Pageable pageable);
 }

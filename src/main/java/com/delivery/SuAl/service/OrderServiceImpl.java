@@ -1,5 +1,6 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.annotation.SendNotification;
 import com.delivery.SuAl.entity.Address;
 import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Customer;
@@ -19,15 +20,18 @@ import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
 import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.mapper.OrderMapper;
+import com.delivery.SuAl.model.enums.NotificationType;
 import com.delivery.SuAl.model.enums.OperatorStatus;
 import com.delivery.SuAl.model.enums.OrderStatus;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
+import com.delivery.SuAl.model.enums.ReceiverType;
 import com.delivery.SuAl.model.request.cart.CalculatePriceRequest;
 import com.delivery.SuAl.model.request.cart.CartItem;
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
+import com.delivery.SuAl.model.request.notification.NotificationRequest;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByCustomerRequest;
@@ -89,6 +93,7 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryService inventoryService;
     private final ContainerManagementService containerManagementService;
     private final PaymentService paymentService;
+    private final NotificationService notificationService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -97,6 +102,15 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Order Placed Successfully",
+            message = "'Your order #' + #result.orderNumber + ' has been placed successfully'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse createOrderByCustomer(String phoneNumber, CreateOrderByCustomerRequest request) {
         log.info("Customer creating order - phoneNumber: {}", phoneNumber);
 
@@ -104,12 +118,39 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new NotFoundException("Customer not found with phoneNumber: " + phoneNumber));
 
         log.info("Customer found - customerId: {}, name: {}", customer.getId(), customer.getFirstName());
-        return createOrderInternal(customer, null, request.getAddressId(), request.getDeliveryDate(),
+        OrderResponse response = createOrderInternal(customer, null, request.getAddressId(), request.getDeliveryDate(),
                 request.getItems(), request.getPromoCode(), request.getNote());
+
+        List<Operator> activeOperators = operatorRepository.findByOperatorStatus(OperatorStatus.ACTIVE);
+        for (Operator operator : activeOperators) {
+            notificationService.createNotification(
+                    NotificationRequest.builder()
+                            .receiverType(ReceiverType.OPERATOR)
+                            .receiverId(operator.getId())
+                            .notificationType(NotificationType.ORDER)
+                            .title("New Order Received")
+                            .message("New order #" + response.getOrderNumber() + " from " +
+                                    customer.getFirstName() + " " + customer.getLastName())
+                            .referenceId(response.getId())
+                            .build()
+            );
+        }
+        log.info("Notified {} operators about new order", activeOperators.size());
+
+        return response;
     }
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Order Created",
+            message = "'Your order #' + #result.orderNumber + ' has been placed successfully'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse createOrderByOperator(String operatorEmail, CreateOrderByOperatorRequest request) {
         log.info("Operator creating order - operatorEmail: {}, customerId: {}", operatorEmail, request.getCustomerId());
 
@@ -172,6 +213,24 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Driver Assigned",
+            message = "'Driver has been assigned to your order #' + #result.orderNumber",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
+    @SendNotification(
+            receiverType = ReceiverType.DRIVER,
+            notificationType = NotificationType.ORDER,
+            title = "New Delivery Assignment",
+            message = "'You have been assigned to order #' + #result.orderNumber",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.driver.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse assignDriver(Long orderId, Long driverId) {
         log.info("Assigning driver {} to order {}", driverId, orderId);
 
@@ -190,6 +249,15 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Order Approved",
+            message = "'Your order #' + #result.orderNumber + ' has been approved and will be delivered soon'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse approveOrder(String operatorEmail, Long orderId) {
         log.info("Approving order ID: {}", orderId);
         Operator operator = operatorRepository.findByEmail(operatorEmail)
@@ -238,6 +306,15 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Order Cancelled",
+            message = "'Your order #' + #result.orderNumber + ' has been cancelled'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse rejectOrderByCustomer(String phoneNumber, Long orderId, String reason) {
         log.info("Customer {} rejecting order ID: {}", phoneNumber, orderId);
 
@@ -260,12 +337,36 @@ public class OrderServiceImpl implements OrderService {
         order.setRejectionReason(reason);
         Order savedOrder = orderRepository.save(order);
 
+        List<Operator> activeOperators = operatorRepository.findByOperatorStatus(OperatorStatus.ACTIVE);
+        for (Operator operator : activeOperators) {
+            notificationService.createNotification(
+                    NotificationRequest.builder()
+                            .receiverType(ReceiverType.OPERATOR)
+                            .receiverId(operator.getId())
+                            .notificationType(NotificationType.ORDER)
+                            .title("Order Cancelled by Customer")
+                            .message("Order #" + savedOrder.getOrderNumber() + " was cancelled by " +
+                                    customer.getFirstName() + ". Reason: " + (reason != null ? reason : "No reason provided"))
+                            .referenceId(savedOrder.getId())
+                            .build()
+            );
+        }
+
         log.info("Order {} rejected by customer {}", orderId, customer.getId());
         return orderMapper.toResponse(savedOrder);
     }
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Order Rejected",
+            message = "'Your order #' + #result.orderNumber + ' has been rejected'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse rejectOrderByOperator(String operatorEmail, Long orderId, String reason) {
         log.info("Operator {} rejecting order ID: {} with reason: {}", operatorEmail, orderId, reason);
 
@@ -328,6 +429,24 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Order Delivered",
+            message = "'Your order #' + #result.orderNumber + ' has been delivered. Thank you!'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customer.id",
+            referenceIdExpression = "#result.id"
+    )
+    @SendNotification(
+            receiverType = ReceiverType.OPERATOR,
+            notificationType = NotificationType.ORDER,
+            title = "Order Completed",
+            message = "'Order #' + #result.orderNumber + ' has been completed by driver'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.operator.id",
+            referenceIdExpression = "#result.id"
+    )
     public OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest) {
         log.info("Completing order {}", orderId);
 

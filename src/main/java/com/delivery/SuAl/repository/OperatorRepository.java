@@ -12,8 +12,6 @@ import java.util.Optional;
 
 @Repository
 public interface OperatorRepository extends JpaRepository<Operator, Long> {
-    Optional<Operator> findByUserId(Long userId);
-
     @Query("SELECT o FROM Operator o JOIN o.user u " +
             "WHERE u.email =:email")
     Optional<Operator> findByEmail (@Param("email") String email);
@@ -24,4 +22,6 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
 
     @Query("SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END FROM Operator o JOIN o.user u WHERE u.email = :email")
     boolean existsByEmail(@Param("email") String email);
+
+    List<Operator> findByOperatorStatus(OperatorStatus operatorStatus);
 }

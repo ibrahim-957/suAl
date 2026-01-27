@@ -43,10 +43,6 @@ cloudinary:
   api-key: ${CLOUDINARY_API_KEY}
   api-secret: ${CLOUDINARY_API_SECRET}
 
-#firebase:
-#  credentials:
-#    path: ${GOOGLE_APPLICATION_CREDENTIALS}
-
 magnet:
   api:
     base-url: ${MAGNET_API_BASE_URL}
