@@ -17,7 +17,7 @@ public class ValidateCampaignRequest {
     private String campaignCode;
 
     @NotNull
-    private Long userId;
+    private Long customerId;
 
     @NotNull
     private Map<Long, Integer> productQuantities;

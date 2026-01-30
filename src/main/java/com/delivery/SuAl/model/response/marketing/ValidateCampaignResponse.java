@@ -29,7 +29,7 @@ public class ValidateCampaignResponse {
     private String freeProductName;
     private BigDecimal estimatedBonusValue;
 
-    private Boolean userCanUse;
-    private Integer userUsageCount;
+    private Boolean customerCanUse;
+    private Integer customerUsageCount;
     private Integer usageRemaining;
 }

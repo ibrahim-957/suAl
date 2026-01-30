@@ -14,14 +14,12 @@ import java.util.List;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
     private final StringToMapConverter stringToMapConverter;
-    private final ObjectMapper objectMapper;
 
     public WebConfig(StringToMapConverter stringToMapConverter, ObjectMapper objectMapper) {
         this.stringToMapConverter = stringToMapConverter;
-        this.objectMapper = objectMapper;
 
-        this.objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-        this.objectMapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        objectMapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
     }
 
     @Override

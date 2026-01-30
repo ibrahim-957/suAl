@@ -14,7 +14,7 @@
 [33m0d95eb2[m new entities added
 [33mdda0f06[m new entities added
 [33mb482847[m new entities added
-[33m6bb8090[m user and user container created, now user and operator can create order
+[33m6bb8090[m customer and customer container created, now customer and operator can create order
 [33m910ed93[m complete order work properly
 [33m6d7199e[m update method modified for product and order also order method redesign
 [33m3cb5ba0[m added updateOrder and modified operator endpoint

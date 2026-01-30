@@ -14,7 +14,7 @@ import java.util.List;
 @NoArgsConstructor
 public class CalculatePriceRequest {
     @NotNull
-    private Long userId;
+    private Long customerId;
 
     @NotEmpty
     @Valid

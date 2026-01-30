@@ -50,8 +50,8 @@ public class Promo {
     @Column(name = "max_discount", precision = 10, scale = 2)
     private BigDecimal maxDiscount;
 
-    @Column(name = "max_uses_per_user")
-    private Integer maxUsesPerUser;
+    @Column(name = "max_uses_per_customer")
+    private Integer maxUsesPerCustomer;
 
     @Column(name = "max_total_uses")
     private Integer maxTotalUses;

@@ -1,8 +1,8 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.CustomerContainer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
-import com.delivery.SuAl.entity.UserContainer;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 
@@ -19,5 +19,6 @@ public interface ContainerManagementService {
     void processCollectedBottles(Long userId, List<OrderDetail> orderDetails, List<BottleCollectionItem> bottlesCollected);
 
     void processDeliveredProducts(Long userId, List<OrderDetail> orderDetails);
-    UserContainer getOrCreateContainer(Long userId, Long productId);
+
+    CustomerContainer getOrCreateContainer(Long userId, Long productId);
 }

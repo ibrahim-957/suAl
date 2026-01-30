@@ -8,12 +8,14 @@ import com.delivery.SuAl.model.response.payment.RefundDetails;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface MagnetGatewayMapper {
     @Mapping(target = "amountInCoins", expression = "java(mapAmountToCoins(response.getAmount()))")
     @Mapping(target = "currencyCode", source = "currency")

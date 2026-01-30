@@ -7,14 +7,17 @@ import com.delivery.SuAl.model.response.companyAndcategory.CategoryResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import java.util.List;
-
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CategoryMapper {
     @Mapping(target = "categoryType", source = "categoryType")
     Category toEntity(CreateCategoryRequest createCategoryRequest);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     void updateEntityFromRequest(UpdateCategoryRequest updateCategoryRequest,
                                  @MappingTarget Category category);
 

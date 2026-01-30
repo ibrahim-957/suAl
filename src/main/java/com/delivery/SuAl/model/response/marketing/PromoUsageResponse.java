@@ -14,8 +14,8 @@ import java.time.LocalDateTime;
 @Builder
 public class PromoUsageResponse {
     private Long id;
-    private Long userId;
-    private String userName;
+    private Long customerId;
+    private String customerName;
     private Long promoId;
     private String promoCode;
     private Long orderId;

@@ -230,7 +230,8 @@ public class ProductServiceImpl implements ProductService {
             PriceResponse priceResponse = priceService.getPriceByProductId(productId);
             productResponse.setSellPrice(priceResponse.getSellPrice());
             productResponse.setBuyPrice(priceResponse.getBuyPrice());
-        } catch (RuntimeException ignored) {
+        } catch (NotFoundException ex) {
+            log.warn("Product not found with ID: {}", productId);
         }
     }
 

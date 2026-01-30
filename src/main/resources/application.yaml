@@ -1,3 +1,9 @@
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 3600000
+  refresh-token:
+    expiration: 604800000
+
 spring:
   application:
     name: SuAl
@@ -42,10 +48,6 @@ cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}
   api-key: ${CLOUDINARY_API_KEY}
   api-secret: ${CLOUDINARY_API_SECRET}
-
-#firebase:
-#  credentials:
-#    path: ${GOOGLE_APPLICATION_CREDENTIALS}
 
 magnet:
   api:

@@ -2,19 +2,23 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Order;
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.DriverMapper;
 import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.enums.DriverStatus;
 import com.delivery.SuAl.model.enums.OrderStatus;
+import com.delivery.SuAl.model.enums.UserRole;
 import com.delivery.SuAl.model.request.operation.CreateDriverRequest;
 import com.delivery.SuAl.model.request.operation.UpdateDriverRequest;
+import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.operation.DriverResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OrderRepository;
+import com.delivery.SuAl.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -24,7 +28,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,21 +39,46 @@ public class DriverServiceImpl implements DriverService {
     private final DriverMapper driverMapper;
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
+    private final AuthenticationService authenticationService;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
-    public DriverResponse createDriver(CreateDriverRequest createDriverRequest) {
-        log.info("Creating new driver with phone number {}", createDriverRequest.getPhoneNumber());
+    public AuthenticationResponse createDriver(CreateDriverRequest createDriverRequest) {
+        log.info("Creating new driver with email {}", createDriverRequest.getEmail());
+
+        if (driverRepository.findByEmail(createDriverRequest.getEmail()).isPresent()) {
+            throw new AlreadyExistsException("Driver already exists with email " + createDriverRequest.getEmail());
+        }
+
         if (driverRepository.findByPhoneNumber(createDriverRequest.getPhoneNumber()).isPresent()) {
             throw new AlreadyExistsException("Driver already exists with phone number " + createDriverRequest.getPhoneNumber());
         }
-        Driver driver = driverMapper.toEntity(createDriverRequest);
-        Driver savedDriver = driverRepository.save(driver);
-        DriverResponse driverResponse = driverMapper.toResponse(savedDriver);
-        enrichWithAvailability(driverResponse, savedDriver.getId());
 
-        log.info("Driver created successfully");
-        return driverResponse;
+        Driver driver = new Driver();
+        driver.setFirstName(createDriverRequest.getFirstName());
+        driver.setLastName(createDriverRequest.getLastName());
+        driver.setDriverStatus(DriverStatus.ACTIVE);
+
+        Driver savedDriver = driverRepository.save(driver);
+        log.info("Driver entity created with ID: {}", savedDriver.getId());
+
+        AuthenticationResponse response = authenticationService.createUser(
+                createDriverRequest.getEmail(),
+                createDriverRequest.getPassword(),
+                UserRole.DRIVER,
+                savedDriver.getId()
+        );
+
+        User user = userRepository.findByEmail(createDriverRequest.getEmail())
+                .orElseThrow(() -> new NotFoundException("User not found after creation"));
+
+        savedDriver.setUser(user);
+        driverRepository.save(savedDriver);
+
+        log.info("Driver created successfully with ID: {} and linked to User", savedDriver.getId());
+
+        return response;
     }
 
     @Override
@@ -73,10 +101,26 @@ public class DriverServiceImpl implements DriverService {
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Driver with id " + id + " not found"));
 
-        if (updateDriverRequest.getPhoneNumber() != null && !updateDriverRequest.getPhoneNumber().equals(driver.getPhoneNumber())) {
-            driverRepository.findByPhoneNumber(updateDriverRequest.getPhoneNumber()).ifPresent(existing -> {
+        if (updateDriverRequest.getPhoneNumber() != null &&
+                !updateDriverRequest.getPhoneNumber().equals(driver.getUser().getPhoneNumber())) {
+
+            if (userRepository.existsByPhoneNumber(updateDriverRequest.getPhoneNumber())) {
                 throw new AlreadyExistsException("Driver already exists with phone number: " + updateDriverRequest.getPhoneNumber());
-            });
+            }
+
+            driver.getUser().setPhoneNumber(updateDriverRequest.getPhoneNumber());
+            userRepository.save(driver.getUser());
+        }
+
+        if (updateDriverRequest.getEmail() != null &&
+                !updateDriverRequest.getEmail().equals(driver.getUser().getEmail())) {
+
+            if (userRepository.existsByEmail(updateDriverRequest.getEmail())) {
+                throw new AlreadyExistsException("Driver already exists with email: " + updateDriverRequest.getEmail());
+            }
+
+            driver.getUser().setEmail(updateDriverRequest.getEmail());
+            userRepository.save(driver.getUser());
         }
 
         driverMapper.updateEntityFromRequest(updateDriverRequest, driver);
@@ -96,6 +140,12 @@ public class DriverServiceImpl implements DriverService {
                 .orElseThrow(() -> new NotFoundException("Driver with id " + id + " not found"));
 
         driver.setDriverStatus(DriverStatus.INACTIVE);
+
+        if (driver.getUser() != null) {
+            userRepository.delete(driver.getUser());
+            log.info("Deleted User associated with Driver {}", id);
+        }
+
         driverRepository.save(driver);
         log.info("Driver deleted successfully");
     }
@@ -119,14 +169,16 @@ public class DriverServiceImpl implements DriverService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getMyAssignedOrders(Long driverId, Pageable pageable) {
+    public PageResponse<OrderResponse> getMyAssignedOrders(String email, Pageable pageable) {
+        Driver driver = driverRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("Driver with email " + email + " not found"));
         Pageable sortedPageable = PageRequest.of(
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 Sort.by(Sort.Direction.DESC, "deliveryDate", "createdAt"));
 
         Page<Order> orderPage = orderRepository.findByDriverIdAndOrderStatus(
-                driverId, OrderStatus.APPROVED, sortedPageable);
+                driver.getId(), OrderStatus.APPROVED, sortedPageable);
 
         List<OrderResponse> responses = orderPage.getContent().stream()
                 .map(orderMapper::toResponse)
@@ -135,7 +187,7 @@ public class DriverServiceImpl implements DriverService {
     }
 
     private void enrichWithAvailability(DriverResponse driverResponse, Long driverId) {
-        List<OrderStatus> activeStatuses = Arrays.asList(
+        List<OrderStatus> activeStatuses = List.of(
                 OrderStatus.APPROVED
         );
         boolean hasActiveOrders = orderRepository.existsByDriverIdAndOrderStatusIn(driverId, activeStatuses);
@@ -143,5 +195,4 @@ public class DriverServiceImpl implements DriverService {
         boolean isAvailable = !hasActiveOrders && driverResponse.getDriverStatus() == DriverStatus.ACTIVE;
         driverResponse.setAvailable(isAvailable);
     }
-
 }

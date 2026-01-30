@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface CampaignUsageRepository extends JpaRepository<CampaignUsage, Long> {
-    int countByUserIdAndCampaignCampaignCode(Long userId, String campaignCode);
+    int countByCustomerIdAndCampaignCampaignCode(Long customerId, String campaignCode);
 
     @Modifying
     @Query("DELETE FROM CampaignUsage cu WHERE cu.order.id = :orderId")

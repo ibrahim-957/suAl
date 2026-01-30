@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 public class OrderQueryService {
     private final OrderRepository orderRepository;
 
-    public int getCompletedOrderCount(Long userId){
-        return orderRepository.countByUserIdAndOrderStatus(userId, OrderStatus.COMPLETED);
+    public int getCompletedOrderCount(Long customerId){
+        return orderRepository.countByCustomerIdAndOrderStatus(customerId, OrderStatus.COMPLETED);
     }
 }

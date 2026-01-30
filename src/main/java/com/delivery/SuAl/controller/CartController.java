@@ -25,7 +25,7 @@ public class CartController {
     @PostMapping
     public ResponseEntity<ApiResponse<CartCalculationResponse>> calculatePrice(
             @RequestBody @Valid CalculatePriceRequest request){
-        log.info("Price calculation request from user: {}, items: {}", request.getUserId(), request.getItems().size());
+        log.info("Price calculation request from customer: {}, items: {}", request.getCustomerId(), request.getItems().size());
         CartCalculationResponse response = cartPriceCalculationService.calculatePrice(request);
 
         return ResponseEntity.ok(ApiResponse.success(response));

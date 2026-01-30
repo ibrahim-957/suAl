@@ -17,8 +17,8 @@ import java.util.List;
 public class DriverCollectionInfoResponse {
     private Long orderId;
     private String orderNumber;
-    private String userName;
-    private String userPhone;
+    private String customerName;
+    private String customerPhone;
     private String deliveryAddress;
     private List<ProductDeliverItem> productsToDeliver;
     private Integer totalBottlesExpected;
