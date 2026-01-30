@@ -57,7 +57,7 @@ public class ImageUploadServiceImpl implements ImageUploadService {
 
             String publicId = extractPublicId(imageUrl);
 
-            Map result = cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
             log.info("Image deleted successfully: {}", publicId);
 
         } catch (IOException e){

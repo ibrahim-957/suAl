@@ -1,7 +1,8 @@
 package com.delivery.SuAl.mapper;
 
 import com.delivery.SuAl.entity.Address;
-import com.delivery.SuAl.model.request.address.CreateAddressRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByCustomerRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByOperatorRequest;
 import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import org.mapstruct.Mapper;
@@ -14,7 +15,9 @@ import java.util.List;
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface AddressMapper {
-    Address toEntity(CreateAddressRequest createAddressRequest);
+    Address toEntity(CreateAddressByOperatorRequest createAddressByOperatorRequest);
+
+    Address toEntity(CreateAddressByCustomerRequest request);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "customer", ignore = true)

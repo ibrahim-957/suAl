@@ -3,6 +3,7 @@ package com.delivery.SuAl.controller;
 import com.delivery.SuAl.model.request.admin.CreateAdminRequest;
 import com.delivery.SuAl.model.request.admin.UpdateAdminRequest;
 import com.delivery.SuAl.model.response.admin.AdminResponse;
+import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.AdminService;
@@ -34,9 +35,9 @@ public class AdminController {
     private final AdminService adminService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<AdminResponse>> createAdmin(
+    public ResponseEntity<ApiResponse<AuthenticationResponse>> createAdmin(
             @Valid @RequestBody CreateAdminRequest request) {
-        AdminResponse response = adminService.createAdmin(request);
+        AuthenticationResponse response = adminService.createAdmin(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

@@ -7,22 +7,23 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByEmail(String email);
-
     Optional<User> findByPhoneNumber(String phoneNumber);
 
-    boolean existsByEmail(String email);
+    Optional<User> findByEmail(String email);
 
     boolean existsByPhoneNumber(String phoneNumber);
 
-    @Query("SELECT u FROM User u " +
-            "WHERE u.role =:role AND u.targetId =:targetId")
-    Optional<User> findByRoleAndTargetId(@Param("role") UserRole role, @Param("targetId") Long targetId);
+    boolean existsByEmail(String email);
 
-    List<User> findByRole(UserRole role);
+    Optional<User> findByTargetIdAndRole(Long targetId, UserRole role);
+
+    @Query("SELECT u FROM User u WHERE u.phoneNumber = :phone OR u.email = :email")
+    Optional<User> findByPhoneNumberOrEmail(@Param("phone") String phoneNumber,
+                                            @Param("email") String email);
+
+    void deleteByTargetIdAndRole(Long targetId, UserRole role);
 }

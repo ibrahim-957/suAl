@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -55,8 +56,9 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalDepositCharged = itemResponses.stream()
-                .map(item -> item.getDepositPerUnit()
-                        .multiply(new BigDecimal(item.getQuantity())))
+                .map(item -> Optional.ofNullable(item.getDepositPerUnit())
+                        .orElse(BigDecimal.ZERO)
+                        .multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalDepositRefunded = itemResponses.stream()

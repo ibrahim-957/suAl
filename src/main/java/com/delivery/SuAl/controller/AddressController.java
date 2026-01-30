@@ -1,6 +1,8 @@
 package com.delivery.SuAl.controller;
 
-import com.delivery.SuAl.model.request.address.CreateAddressRequest;
+import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.model.request.address.CreateAddressByCustomerRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByOperatorRequest;
 import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
@@ -10,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +20,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,11 +35,11 @@ public class AddressController {
 
     @PostMapping("/customer")
     public ResponseEntity<AddressResponse> createAddressByCustomer(
-            @RequestHeader("X-Phone-Number") String phoneNumber,
-            @Valid @RequestBody CreateAddressRequest createAddressRequest) {
-        log.info("POST /v1/api/addresses/customer - Customer with phone {} creating address", phoneNumber);
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody CreateAddressByCustomerRequest request) {
+        log.info("POST /v1/api/addresses/customer - Customer with phone {} creating address", user.getPhoneNumber());
 
-        AddressResponse response = addressService.createAddressByCustomer(phoneNumber, createAddressRequest);
+        AddressResponse response = addressService.createAddressByCustomer(user.getPhoneNumber(), request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
@@ -45,11 +47,10 @@ public class AddressController {
 
     @PostMapping("/operator")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
-            @PathVariable Long customerId,
-            @Valid @RequestBody CreateAddressRequest createAddressRequest
+            @Valid @RequestBody CreateAddressByOperatorRequest createAddressByOperatorRequest
     ) {
-        log.info("POST /api/customers/{}/addresses - Creating address", customerId);
-        AddressResponse addressResponse = addressService.createAddress(customerId, createAddressRequest);
+        log.info("POST /api/customers/{}/addresses - Creating address", createAddressByOperatorRequest.getCustomerId());
+        AddressResponse addressResponse = addressService.createAddress(createAddressByOperatorRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(addressResponse));
     }
 

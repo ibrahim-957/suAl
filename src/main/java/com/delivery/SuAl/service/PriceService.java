@@ -8,11 +8,11 @@ import java.util.List;
 import java.util.Map;
 
 public interface PriceService {
-    PriceResponse createPrice(CreatePriceRequest createPriceRequest);
+    void createPrice(CreatePriceRequest createPriceRequest);
 
     PriceResponse getPriceById(Long id);
 
-    PriceResponse updatePrice(Long id, UpdatePriceRequest updatePriceRequest);
+    void updatePrice(Long id, UpdatePriceRequest updatePriceRequest);
 
     void deleteOperator(Long id);
 

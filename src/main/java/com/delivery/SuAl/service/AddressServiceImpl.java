@@ -4,7 +4,8 @@ import com.delivery.SuAl.entity.Address;
 import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.AddressMapper;
-import com.delivery.SuAl.model.request.address.CreateAddressRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByCustomerRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByOperatorRequest;
 import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import com.delivery.SuAl.repository.AddressRepository;
@@ -24,7 +25,7 @@ public class AddressServiceImpl implements AddressService {
     private final CustomerRepository customerRepository;
 
     @Override
-    public AddressResponse createAddressByCustomer(String phoneNumber, CreateAddressRequest request) {
+    public AddressResponse createAddressByCustomer(String phoneNumber, CreateAddressByCustomerRequest request) {
         log.info("Customer create Address");
 
         Customer customer = customerRepository.findByPhoneNumber(phoneNumber)
@@ -40,17 +41,17 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
-    public AddressResponse createAddress(Long customerId, CreateAddressRequest createAddressRequest) {
-        log.info("Address created for customer by ID {}", customerId);
+    public AddressResponse createAddress(CreateAddressByOperatorRequest createAddressByOperatorRequest) {
+        log.info("Address created for customer by ID {}", createAddressByOperatorRequest.getCustomerId());
 
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new NotFoundException("Customer not found with id: " + customerId));
+        Customer customer = customerRepository.findById(createAddressByOperatorRequest.getCustomerId())
+                .orElseThrow(() -> new NotFoundException("Customer not found with id: " + createAddressByOperatorRequest.getCustomerId()));
 
-        Address address = addressMapper.toEntity(createAddressRequest);
+        Address address = addressMapper.toEntity(createAddressByOperatorRequest);
         address.setCustomer(customer);
 
         Address savedAddress = addressRepository.save(address);
-        log.info("Address created for customer by ID {}", customerId);
+        log.info("Address created for customer by ID {}", createAddressByOperatorRequest.getCustomerId());
 
         return addressMapper.toResponse(savedAddress);
     }
@@ -59,7 +60,7 @@ public class AddressServiceImpl implements AddressService {
     public AddressResponse getAddressById(Long customerId, Long addressId) {
         log.info("Fetching address ID: {} for customer by ID {}", addressId, customerId);
 
-        Address address = addressRepository.findByIdAndCustomerId(customerId, addressId)
+        Address address = addressRepository.findByIdAndCustomerId(addressId, customerId)
                 .orElseThrow(() -> new NotFoundException("Address not found with id: " + addressId));
         return addressMapper.toResponse(address);
     }

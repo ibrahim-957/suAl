@@ -5,6 +5,7 @@ import com.delivery.SuAl.entity.CampaignUsage;
 import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
+import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
@@ -625,12 +626,11 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private BigDecimal calculateBonusValue(Campaign campaign) {
-        if (campaign.getFreeProduct() == null
-                || campaign.getFreeProduct().getPrices() == null
-                || campaign.getFreeProduct().getPrices().isEmpty()) {
+        Price lastPrice = campaign.getFreeProduct().getPrices().getLast();
+        if (lastPrice == null || lastPrice.getSellPrice() == null) {
             return BigDecimal.ZERO;
         }
-        return campaign.getFreeProduct().getPrices().getLast().getSellPrice()
+        return lastPrice.getSellPrice()
                 .multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
     }
 

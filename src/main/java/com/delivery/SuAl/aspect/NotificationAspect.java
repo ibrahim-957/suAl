@@ -77,19 +77,24 @@ public class NotificationAspect {
             }
 
             if (receiverId != null) {
-                notificationService.createNotification(
-                        NotificationRequest.builder()
-                                .receiverType(sendNotification.receiverType())
-                                .receiverId(receiverId)
-                                .notificationType(sendNotification.notificationType())
-                                .title(sendNotification.title())
-                                .message(message)
-                                .referenceId(referenceId)
-                                .build()
-                );
+                try {
+                    notificationService.createNotification(
+                            NotificationRequest.builder()
+                                    .receiverType(sendNotification.receiverType())
+                                    .receiverId(receiverId)
+                                    .notificationType(sendNotification.notificationType())
+                                    .title(sendNotification.title())
+                                    .message(message)
+                                    .referenceId(referenceId)
+                                    .build()
+                    );
 
-                log.info("Notification sent successfully via AOP - Receiver: {} ({}), Type: {}",
-                        receiverId, sendNotification.receiverType(), sendNotification.notificationType());
+                    log.info("Notification sent successfully via AOP - Receiver: {} ({}), Type: {}",
+                            receiverId, sendNotification.receiverType(), sendNotification.notificationType());
+                } catch (Exception ex) {
+                    log.error("Failed to create notification for receiver {} ({}): {}",
+                            receiverId, sendNotification.receiverType(), ex.getMessage(), ex);
+                }
             } else {
                 log.warn("Skipping notification - receiverId is null from expression: {}",
                         sendNotification.receiverIdExpression());

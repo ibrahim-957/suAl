@@ -28,7 +28,6 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationResponse createNotification(NotificationRequest request) {
         Notification notification = notificationMapper.toEntity(request);
         notification.setIsRead(false);
-        notification.setIsRead(false);
 
         Notification savedNotification = notificationRepository.save(notification);
 

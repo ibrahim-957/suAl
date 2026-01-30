@@ -2,6 +2,7 @@ package com.delivery.SuAl.controller;
 
 import com.delivery.SuAl.model.request.operation.CreateOperatorRequest;
 import com.delivery.SuAl.model.request.operation.UpdateOperatorRequest;
+import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.operation.OperatorResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
@@ -34,9 +35,9 @@ public class OperatorController {
     private final OperatorService operatorService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<OperatorResponse>> createOperator(
+    public ResponseEntity<ApiResponse<AuthenticationResponse>> createOperator(
             @Valid @RequestBody CreateOperatorRequest createOperatorRequest) {
-        OperatorResponse response = operatorService.createOperator(createOperatorRequest);
+        AuthenticationResponse response = operatorService.createOperator(createOperatorRequest);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

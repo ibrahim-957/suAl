@@ -27,7 +27,7 @@ public class PriceServiceImpl implements PriceService {
     private final PriceMapper priceMapper;
     @Override
     @Transactional
-    public PriceResponse createPrice(CreatePriceRequest createPriceRequest) {
+    public void createPrice(CreatePriceRequest createPriceRequest) {
         Product product = productRepository.findById(createPriceRequest.getProductId())
                 .orElseThrow(() -> new NotFoundException("Product not found with id " + createPriceRequest.getProductId()));
 
@@ -37,7 +37,7 @@ public class PriceServiceImpl implements PriceService {
         Price savedPrice = priceRepository.save(price);
 
         log.info("Price created successfully");
-        return priceMapper.toResponse(savedPrice);
+        priceMapper.toResponse(savedPrice);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class PriceServiceImpl implements PriceService {
 
     @Override
     @Transactional
-    public PriceResponse updatePrice(Long id, UpdatePriceRequest updatePriceRequest) {
+    public void updatePrice(Long id, UpdatePriceRequest updatePriceRequest) {
         log.info("Update price by id {}", id);
 
         Price price = priceRepository.findById(id)
@@ -62,7 +62,7 @@ public class PriceServiceImpl implements PriceService {
         Price updatedPrice = priceRepository.save(price);
 
         log.info("Price updated successfully");
-        return priceMapper.toResponse(updatedPrice);
+        priceMapper.toResponse(updatedPrice);
     }
 
     @Override

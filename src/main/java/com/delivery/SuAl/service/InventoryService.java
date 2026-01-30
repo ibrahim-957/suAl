@@ -23,6 +23,7 @@ public class InventoryService {
     private final WarehouseStockRepository warehouseStockRepository;
     private final ProductRepository productRepository;
 
+    @Transactional
     public void validateAndReserveStock(Long productId, int quantity) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));

@@ -2,6 +2,7 @@ package com.delivery.SuAl.controller;
 
 import com.delivery.SuAl.model.request.customer.CreateCustomerRequest;
 import com.delivery.SuAl.model.request.customer.UpdateCustomerRequest;
+import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.customer.CustomerResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
@@ -32,11 +33,11 @@ public class CustomerController {
     private final CustomerService customerService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(
+    public ResponseEntity<ApiResponse<AuthenticationResponse>> createCustomer(
             @RequestBody @Validated CreateCustomerRequest createCustomerRequest
     ) {
         log.info("POST api/customers - Creating new customer");
-        CustomerResponse response = customerService.createCustomer(createCustomerRequest);
+        AuthenticationResponse response = customerService.createCustomer(createCustomerRequest);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

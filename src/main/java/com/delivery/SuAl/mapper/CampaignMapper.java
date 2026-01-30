@@ -1,7 +1,6 @@
 package com.delivery.SuAl.mapper;
 
 import com.delivery.SuAl.entity.Campaign;
-import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.model.request.marketing.CreateCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.UpdateCampaignRequest;
 import com.delivery.SuAl.model.response.marketing.CampaignResponse;
@@ -10,11 +9,8 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import java.math.BigDecimal;
-
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-
 public interface CampaignMapper {
     Campaign toEntity(CreateCampaignRequest request);
 
@@ -26,45 +22,48 @@ public interface CampaignMapper {
     @Mapping(target = "updatedAt", ignore = true)
     void updateEntityFromRequest(UpdateCampaignRequest request, @MappingTarget Campaign campaign);
 
-    @Mapping(source = "buyProduct.id", target = "buyProductId")
-    @Mapping(source = "buyProduct.name", target = "buyProductName")
-    @Mapping(source = "freeProduct.id", target = "freeProductId")
-    @Mapping(source = "freeProduct.name", target = "freeProductName")
+    @Mapping(target = "buyProductId", expression = "java(getBuyProductId(campaign))")
+    @Mapping(target = "buyProductName", expression = "java(getBuyProductName(campaign))")
+    @Mapping(target = "freeProductId", expression = "java(getFreeProductId(campaign))")
+    @Mapping(target = "freeProductName", expression = "java(getFreeProductName(campaign))")
     @Mapping(target = "campaignTypeDisplay", source = "campaignType")
     @Mapping(target = "usageRemaining", expression = "java(calculateUsageRemaining(campaign))")
     @Mapping(target = "isCurrentlyActive", expression = "java(campaign.isActive())")
-    @Mapping(source = "bonusAmount", target = "bonusAmount")
-    @Mapping(source = "bonusPercentage", target = "bonusPercentage")
+    @Mapping(target = "maxUsesPerUser", source = "maxUsesPerCustomer")
     CampaignResponse toResponse(Campaign campaign);
 
-    default Integer calculateUsageRemaining(Campaign campaign){
-        if (campaign.getMaxTotalUses() == null)
+    default Long getBuyProductId(Campaign campaign) {
+        if (campaign.getBuyProduct() == null) {
             return null;
+        }
+        return campaign.getBuyProduct().getId();
+    }
+
+    default String getBuyProductName(Campaign campaign) {
+        if (campaign.getBuyProduct() == null) {
+            return null;
+        }
+        return campaign.getBuyProduct().getName();
+    }
+
+    default Long getFreeProductId(Campaign campaign) {
+        if (campaign.getFreeProduct() == null) {
+            return null;
+        }
+        return campaign.getFreeProduct().getId();
+    }
+
+    default String getFreeProductName(Campaign campaign) {
+        if (campaign.getFreeProduct() == null) {
+            return null;
+        }
+        return campaign.getFreeProduct().getName();
+    }
+
+    default Integer calculateUsageRemaining(Campaign campaign) {
+        if (campaign.getMaxTotalUses() == null) {
+            return null;
+        }
         return Math.max(0, campaign.getMaxTotalUses() - campaign.getCurrentTotalUses());
-    }
-
-
-    default BigDecimal calculateBonusValue(Campaign campaign){
-        if (campaign.getFreeProduct() == null
-                || campaign.getFreeProduct().getPrices() == null
-                || campaign.getFreeProduct().getPrices().isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-        return campaign.getFreeProduct().getPrices().getLast().getSellPrice()
-                .multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
-    }
-
-    default BigDecimal getDepositPerUnit(Product product){
-        if (product == null || !product.getHasDeposit()){
-            return BigDecimal.ZERO;
-        }
-        return product.getDepositAmount();
-    }
-
-    default BigDecimal calculateTotalDeposit(Campaign campaign){
-        if (campaign.getFreeProduct() == null || !campaign.getFreeProduct().getHasDeposit()){
-            return BigDecimal.ZERO;
-        }
-        return campaign.getFreeProduct().getDepositAmount().multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
     }
 }

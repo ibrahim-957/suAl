@@ -31,7 +31,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Long countTodayOrders(@Param("startOfDay") LocalDateTime startOfDay,
                           @Param("endOfDay") LocalDateTime endOfDay);
 
-    @Query("SELECT SUM(o.amount) FROM Order o " +
+    @Query("SELECT SUM(o.totalAmount) FROM Order o " +
             "WHERE o.paymentStatus = 'PAID' AND o.createdAt " +
             "BETWEEN :startDate AND :endDate")
     BigDecimal calculateRevenue(@Param("startDate") LocalDateTime startDate,

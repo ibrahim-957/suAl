@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +40,7 @@ public class PromoController {
     private final PromoService promoService;
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ResponseEntity<ApiResponse<PromoResponse>> createPromo(
             @Valid @RequestBody CreatePromoRequest request
             ){
@@ -74,6 +76,7 @@ public class PromoController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ResponseEntity<ApiResponse<PromoResponse>> updatePromo(
             @PathVariable Long id,
             @Valid @RequestBody UpdatePromoRequest request) {
@@ -84,6 +87,7 @@ public class PromoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ResponseEntity<ApiResponse<Void>> deletePromo(@PathVariable Long id) {
 
         promoService.deletePromoById(id);
@@ -92,6 +96,7 @@ public class PromoController {
     }
 
     @PostMapping("/apply")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ResponseEntity<ApiResponse<ApplyPromoResponse>> applyPromo(
             @Valid @RequestBody ApplyPromoRequest request) {
 
