@@ -65,6 +65,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(3600L)
+                .userId(savedUser.getId())
+                .role(role)
                 .build();
     }
 
@@ -95,6 +97,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     .refreshToken(refreshToken)
                     .tokenType("Bearer")
                     .expiresIn(3600L)
+                    .userId(user.getId())
+                    .role(user.getRole())
                     .build();
         } else {
             throw new NotFoundException("User not found");
@@ -123,6 +127,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                         .refreshToken(refreshToken)
                         .tokenType("Bearer")
                         .expiresIn(3600L)
+                        .userId(user.getId())
+                        .role(user.getRole())
                         .build();
             }
         }
