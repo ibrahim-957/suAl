@@ -1,13 +1,13 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Promo;
-import com.delivery.SuAl.model.enums.PromoStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,4 +22,12 @@ public interface PromoRepository extends JpaRepository<Promo, Long> {
     List<Promo> findActivePromos();
 
     boolean existsByPromoCode(String promoCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Promo p WHERE p.promoCode = :promoCode")
+    Optional<Promo> findByPromoCodeWithLock(@Param("promoCode") String promoCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Promo p WHERE p.id = :id")
+    Optional<Promo> findByIdWithLock(@Param("id") Long id);
 }

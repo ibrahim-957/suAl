@@ -332,6 +332,10 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderStateException("Customer can only reject PENDING orders");
         }
 
+        promoService.releasePromoUsageByOrder(orderId);
+
+        campaignService.releaseCampaignUsageByOrder(orderId);
+
         refundPayment(order);
 
         order.setOrderStatus(OrderStatus.REJECTED);
@@ -383,6 +387,10 @@ public class OrderServiceImpl implements OrderService {
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
             throw new InvalidOrderStateException("Order must be PENDING or APPROVED to reject");
         }
+
+        promoService.releasePromoUsageByOrder(orderId);
+
+        campaignService.releaseCampaignUsageByOrder(orderId);
 
         refundPayment(order);
 
@@ -887,7 +895,6 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toResponse(finalOrder);
     }
 
-    // THIS IS THE KEY IMPROVED METHOD FROM 7afa411 - PROPER CAMPAIGN HANDLING
     private CampaignApplicationResult applyCampaigns(
             Order order,
             Customer customer,

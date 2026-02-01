@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.response.auth;
 
+import com.delivery.SuAl.model.enums.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,4 +16,5 @@ public class AuthenticationResponse {
     private String tokenType;
     private Long expiresIn;
     private Long userId;
+    private UserRole role;
 }

@@ -25,15 +25,11 @@ public class InventoryService {
 
     @Transactional
     public void validateAndReserveStock(Long productId, int quantity) {
+        WarehouseStock stock = warehouseStockRepository.findByProductIdWithLock(productId)
+                .orElseThrow(() -> new NotFoundException("product not found in warehouse with id: " + productId));
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
-
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(productId);
-        if (stocks.isEmpty()) {
-            throw new NotFoundException("product not found in warehouse with id: " + productId);
-        }
-
-        WarehouseStock stock = stocks.getFirst();
 
         if (stock.getFullCount() < quantity) {
             throw new InsufficientStockException(
@@ -56,11 +52,14 @@ public class InventoryService {
         }
 
         log.info("Batch reserving stock for {} products", productQuantities.size());
-
         List<Long> productIds = new ArrayList<>(productQuantities.keySet());
 
-        List<Product> products = productRepository.findAllById(productIds);
-        Map<Long, Product> productMap = products.stream()
+        List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
+        Map<Long, WarehouseStock> stockMap = stocks.stream()
+                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
+
+        Map<Long, Product> productMap = productRepository.findAllById(productIds)
+                .stream()
                 .collect(Collectors.toMap(Product::getId, p -> p));
 
         List<Long> missingProducts = productIds.stream()
@@ -69,10 +68,6 @@ public class InventoryService {
         if (!missingProducts.isEmpty()) {
             throw new NotFoundException("Products not found: " + missingProducts);
         }
-
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
-        Map<Long, WarehouseStock> stockMap = stocks.stream()
-                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
 
         List<String> errors = new ArrayList<>();
         for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
@@ -112,20 +107,20 @@ public class InventoryService {
         log.info("Successfully reserved stock for {} products", productQuantities.size());
     }
 
-
-
     @Transactional
     public void releaseStock(Long productId, int quantity) {
         log.info("Releasing stock for {} units of product {}", quantity, productId);
-        List<WarehouseStock> stocks = warehouseStockRepository.findByProductId(productId);
-        if (!stocks.isEmpty()) {
-            WarehouseStock stock = stocks.getFirst();
-            stock.setFullCount(stock.getFullCount() + quantity);
-            warehouseStockRepository.save(stock);
-            log.debug("Released {} units of product ID {}. New count: {}",
-                    quantity, productId, stock.getFullCount());
-        } else
-            log.warn("Cannot release stock - product {} not found in warehouse", productId);
+
+        warehouseStockRepository.findByProductIdWithLock(productId)
+                .ifPresentOrElse(
+                        stock -> {
+                            stock.setFullCount(stock.getFullCount() + quantity);
+                            warehouseStockRepository.save(stock);
+                            log.debug("Released {} units of product ID {}. New count: {}",
+                                    quantity, productId, stock.getFullCount());
+                        },
+                        () -> log.warn("Cannot release stock - product {} not found in warehouse", productId)
+                );
     }
 
     @Transactional
@@ -145,7 +140,6 @@ public class InventoryService {
         }
 
         log.info("Batch adding empty bottles for {} products", emptyBottlesByProduct.size());
-
         List<Long> productIds = new ArrayList<>(emptyBottlesByProduct.keySet());
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);

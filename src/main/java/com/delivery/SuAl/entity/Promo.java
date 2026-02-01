@@ -118,4 +118,24 @@ public class Promo {
         }
         return discount;
     }
+
+    public boolean canBeUsed() {
+        if (maxTotalUses == null) {
+            return true;
+        }
+        return currentTotalUses < maxTotalUses;
+    }
+
+    public void decrementUses() {
+        if (this.currentTotalUses > 0) {
+            this.currentTotalUses--;
+        }
+    }
+
+    public Integer getRemainingUses() {
+        if (maxTotalUses == null) {
+            return null;
+        }
+        return Math.max(0, maxTotalUses - currentTotalUses);
+    }
 }

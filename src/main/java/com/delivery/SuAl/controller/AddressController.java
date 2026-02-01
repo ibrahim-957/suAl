@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/v1/api/customers/{customerId}/addresses")
+@RequestMapping("/v1/api/customers/addresses")
 @RequiredArgsConstructor
 @Slf4j
 @Validated
@@ -45,7 +45,7 @@ public class AddressController {
                 .body(response);
     }
 
-    @PostMapping("/operator")
+    @PostMapping("/{customerId}/operator")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
             @Valid @RequestBody CreateAddressByOperatorRequest createAddressByOperatorRequest
     ) {
@@ -54,7 +54,7 @@ public class AddressController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(addressResponse));
     }
 
-    @GetMapping("/{addressId}")
+    @GetMapping("/{customerId}/{addressId}")
     public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(
             @PathVariable Long customerId,
             @PathVariable Long addressId
@@ -64,7 +64,7 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.success(addressResponse));
     }
 
-    @PutMapping("/{addressId}")
+    @PutMapping("/{customerId}/{addressId}")
     public ResponseEntity<ApiResponse<AddressResponse>> updateAddress(
             @PathVariable Long customerId,
             @PathVariable Long addressId,
@@ -75,7 +75,7 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.success("Address updated successfully", addressResponse));
     }
 
-    @DeleteMapping("/{addressId}")
+    @DeleteMapping("/{customerId}/{addressId}")
     public ResponseEntity<Void> deleteAddress(
             @PathVariable Long customerId,
             @PathVariable Long addressId
@@ -85,7 +85,7 @@ public class AddressController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping
+    @GetMapping("/{customerId}")
     public ResponseEntity<ApiResponse<List<AddressResponse>>> getCustomerAddresses(@PathVariable Long customerId) {
         log.info("GET /api/customers/{}/addresses", customerId);
         List<AddressResponse> addressResponseList = addressService.getCustomerAddresses(customerId);
