@@ -18,7 +18,6 @@ import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.response.payment.CancelRefundResponse;
 import com.delivery.SuAl.model.response.payment.CreatePaymentResponse;
 import com.delivery.SuAl.model.response.payment.PaymentStatusResponse;
-import com.delivery.SuAl.repository.CampaignUsageRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -47,7 +46,8 @@ public class MagnetPaymentService implements PaymentService {
     private final PaymentMapper paymentMapper;
     private final MagnetGatewayMapper gatewayMapper;
     private final RestTemplate magnetRestTemplate;
-    private final CampaignUsageRepository campaignUsageRepository;
+    private final CampaignService campaignService;
+    private final PromoService promoService;
 
     @Value("${magnet.api.base-url}")
     private String baseUrl;
@@ -366,11 +366,9 @@ public class MagnetPaymentService implements PaymentService {
         log.info("Order to delete - ID: {}, Number: {}", order.getId(), order.getOrderNumber());
 
         try {
-            int deletedCampaignUsages = campaignUsageRepository.deleteByOrderId(order.getId());
-            if (deletedCampaignUsages > 0) {
-                log.info("Deleted {} campaign_usages for order {}",
-                        deletedCampaignUsages, order.getOrderNumber());
-            }
+            promoService.releasePromoUsageByOrder(order.getId());
+
+            campaignService.releaseCampaignUsageByOrder(order.getId());
 
             if (order.getOrderDetails() != null && !order.getOrderDetails().isEmpty()) {
                 log.info("Clearing {} order_details for order {}",

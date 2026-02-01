@@ -22,6 +22,10 @@ public interface CampaignService {
 
     CampaignResponse updateCampaign(Long id, UpdateCampaignRequest request, MultipartFile image);
 
+    void releaseCampaignUsage(Long campaignId);
+
+    void releaseCampaignUsageByOrder(Long orderId);
+
     void deleteCampaignById(Long id);
 
     ValidateCampaignResponse validateCampaign(ValidateCampaignRequest request);

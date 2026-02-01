@@ -189,4 +189,24 @@ public class Campaign {
                 break;
         }
     }
+
+    public boolean canBeUsed() {
+        if (maxTotalUses == null) {
+            return true; // No limit set
+        }
+        return currentTotalUses < maxTotalUses;
+    }
+
+    public void decrementUses() {
+        if (this.currentTotalUses > 0) {
+            this.currentTotalUses--;
+        }
+    }
+
+    public Integer getRemainingUses() {
+        if (maxTotalUses == null) {
+            return null; // Unlimited
+        }
+        return Math.max(0, maxTotalUses - currentTotalUses);
+    }
 }
