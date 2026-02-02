@@ -45,21 +45,23 @@ public class AdminServiceImpl implements AdminService {
         admin.setFirstName(request.getFirstName());
         admin.setLastName(request.getLastName());
 
-        Admin savedAdmin = adminRepository.save(admin);
-        log.info("Admin entity created with ID: {}", savedAdmin.getId());
-
         AuthenticationResponse response = authenticationService.createUser(
                 request.getEmail(),
                 request.getPassword(),
                 UserRole.ADMIN,
-                savedAdmin.getId()
+                null
         );
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new NotFoundException("User not found after creation"));
 
-        savedAdmin.setUser(user);
-        adminRepository.save(savedAdmin);
+        admin.setUser(user);
+
+        Admin savedAdmin = adminRepository.save(admin);
+        log.info("Admin entity created with ID: {}", savedAdmin.getId());
+
+        user.setTargetId(savedAdmin.getId());
+        userRepository.save(user);
 
         log.info("Admin created successfully with ID: {} and linked to User", savedAdmin.getId());
 

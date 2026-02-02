@@ -100,21 +100,23 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setLastName(createCustomerRequest.getLastName());
         customer.setIsActive(true);
 
-        Customer savedCustomer = customerRepository.save(customer);
-        log.info("Customer entity created with ID: {}", savedCustomer.getId());
-
         AuthenticationResponse response = authenticationService.createUser(
                 createCustomerRequest.getPhoneNumber(),
                 createCustomerRequest.getPassword(),
                 UserRole.CUSTOMER,
-                savedCustomer.getId()
+                null
         );
 
         User user = userRepository.findByPhoneNumber(createCustomerRequest.getPhoneNumber())
                 .orElseThrow(() -> new NotFoundException("User not found after creation"));
 
-        savedCustomer.setUser(user);
-        customerRepository.save(savedCustomer);
+        customer.setUser(user);
+
+        Customer savedCustomer = customerRepository.save(customer);
+        log.info("Customer entity created with ID: {}", savedCustomer.getId());
+
+        user.setTargetId(savedCustomer.getId());
+        userRepository.save(user);
 
         log.info("Customer created successfully with ID: {} and linked to User", savedCustomer.getId());
 
