@@ -51,6 +51,11 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/payment/callback").permitAll()
 
                         .requestMatchers("/v1/api/admins/**").hasRole("ADMIN")
+
+                        .requestMatchers("/v1/api/warehouses/collect-containers").hasRole("ADMIN")
+                        .requestMatchers("/v1/api/warehouses/*/collections").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers("/v1/api/warehouses/collections/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers("/v1/api/warehouses/*/products/*/containers/**").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/warehouses/**").hasRole("ADMIN")
 
                         .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR")
@@ -77,6 +82,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/v1/api/notifications/**").authenticated()
                         .requestMatchers("/v1/api/device-tokens/**").authenticated()
+
+                        .requestMatchers("/v1/api/auth/change-password").authenticated()
 
                         .anyRequest().authenticated()
                 )

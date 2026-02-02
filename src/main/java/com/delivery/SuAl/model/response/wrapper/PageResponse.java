@@ -1,6 +1,7 @@
 package com.delivery.SuAl.model.response.wrapper;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -10,6 +11,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class PageResponse<T> {
     private List<T> content;
     private int pageNumber;
