@@ -47,6 +47,7 @@ public class AdminServiceImpl implements AdminService {
 
         AuthenticationResponse response = authenticationService.createUser(
                 request.getEmail(),
+                request.getPhoneNumber(),
                 request.getPassword(),
                 UserRole.ADMIN,
                 null

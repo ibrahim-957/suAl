@@ -62,6 +62,7 @@ public class DriverServiceImpl implements DriverService {
 
         AuthenticationResponse response = authenticationService.createUser(
                 createDriverRequest.getEmail(),
+                createDriverRequest.getPhoneNumber(),
                 createDriverRequest.getPassword(),
                 UserRole.DRIVER,
                 null

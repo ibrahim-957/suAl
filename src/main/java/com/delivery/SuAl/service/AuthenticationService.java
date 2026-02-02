@@ -8,6 +8,8 @@ import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 
 public interface AuthenticationService {
+    AuthenticationResponse createUser(String email, String phoneNumber, String password, UserRole role, Long targetId);
+
     AuthenticationResponse createUser(String identifier, String password, UserRole role, Long targetId);
 
     AuthenticationResponse authenticate(AuthenticationRequest request);
