@@ -51,21 +51,23 @@ public class OperatorServiceImpl implements OperatorService {
         operator.setLastName(createOperatorRequest.getLastName());
         operator.setOperatorStatus(OperatorStatus.ACTIVE);
 
-        Operator savedOperator = operatorRepository.save(operator);
-        log.info("Operator entity created with ID: {}", savedOperator.getId());
-
         AuthenticationResponse response = authenticationService.createUser(
                 createOperatorRequest.getEmail(),
                 createOperatorRequest.getPassword(),
                 UserRole.OPERATOR,
-                savedOperator.getId()
+                null
         );
 
         User user = userRepository.findByEmail(createOperatorRequest.getEmail())
                 .orElseThrow(() -> new NotFoundException("User not found after creation"));
 
-        savedOperator.setUser(user);
-        operatorRepository.save(savedOperator);
+        operator.setUser(user);
+
+        Operator savedOperator = operatorRepository.save(operator);
+        log.info("Operator entity created with ID: {}", savedOperator.getId());
+
+        user.setTargetId(savedOperator.getId());
+        userRepository.save(user);
 
         log.info("Operator created successfully with ID: {} and linked to User", savedOperator.getId());
 

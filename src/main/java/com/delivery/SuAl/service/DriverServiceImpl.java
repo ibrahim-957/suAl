@@ -60,22 +60,22 @@ public class DriverServiceImpl implements DriverService {
         driver.setLastName(createDriverRequest.getLastName());
         driver.setDriverStatus(DriverStatus.ACTIVE);
 
-        Driver savedDriver = driverRepository.save(driver);
-        log.info("Driver entity created with ID: {}", savedDriver.getId());
-
         AuthenticationResponse response = authenticationService.createUser(
                 createDriverRequest.getEmail(),
                 createDriverRequest.getPassword(),
                 UserRole.DRIVER,
-                savedDriver.getId()
+                null
         );
 
         User user = userRepository.findByEmail(createDriverRequest.getEmail())
-                .orElseThrow(() -> new NotFoundException("User not found after creation"));
+                .orElseThrow(() -> new NotFoundException("User not found with email " + createDriverRequest.getEmail()));
 
-        savedDriver.setUser(user);
-        driverRepository.save(savedDriver);
+        driver.setUser(user);
 
+        Driver savedDriver = driverRepository.save(driver);
+
+        user.setTargetId(savedDriver.getId());
+        userRepository.save(user);
         log.info("Driver created successfully with ID: {} and linked to User", savedDriver.getId());
 
         return response;
