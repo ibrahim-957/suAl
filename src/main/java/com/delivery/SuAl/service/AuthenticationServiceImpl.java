@@ -5,8 +5,10 @@ import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.model.enums.UserRole;
 import com.delivery.SuAl.model.request.auth.AuthenticationRequest;
+import com.delivery.SuAl.model.request.auth.ChangePasswordRequest;
 import com.delivery.SuAl.model.request.auth.RefreshTokenRequest;
 import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
+import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.repository.UserRepository;
 import com.delivery.SuAl.security.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -139,5 +141,38 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public void deleteUser(Long targetId, UserRole role) {
         log.info("Deleting user for role {} with identifier {}", role, targetId);
         userRepository.deleteByTargetIdAndRole(targetId, role);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<String> changePassword(ChangePasswordRequest request, Long userId) {
+        log.info("Processing password change request for user ID: {}", userId);
+
+        if (!request.getNewPassword().equals(request.getConfirmNewPassword())){
+            throw new IllegalArgumentException("Passwords don't match");
+        }
+
+        if (request.getCurrentPassword().equals(request.getNewPassword())) {
+            throw new IllegalArgumentException("New password must be different from current password");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found with ID: " + userId));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            log.warn("Failed password change attempt for user ID: {} - incorrect current password", userId);
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("Password changed successfully with ID: {}", user.getId());
+
+        return ApiResponse.<String>builder()
+                .success(true)
+                .message("Password changed successfully")
+                .data("Your password has been updated")
+                .build();
     }
 }
