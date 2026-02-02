@@ -53,6 +53,7 @@ public class OperatorServiceImpl implements OperatorService {
 
         AuthenticationResponse response = authenticationService.createUser(
                 createOperatorRequest.getEmail(),
+                createOperatorRequest.getPhoneNumber(),
                 createOperatorRequest.getPassword(),
                 UserRole.OPERATOR,
                 null

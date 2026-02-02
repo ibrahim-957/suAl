@@ -30,17 +30,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     @Transactional
-    public AuthenticationResponse createUser(String identifier, String password, UserRole role, Long targetId) {
+    public AuthenticationResponse createUser(String email, String phoneNumber, String password, UserRole role, Long targetId) {
         log.info("Creating user for role {} with targetId {}", role, targetId);
 
-        if (role == UserRole.CUSTOMER) {
-            if (userRepository.existsByPhoneNumber(identifier)) {
-                throw new AlreadyExistsException("Phone number already registered: " + identifier);
-            }
-        } else {
-            if (userRepository.existsByEmail(identifier)) {
-                throw new AlreadyExistsException("Email already registered: " + identifier);
-            }
+        if (email != null && userRepository.existsByEmail(email)) {
+            throw new AlreadyExistsException("Email already registered: " + email);
+        }
+
+        if (phoneNumber != null && userRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new AlreadyExistsException("Phone number already registered: " + phoneNumber);
         }
 
         User.UserBuilder userBuilder = User.builder()
@@ -49,15 +47,24 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .targetId(targetId);
 
         if (role == UserRole.CUSTOMER) {
-            userBuilder.phoneNumber(identifier);
+            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+                throw new IllegalArgumentException("Phone number is required for CUSTOMER role");
+            }
+            userBuilder.phoneNumber(phoneNumber);
         } else {
-            userBuilder.email(identifier);
+            if (email == null || email.trim().isEmpty()) {
+                throw new IllegalArgumentException("Email is required for " + role + " role");
+            }
+            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+                throw new IllegalArgumentException("Phone number is required for " + role + " role");
+            }
+            userBuilder.email(email).phoneNumber(phoneNumber);
         }
 
         User user = userBuilder.build();
         User savedUser = userRepository.save(user);
 
-        log.info("User created successfully with ID: {}", savedUser.getId());
+        log.info("User created successfully with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
 
         var jwtToken = jwtService.generateToken(savedUser);
         var refreshToken = jwtService.generateRefreshToken(savedUser);
@@ -70,6 +77,19 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .userId(savedUser.getId())
                 .role(role)
                 .build();
+    }
+
+    @Deprecated
+    @Transactional
+    public AuthenticationResponse createUser(String identifier, String password, UserRole role, Long targetId) {
+        log.info("Creating user for role {} with targetId {} (legacy method)", role, targetId);
+
+        if (role == UserRole.CUSTOMER) {
+            return createUser(null, identifier, password, role, targetId);
+        } else {
+            log.warn("Using legacy createUser method for non-CUSTOMER role. Consider using the new method signature.");
+            return createUser(identifier, null, password, role, targetId);
+        }
     }
 
     @Override
@@ -117,7 +137,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         if (identifier != null) {
             User user = userRepository.findByPhoneNumber(identifier)
                     .orElseGet(() -> userRepository.findByEmail(identifier)
-                    .orElseThrow(() -> new NotFoundException("User not found with identifier: " + identifier)));
+                            .orElseThrow(() -> new NotFoundException("User not found with identifier: " + identifier)));
 
             if (jwtService.isTokenValid(refreshToken, user)) {
                 var accessToken = jwtService.generateToken(user);
