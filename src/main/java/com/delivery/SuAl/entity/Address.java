@@ -42,8 +42,8 @@ public class Address {
     @Column(name = "apartment_number")
     private String apartmentNumber;
 
-    @Column(name = "postal_code")
-    private String postalCode;
+    @Column(name = "district")
+    private String district;
 
     @Column(precision = 10, scale = 8)
     private BigDecimal latitude;
@@ -101,8 +101,8 @@ public class Address {
             fullAddress.append(city);
         }
 
-        if (postalCode != null && !postalCode.isBlank()) {
-            fullAddress.append(", ").append(postalCode);
+        if (district != null && !district.isBlank()) {
+            fullAddress.append(", ").append(district);
         }
 
         return fullAddress.toString();

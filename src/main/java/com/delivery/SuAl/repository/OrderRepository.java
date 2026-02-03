@@ -1,6 +1,9 @@
 package com.delivery.SuAl.repository;
 
+import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.entity.Order;
+import com.delivery.SuAl.model.enums.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorType;
 import com.delivery.SuAl.model.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

@@ -28,7 +28,7 @@ public class CreateAddressByOperatorRequest {
 
     private String apartmentNumber;
 
-    private String postalCode;
+    private String district;
 
     @Digits(integer = 2, fraction = 8)
     private BigDecimal latitude;

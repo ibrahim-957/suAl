@@ -19,7 +19,7 @@ public class AddressResponse {
     private String street;
     private String buildingNumber;
     private String apartmentNumber;
-    private String postalCode;
+    private String district;
     private BigDecimal latitude;
     private BigDecimal longitude;
     private LocalDateTime createdAt;
