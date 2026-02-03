@@ -20,7 +20,7 @@ public class UpdateAddressRequest {
 
     private String apartmentNumber;
 
-    private String postalCode;
+    private String district;
 
     private BigDecimal  latitude;
 

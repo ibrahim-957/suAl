@@ -2,6 +2,7 @@ package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.model.enums.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,4 +30,27 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
             "LEFT JOIN FETCH o.company " +
             "WHERE o.user.email = :email")
     Optional<Operator> findByUserEmail(@Param("email") String email);
+
+    @Query("SELECT o FROM Operator o " +
+            "WHERE o.operatorStatus = :status " +
+            "AND o.company.id = :companyId")
+    List<Operator> findByOperatorStatusAndCompanyId(
+            @Param("status") OperatorStatus status,
+            @Param("companyId") Long companyId);
+
+    @Query("SELECT o FROM Operator o " +
+            "WHERE o.operatorStatus = :status " +
+            "AND o.operatorType = :operatorType")
+    List<Operator> findByOperatorStatusAndOperatorType(
+            @Param("status") OperatorStatus status,
+            @Param("operatorType") OperatorType operatorType
+    );
+
+    @Query("SELECT DISTINCT o FROM Operator o " +
+            "WHERE o.operatorStatus = :status " +
+            "AND (o.operatorType = 'SYSTEM' OR o.company.id IN :companyIds)")
+    List<Operator> findOperatorsToNotify(
+            @Param("status") OperatorStatus status,
+            @Param("companyIds") List<Long> companyIds
+    );
 }

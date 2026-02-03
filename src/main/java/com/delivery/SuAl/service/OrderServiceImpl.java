@@ -23,6 +23,7 @@ import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.mapper.OrderMapper;
 import com.delivery.SuAl.model.enums.NotificationType;
 import com.delivery.SuAl.model.enums.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorType;
 import com.delivery.SuAl.model.enums.OrderStatus;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
@@ -110,7 +111,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Placed Successfully",
             message = "'Your order #' + #result.orderNumber + ' has been placed successfully'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse createOrderByCustomer(String phoneNumber, CreateOrderByCustomerRequest request) {
@@ -123,8 +124,8 @@ public class OrderServiceImpl implements OrderService {
         OrderResponse response = createOrderInternal(customer, null, request.getAddressId(), request.getDeliveryDate(),
                 request.getItems(), request.getPromoCode(), request.getNote());
 
-        List<Operator> activeOperators = operatorRepository.findByOperatorStatus(OperatorStatus.ACTIVE);
-        for (Operator operator : activeOperators) {
+        List<Operator> operatorsToNotify = getOperatorsToNotifyForOrder(response.getId());
+        for (Operator operator : operatorsToNotify) {
             notificationService.createNotification(
                     NotificationRequest.builder()
                             .receiverType(ReceiverType.OPERATOR)
@@ -136,8 +137,9 @@ public class OrderServiceImpl implements OrderService {
                             .referenceId(response.getId())
                             .build()
             );
+            log.info("Notified {} operators about new order (SYSTEM operators + relevant company operators)",
+                    operatorsToNotify.size());
         }
-        log.info("Notified {} operators about new order", activeOperators.size());
 
         return response;
     }
@@ -150,7 +152,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Created",
             message = "'Your order #' + #result.orderNumber + ' has been placed successfully'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse createOrderByOperator(String operatorEmail, CreateOrderByOperatorRequest request) {
@@ -242,7 +244,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Driver Assigned",
             message = "'Driver has been assigned to your order #' + #result.orderNumber",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     @SendNotification(
@@ -251,7 +253,7 @@ public class OrderServiceImpl implements OrderService {
             title = "New Delivery Assignment",
             message = "'You have been assigned to order #' + #result.orderNumber",
             evaluateMessage = true,
-            receiverIdExpression = "#result.driver.id",
+            receiverIdExpression = "#result.driverId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse assignDriver(Long orderId, Long driverId) {
@@ -278,7 +280,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Approved",
             message = "'Your order #' + #result.orderNumber + ' has been approved and will be delivered soon'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse approveOrder(String operatorEmail, Long orderId) {
@@ -337,7 +339,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Cancelled",
             message = "'Your order #' + #result.orderNumber + ' has been cancelled'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse rejectOrderByCustomer(String phoneNumber, Long orderId, String reason) {
@@ -366,8 +368,8 @@ public class OrderServiceImpl implements OrderService {
         order.setRejectionReason(reason);
         Order savedOrder = orderRepository.save(order);
 
-        List<Operator> activeOperators = operatorRepository.findByOperatorStatus(OperatorStatus.ACTIVE);
-        for (Operator operator : activeOperators) {
+        List<Operator> operatorsToNotify = getOperatorsToNotifyForOrder(savedOrder.getId());
+        for (Operator operator : operatorsToNotify) {
             notificationService.createNotification(
                     NotificationRequest.builder()
                             .receiverType(ReceiverType.OPERATOR)
@@ -380,6 +382,7 @@ public class OrderServiceImpl implements OrderService {
                             .build()
             );
         }
+        log.info("Notified {} operators about order cancellation", operatorsToNotify.size());
 
         log.info("Order {} rejected by customer {}", orderId, customer.getId());
         return orderMapper.toResponse(savedOrder);
@@ -393,7 +396,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Rejected",
             message = "'Your order #' + #result.orderNumber + ' has been rejected'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse rejectOrderByOperator(String operatorEmail, Long orderId, String reason) {
@@ -470,7 +473,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Delivered",
             message = "'Your order #' + #result.orderNumber + ' has been delivered. Thank you!'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.customer.id",
+            receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
     )
     @SendNotification(
@@ -479,7 +482,7 @@ public class OrderServiceImpl implements OrderService {
             title = "Order Completed",
             message = "'Order #' + #result.orderNumber + ' has been completed by driver'",
             evaluateMessage = true,
-            receiverIdExpression = "#result.operator.id",
+            receiverIdExpression = "#result.operatorId",
             referenceIdExpression = "#result.id"
     )
     public OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest) {
@@ -627,7 +630,6 @@ public class OrderServiceImpl implements OrderService {
             log.info("Supplier operator requesting all orders - filtering by company ID: {}", companyId);
             orderPage = orderRepository.findByCompanyId(companyId, pageable);
         } else {
-            // System operators see all orders
             log.info("System operator requesting all orders - returning all");
             orderPage = orderRepository.findAll(pageable);
         }
@@ -1307,5 +1309,30 @@ public class OrderServiceImpl implements OrderService {
                 );
             }
         }
+    }
+
+    private List<Operator> getOperatorsToNotifyForOrder(Long orderId){
+        Order order = findOrderById(orderId);
+
+        List<Long> companyIds = order.getOrderDetails().stream()
+                .map(detail -> detail.getProduct().getCompany().getId())
+                .distinct()
+                .toList();
+
+        if(companyIds.isEmpty()){
+            log.warn("order {} has no products, notifying only SYSTEM operators", orderId);
+            return operatorRepository.findByOperatorStatusAndOperatorType(
+                    OperatorStatus.ACTIVE, OperatorType.SYSTEM
+            );
+        }
+
+        List<Operator> operators = operatorRepository.findOperatorsToNotify(
+                OperatorStatus.ACTIVE, companyIds
+        );
+
+        log.info("Order {} contains products from {} companies. Notifying {} operators (SYSTEM + company operators)",
+                orderId, companyIds.size(), operators.size());
+
+        return operators;
     }
 }
