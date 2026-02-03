@@ -24,4 +24,9 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
     boolean existsByEmail(@Param("email") String email);
 
     List<Operator> findByOperatorStatus(OperatorStatus operatorStatus);
+
+    @Query("SELECT o FROM Operator o " +
+            "LEFT JOIN FETCH o.company " +
+            "WHERE o.user.email = :email")
+    Optional<Operator> findByUserEmail(@Param("email") String email);
 }

@@ -56,6 +56,7 @@ import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.security.OperatorContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -158,6 +159,14 @@ public class OrderServiceImpl implements OrderService {
         Operator operator = operatorRepository.findByEmail(operatorEmail)
                 .orElseThrow(() -> new NotFoundException("Operator not found with email: " + operatorEmail));
 
+        if (OperatorContext.isSupplierOperator()){
+            for (CartItem item : request.getItems()) {
+                validateProductAccess(item.getProductId());
+            }
+            log.info("Supplier operator validated - all products belong to company: {}",
+                    OperatorContext.getCurrentCompanyId());
+        }
+
         Customer customer = findCustomerById(request.getCustomerId());
         return createOrderInternal(customer, operator, request.getAddressId(), request.getDeliveryDate(),
                 request.getItems(), request.getPromoCode(), request.getNotes());
@@ -169,6 +178,8 @@ public class OrderServiceImpl implements OrderService {
         log.info("Updating order for Customer {}", orderId);
 
         Order order = findOrderById(orderId);
+
+        validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
             throw new InvalidOrderStateException("Order must be PENDING to be updated");
@@ -190,6 +201,16 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (updateRequest.getItems() != null && !updateRequest.getItems().isEmpty()) {
+            if (OperatorContext.isSupplierOperator()) {
+                for (UpdateOrderItemRequest item : updateRequest.getItems()) {
+                    OrderDetail detail = order.getOrderDetails().stream()
+                            .filter(d -> d.getId().equals(item.getOrderDetailId()))
+                            .findFirst()
+                            .orElseThrow(() -> new NotFoundException("Order detail not found"));
+                    validateProductAccess(detail.getProduct().getId());
+                }
+            }
+
             updateOrderItems(order, updateRequest.getItems());
             needsRecalculation = true;
         }
@@ -209,6 +230,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse getOrderById(Long id) {
         log.info("Getting order {}", id);
         Order order = findOrderById(id);
+        validateOrderAccess(order);
         return orderMapper.toResponse(order);
     }
 
@@ -268,6 +290,8 @@ public class OrderServiceImpl implements OrderService {
             throw new UnauthorizedOperationException("Operator is not active with email: " + operatorEmail);
         }
         Order order = findOrderById(orderId);
+
+        validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
             throw new InvalidOrderStateException("Order must be PENDING before approving order");
@@ -383,6 +407,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Order order = findOrderById(orderId);
+
+        validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
             throw new InvalidOrderStateException("Order must be PENDING or APPROVED to reject");
@@ -570,7 +596,16 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getPendingOrders(Pageable pageable) {
         log.info("Getting pending orders with page: {}", pageable);
-        Page<Order> orderPage = orderRepository.findByOrderStatus(OrderStatus.PENDING, pageable);
+        Page<Order> orderPage;
+
+        if(OperatorContext.isSupplierOperator()){
+            Long companyId = OperatorContext.getCurrentCompanyId();
+            log.info("Supplier operator requesting pending orders - filtering by company ID: {}", companyId);
+            orderPage = orderRepository.findByOrderStatusAndCompanyId(OrderStatus.PENDING, companyId, pageable);
+        } else {
+            log.info("System operator requesting pending orders - returning all");
+            orderPage = orderRepository.findByOrderStatus(OrderStatus.PENDING, pageable);
+        }
 
         List<OrderResponse> responses = orderPage.getContent().stream()
                 .map(orderMapper::toResponse)
@@ -585,7 +620,17 @@ public class OrderServiceImpl implements OrderService {
     public PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable) {
         log.info("Getting all orders for management with page: {}", pageable);
 
-        Page<Order> orderPage = orderRepository.findAll(pageable);
+        Page<Order> orderPage;
+
+        if (OperatorContext.isSupplierOperator()) {
+            Long companyId = OperatorContext.getCurrentCompanyId();
+            log.info("Supplier operator requesting all orders - filtering by company ID: {}", companyId);
+            orderPage = orderRepository.findByCompanyId(companyId, pageable);
+        } else {
+            // System operators see all orders
+            log.info("System operator requesting all orders - returning all");
+            orderPage = orderRepository.findAll(pageable);
+        }
 
         List<Order> orders = orderPage.getContent();
 
@@ -618,6 +663,8 @@ public class OrderServiceImpl implements OrderService {
         log.info("Getting driver collection info for order {}", orderId);
 
         Order order = findOrderById(orderId);
+
+        validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.APPROVED) {
             throw new InvalidOrderStateException(
@@ -1230,6 +1277,34 @@ public class OrderServiceImpl implements OrderService {
             } catch (Exception e) {
                 log.error("Failed to refund payment for order {}", order.getId(), e);
                 throw new PaymentRefundException("Could not process refund: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private void validateProductAccess(Long productId){
+        if (OperatorContext.isSupplierOperator()){
+            Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
+            Product product = findProductById(productId);
+
+            if(!product.getCompany().getId().equals(operatorCompanyId)){
+                throw new UnauthorizedOperationException(
+                        "You don't have permission to create orders with products from other companies"
+                );
+            }
+        }
+    }
+
+    private void validateOrderAccess(Order order){
+        if (OperatorContext.isSupplierOperator()){
+            Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
+
+            boolean hasCompanyProducts = order.getOrderDetails().stream()
+                    .anyMatch(detail -> detail.getProduct().getId().equals(operatorCompanyId));
+
+            if(!hasCompanyProducts){
+                throw new UnauthorizedOperationException(
+                        "You don't have permission to access this order. It doesn't contain products from your company."
+                );
             }
         }
     }

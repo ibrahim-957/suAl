@@ -20,12 +20,16 @@ public interface OperatorMapper {
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "company", ignore = true)
+    @Mapping(target = "operatorType", ignore = true)
     void updateEntityFromRequest(UpdateOperatorRequest updateOperatorRequest,
                                  @MappingTarget Operator operator);
 
     @Mapping(source = "user.id", target = "userId")
     @Mapping(source = "user.email", target = "email")
     @Mapping(source = "user.phoneNumber", target = "phoneNumber")
+    @Mapping(source = "company.id", target = "companyId")
+    @Mapping(source = "company.name", target = "companyName")
     OperatorResponse toResponse(Operator operator);
 
     List<OperatorResponse> toResponseList(List<Operator> operators);

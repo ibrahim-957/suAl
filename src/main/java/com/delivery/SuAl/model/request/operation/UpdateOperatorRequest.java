@@ -1,6 +1,7 @@
 package com.delivery.SuAl.model.request.operation;
 
 import com.delivery.SuAl.model.enums.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
@@ -22,4 +23,8 @@ public class UpdateOperatorRequest {
     private String phoneNumber;
 
     private OperatorStatus operatorStatus;
+
+    private OperatorType operatorType;
+
+    private Long companyId;
 }

@@ -51,4 +51,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("SELECT o FROM Order o WHERE o.driver.id = :driverId ORDER BY o.createdAt DESC")
     Page<Order> findDriverOrdersOrderByDateDesc(@Param("driverId") Long driverId, Pageable pageable);
+
+    @Query("SELECT DISTINCT o FROM Order o " +
+            "JOIN o.orderDetails od " +
+            "WHERE o.orderStatus = :status " +
+            "AND od.product.company.id = :companyId")
+    Page<Order> findByOrderStatusAndCompanyId(
+            @Param("status") OrderStatus status,
+            @Param("companyId") Long companyId,
+            Pageable pageable
+    );
+
+    @Query("SELECT DISTINCT o FROM Order o " +
+            "JOIN o.orderDetails od " +
+            "WHERE od.product.company.id = :companyId")
+    Page<Order> findByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
 }

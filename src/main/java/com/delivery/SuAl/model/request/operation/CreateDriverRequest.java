@@ -27,6 +27,6 @@ public class CreateDriverRequest {
     private String phoneNumber;
 
     @NotBlank
-    @Size(min = 8)
+    @Size(min = 6)
     private String password;
 }
