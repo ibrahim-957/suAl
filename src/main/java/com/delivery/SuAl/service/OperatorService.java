@@ -5,6 +5,7 @@ import com.delivery.SuAl.model.request.operation.UpdateOperatorRequest;
 import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.operation.OperatorResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
+import com.delivery.SuAl.security.OperatorInfo;
 import org.springframework.data.domain.Pageable;
 
 public interface OperatorService {
@@ -18,4 +19,5 @@ public interface OperatorService {
 
     PageResponse<OperatorResponse> getAllOperators(Pageable pageable);
 
+    OperatorInfo getOperatorInfo(String email);
 }

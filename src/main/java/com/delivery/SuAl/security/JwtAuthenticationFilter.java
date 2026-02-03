@@ -1,5 +1,8 @@
 package com.delivery.SuAl.security;
 
+import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.model.enums.UserRole;
+import com.delivery.SuAl.repository.OperatorRepository;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -25,6 +28,7 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final OperatorRepository operatorRepository;
 
     @Override
     protected void doFilterInternal(
@@ -32,6 +36,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
+
+        OperatorContext.clear();
+
         if (request.getServletPath().contains("/api/auth")) {
             filterChain.doFilter(request, response);
             return;
@@ -64,6 +71,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new WebAuthenticationDetailsSource().buildDetails(request)
                     );
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                    if (userDetails instanceof User user) {
+                        if (user.getRole() == UserRole.OPERATOR) {
+                            setOperatorContext(user);
+                        }
+                    }
                 }
             }
         } catch (ExpiredJwtException ex) {
@@ -81,7 +94,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception ex) {
             log.error("Unexpected authentication error: {}", ex.getMessage(), ex);
         }
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            OperatorContext.clear();
+        }
+    }
 
-        filterChain.doFilter(request, response);
+    private void setOperatorContext(User user) {
+        try {
+            operatorRepository.findByUserEmail(user.getEmail())
+                    .ifPresent(operator -> {
+                        OperatorInfo operatorInfo = OperatorInfo.builder()
+                                .operatorId(operator.getId())
+                                .companyId(operator.getCompany() != null ? operator.getCompany().getId() : null)
+                                .operatorType(operator.getOperatorType())
+                                .email(user.getEmail())
+                                .firstName(operator.getFirstName())
+                                .lastName(operator.getLastName())
+                                .build();
+
+                        OperatorContext.setCurrentOperator(operatorInfo);
+
+                        log.debug("Operator context established: {} (Type: {}, Company: {})",
+                                operatorInfo.getEmail(),
+                                operatorInfo.getOperatorType(),
+                                operatorInfo.getCompanyId());
+                    });
+        } catch (Exception ex) {
+            log.error("Failed to set operator context for user: {}", user.getEmail(), ex);
+        }
     }
 }

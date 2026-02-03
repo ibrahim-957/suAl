@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.request.operation;
 
+import com.delivery.SuAl.model.enums.OperatorType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -27,6 +28,10 @@ public class CreateOperatorRequest {
     private String phoneNumber;
 
     @NotBlank
-    @Size(min = 8)
+    @Size(min =6)
     private String password;
+
+    private OperatorType operatorType;
+
+    private Long companyId;
 }

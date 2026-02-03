@@ -7,6 +7,7 @@ import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.exception.UnauthorizedOperationException;
 import com.delivery.SuAl.mapper.ProductMapper;
 import com.delivery.SuAl.model.request.product.CreatePriceRequest;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
@@ -20,6 +21,7 @@ import com.delivery.SuAl.repository.CompanyRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.WarehouseRepository;
 import com.delivery.SuAl.repository.WarehouseStockRepository;
+import com.delivery.SuAl.security.OperatorContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -50,6 +52,16 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request, MultipartFile image) {
         log.info("Creating new product with name: {}", request.getName());
+
+        if (OperatorContext.isSupplierOperator()){
+            Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
+            if (!operatorCompanyId.equals(request.getCompanyId())){
+                throw new UnauthorizedOperationException(
+                        "Supplier operators can only create products for their own company (ID: " + operatorCompanyId + ")"
+                );
+            }
+            log.info("Supplier operator creating product for their company: {}", operatorCompanyId);
+        }
 
         Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
                 .orElseThrow(() -> new NotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
@@ -106,6 +118,15 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
+        if (OperatorContext.isSupplierOperator()){
+            Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
+            if (!product.getCompany().getId().equals(operatorCompanyId)) {
+                throw new UnauthorizedOperationException(
+                        "You don't have permission to view this product. It belongs to a different company."
+                );
+            }
+        }
+
         ProductResponse response = productMapper.toResponse(product);
         enrichWithPriceData(response, product.getId());
         return response;
@@ -117,6 +138,21 @@ public class ProductServiceImpl implements ProductService {
 
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
+
+        if (OperatorContext.isSupplierOperator()){
+            Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
+            if (!product.getCompany().getId().equals(operatorCompanyId)) {
+                throw new UnauthorizedOperationException(
+                        "You don't have permission to update this product. It belongs to a different company."
+                );
+            }
+
+            if (request.getCompanyId() != null && !request.getCompanyId().equals(operatorCompanyId)) {
+                throw new UnauthorizedOperationException(
+                        "Supplier operators cannot change the company of a product"
+                );
+            }
+        }
 
         productMapper.updateEntityFromRequest(request, product);
 
@@ -183,6 +219,15 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
+        if (OperatorContext.isSupplierOperator()){
+            Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
+            if (!product.getCompany().getId().equals(operatorCompanyId)) {
+                throw new UnauthorizedOperationException(
+                        "You don't have permission to delete this product. It belongs to a different company."
+                );
+            }
+        }
+
         if (product.getImageUrl() != null) {
             try {
                 imageUploadService.deleteImage(product.getImageUrl());
@@ -198,7 +243,16 @@ public class ProductServiceImpl implements ProductService {
     public PageResponse<ProductResponse> getAllProducts(Pageable pageable) {
         log.info("Getting all products with page: {}", pageable);
 
-        Page<Product> productPage = productRepository.findAll(pageable);
+        Page<Product> productPage;
+
+        if (OperatorContext.isSupplierOperator()){
+            Long companyId = OperatorContext.getCurrentCompanyId();
+            log.info("Supplier operator requesting products - filtering by company ID: {}", companyId);
+            productPage = productRepository.findByCompanyId(companyId, pageable);
+        } else {
+            log.info("System operator requesting products - returning all products");
+            productPage = productRepository.findAll(pageable);
+        }
 
         List<Product> products = productPage.getContent();
 
