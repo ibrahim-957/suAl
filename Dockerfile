@@ -12,18 +12,11 @@ RUN chmod +x gradlew
 # 3. Copy build configuration
 COPY build.gradle settings.gradle ./
 
-# 4. Download dependencies
-RUN ./gradlew dependencies --no-daemon
-
 # Copy source code
 COPY src ./src
 
 # Build the application
 RUN ./gradlew clean build -x test --no-daemon
-
-# Stage 2: Runtime
-FROM eclipse-temurin:21-jre-alpine
-WORKDIR /app
 
 # Create a non-root customer for security
 RUN addgroup -S spring && adduser -S spring -G spring
