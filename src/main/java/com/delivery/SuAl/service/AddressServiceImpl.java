@@ -82,10 +82,7 @@ public class AddressServiceImpl implements AddressService {
     @Override
     public void deleteAddress(Long id) {
         log.info("Deleting address with ID: {}", id);
-        Address address = addressRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Address not found with id: " + id));
-        address.setIsActive(false);
-        addressRepository.save(address);
+        addressRepository.deleteById(id);
         log.info("Address deleted successfully with ID: {}", id);
     }
 
