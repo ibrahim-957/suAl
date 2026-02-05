@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -43,8 +44,19 @@ public class OperatorServiceImpl implements OperatorService {
     public AuthenticationResponse createOperator(CreateOperatorRequest createOperatorRequest) {
         log.info("Creating new operator with email: {}", createOperatorRequest.getEmail());
 
-        if (operatorRepository.findByEmail(createOperatorRequest.getEmail()).isPresent()) {
-            throw new AlreadyExistsException("Email already exists: " + createOperatorRequest.getEmail());
+        Optional<Operator> existingInactiveOperator = operatorRepository
+                .findByEmailIncludingInactive(createOperatorRequest.getEmail());
+
+        if (existingInactiveOperator.isPresent()) {
+            Operator inactiveOperator = existingInactiveOperator.get();
+
+            if (inactiveOperator.getOperatorStatus() == OperatorStatus.INACTIVE &&
+                    inactiveOperator.getUser() == null) {
+                log.info("Reactivating existing INACTIVE operator with ID: {}", inactiveOperator.getId());
+                return reactivateOperator(inactiveOperator, createOperatorRequest);
+            } else if (inactiveOperator.getOperatorStatus() == OperatorStatus.ACTIVE) {
+                throw new AlreadyExistsException("Email already exists: " + createOperatorRequest.getEmail());
+            }
         }
 
         if (operatorRepository.findByPhoneNumber(createOperatorRequest.getPhoneNumber()).isPresent()) {
@@ -56,9 +68,10 @@ public class OperatorServiceImpl implements OperatorService {
         operator.setLastName(createOperatorRequest.getLastName());
         operator.setOperatorStatus(OperatorStatus.ACTIVE);
 
-        OperatorType operatorType = createOperatorRequest.getOperatorType() != null
-                ? createOperatorRequest.getOperatorType()
-                : OperatorType.SYSTEM;
+        OperatorType operatorType = determineOperatorType(
+                createOperatorRequest.getOperatorType(),
+                createOperatorRequest.getCompanyId()
+        );
         operator.setOperatorType(operatorType);
 
         if (operatorType == OperatorType.SUPPLIER) {
@@ -168,13 +181,17 @@ public class OperatorServiceImpl implements OperatorService {
                 .orElseThrow(() -> new NotFoundException("Operator with id " + id + " not found"));
 
         operator.setOperatorStatus(OperatorStatus.INACTIVE);
+        operatorRepository.save(operator);
 
         if (operator.getUser() != null) {
-            userRepository.delete(operator.getUser());
+            User user = operator.getUser();
+            operator.setUser(null);
+
+            operatorRepository.save(operator);
+
+            userRepository.delete(user);
             log.info("Deleted User associated with Operator {}", id);
         }
-
-        operatorRepository.save(operator);
         log.info("Operator deleted with id: {}", id);
     }
 
@@ -203,5 +220,64 @@ public class OperatorServiceImpl implements OperatorService {
                         .lastName(operator.getLastName())
                         .build())
                 .orElse(null);
+    }
+
+    private AuthenticationResponse reactivateOperator(Operator operator, CreateOperatorRequest request) {
+        operator.setFirstName(request.getFirstName());
+        operator.setLastName(request.getLastName());
+        operator.setOperatorStatus(OperatorStatus.ACTIVE);
+
+        OperatorType operatorType = determineOperatorType(
+                request.getOperatorType(), request.getCompanyId()
+        );
+
+        operator.setOperatorType(operatorType);
+
+        if (operatorType == OperatorType.SUPPLIER) {
+            if (request.getCompanyId() == null) {
+                throw new IllegalArgumentException("Company Id is required for SUPPLIER operators");
+            }
+
+            Company company = companyRepository.findById(request.getCompanyId())
+                    .orElseThrow(() -> new NotFoundException("Company not found with Id: " + request.getCompanyId()));
+            operator.setCompany(company);
+            log.info("Reactivating SUPPLIER operator for company: {}", company.getName());
+        } else {
+            operator.setCompany(null);
+            log.info("Reactivating SYSTEM operator");
+        }
+
+        AuthenticationResponse response = authenticationService.createUser(
+                request.getEmail(),
+                request.getPhoneNumber(),
+                request.getPassword(),
+                UserRole.OPERATOR,
+                null
+        );
+
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new NotFoundException("User not found after creation"));
+
+        operator.setUser(user);
+        operatorRepository.save(operator);
+
+        user.setTargetId(operator.getId());
+        userRepository.save(user);
+
+        log.info("Operator reactivated successfully with ID: {}", operator.getId());
+
+        return response;
+    }
+
+    private OperatorType determineOperatorType(OperatorType requestedType, Long companyId) {
+        if (requestedType != null){
+            return requestedType;
+        }
+
+        if (companyId != null) {
+            return OperatorType.SUPPLIER;
+        }
+
+        return OperatorType.SYSTEM;
     }
 }

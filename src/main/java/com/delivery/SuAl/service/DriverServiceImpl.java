@@ -147,7 +147,7 @@ public class DriverServiceImpl implements DriverService {
             log.info("Deleted User associated with Driver {}", id);
         }
 
-        driverRepository.save(driver);
+        driverRepository.deleteById(id);
         log.info("Driver deleted successfully");
     }
 
