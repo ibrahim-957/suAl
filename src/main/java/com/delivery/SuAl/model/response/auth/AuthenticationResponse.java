@@ -17,4 +17,5 @@ public class AuthenticationResponse {
     private Long expiresIn;
     private Long userId;
     private UserRole role;
+    private Long targetId;
 }
