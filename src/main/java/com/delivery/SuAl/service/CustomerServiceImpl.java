@@ -82,6 +82,8 @@ public class CustomerServiceImpl implements CustomerService {
         user.setTargetId(savedCustomer.getId());
         userRepository.save(user);
 
+        response.setTargetId(savedCustomer.getId());
+
         log.info("Customer created successfully with ID: {} and linked to User", savedCustomer.getId());
 
         return response;
@@ -203,6 +205,8 @@ public class CustomerServiceImpl implements CustomerService {
 
             user.setTargetId(customer.getId());
             userRepository.save(user);
+
+            response.setTargetId(customer.getId());
 
             log.info("Customer reactivated successfully with ID: {}", customer.getId());
 

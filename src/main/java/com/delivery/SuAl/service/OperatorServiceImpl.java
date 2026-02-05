@@ -106,6 +106,9 @@ public class OperatorServiceImpl implements OperatorService {
         user.setTargetId(savedOperator.getId());
         userRepository.save(user);
 
+        response.setTargetId(savedOperator.getId());
+
+
         log.info("Operator created successfully with ID: {} and linked to User", savedOperator.getId());
 
         return response;
@@ -263,6 +266,8 @@ public class OperatorServiceImpl implements OperatorService {
 
         user.setTargetId(operator.getId());
         userRepository.save(user);
+
+        response.setTargetId(operator.getId());
 
         log.info("Operator reactivated successfully with ID: {}", operator.getId());
 

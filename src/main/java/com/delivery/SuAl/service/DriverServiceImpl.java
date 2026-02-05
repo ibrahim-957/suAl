@@ -77,6 +77,9 @@ public class DriverServiceImpl implements DriverService {
 
         user.setTargetId(savedDriver.getId());
         userRepository.save(user);
+
+        response.setTargetId(savedDriver.getId());
+
         log.info("Driver created successfully with ID: {} and linked to User", savedDriver.getId());
 
         return response;

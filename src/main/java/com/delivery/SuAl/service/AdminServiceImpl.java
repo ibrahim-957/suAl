@@ -64,6 +64,9 @@ public class AdminServiceImpl implements AdminService {
         user.setTargetId(savedAdmin.getId());
         userRepository.save(user);
 
+        response.setTargetId(savedAdmin.getId());
+
+
         log.info("Admin created successfully with ID: {} and linked to User", savedAdmin.getId());
 
         return response;
