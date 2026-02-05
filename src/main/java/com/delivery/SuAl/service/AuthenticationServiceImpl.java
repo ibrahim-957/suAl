@@ -75,6 +75,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .tokenType("Bearer")
                 .expiresIn(3600L)
                 .userId(savedUser.getId())
+                .targetId(savedUser.getTargetId())
                 .role(role)
                 .build();
     }
