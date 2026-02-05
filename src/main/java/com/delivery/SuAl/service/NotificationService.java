@@ -11,6 +11,8 @@ import java.util.List;
 public interface NotificationService {
     NotificationResponse createNotification(NotificationRequest request);
 
+    List<NotificationResponse> createNotificationsBatch(List<NotificationRequest> requests);
+
     NotificationResponse getNotificationById(Long id);
 
     List<NotificationResponse> getNotificationsByReceiver(ReceiverType receiverType, Long receiverId);

@@ -125,9 +125,10 @@ public class OrderServiceImpl implements OrderService {
                 request.getItems(), request.getPromoCode(), request.getNote());
 
         List<Operator> operatorsToNotify = getOperatorsToNotifyForOrder(response.getId());
-        for (Operator operator : operatorsToNotify) {
-            notificationService.createNotification(
-                    NotificationRequest.builder()
+
+        if (!operatorsToNotify.isEmpty()) {
+            List<NotificationRequest> operatorNotifications = operatorsToNotify.stream()
+                    .map(operator -> NotificationRequest.builder()
                             .receiverType(ReceiverType.OPERATOR)
                             .receiverId(operator.getId())
                             .notificationType(NotificationType.ORDER)
@@ -135,8 +136,11 @@ public class OrderServiceImpl implements OrderService {
                             .message("New order #" + response.getOrderNumber() + " from " +
                                     customer.getFirstName() + " " + customer.getLastName())
                             .referenceId(response.getId())
-                            .build()
-            );
+                            .build())
+                    .collect(Collectors.toList());
+
+            notificationService.createNotificationsBatch(operatorNotifications);
+
             log.info("Notified {} operators about new order (SYSTEM operators + relevant company operators)",
                     operatorsToNotify.size());
         }

@@ -76,7 +76,7 @@ public class NotificationAspect {
                         .getValue(context, String.class);
             }
 
-            if (receiverId != null) {
+            if (receiverId != null && receiverId > 0) {
                 try {
                     notificationService.createNotification(
                             NotificationRequest.builder()
