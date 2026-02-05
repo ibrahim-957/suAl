@@ -122,6 +122,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     .expiresIn(3600L)
                     .userId(user.getId())
                     .role(user.getRole())
+                    .targetId(user.getTargetId())
                     .build();
         } else {
             throw new NotFoundException("User not found");
@@ -152,6 +153,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                         .expiresIn(3600L)
                         .userId(user.getId())
                         .role(user.getRole())
+                        .targetId(user.getTargetId())
                         .build();
             }
         }
