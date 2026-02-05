@@ -1,6 +1,7 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Notification;
+import com.delivery.SuAl.event.NotificationCreatedEvent;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.NotificationMapper;
 import com.delivery.SuAl.model.enums.ReceiverType;
@@ -10,6 +11,7 @@ import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,7 +26,7 @@ import java.util.stream.Collectors;
 public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationMapper notificationMapper;
-    private final PushNotificationService pushNotificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -33,7 +35,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         Notification savedNotification = notificationRepository.save(notification);
 
-        pushNotificationService.sendPushNotification(savedNotification.getId());
+        eventPublisher.publishEvent(new NotificationCreatedEvent(savedNotification.getId()));
 
         return notificationMapper.toResponse(savedNotification);
     }
@@ -48,8 +50,9 @@ public class NotificationServiceImpl implements NotificationService {
         List<Notification> savedNotifications = notificationRepository.saveAll(notifications);
 
         savedNotifications.forEach(notification ->
-                pushNotificationService.sendPushNotification(notification.getId())
+               eventPublisher.publishEvent(new NotificationCreatedEvent(notification.getId()))
         );
+
 
         return notificationMapper.toResponseList(savedNotifications);
     }
