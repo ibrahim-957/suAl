@@ -3,6 +3,8 @@ package com.delivery.SuAl.repository;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.model.enums.OperatorStatus;
 import com.delivery.SuAl.model.enums.OperatorType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,22 +23,11 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
             "WHERE u.phoneNumber =:phoneNumber")
     Optional<Operator> findByPhoneNumber (@Param("phoneNumber") String phoneNumber);
 
-    @Query("SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END FROM Operator o JOIN o.user u WHERE u.email = :email")
-    boolean existsByEmail(@Param("email") String email);
-
-    List<Operator> findByOperatorStatus(OperatorStatus operatorStatus);
-
     @Query("SELECT o FROM Operator o " +
             "LEFT JOIN FETCH o.company " +
             "WHERE o.user.email = :email")
     Optional<Operator> findByUserEmail(@Param("email") String email);
 
-    @Query("SELECT o FROM Operator o " +
-            "WHERE o.operatorStatus = :status " +
-            "AND o.company.id = :companyId")
-    List<Operator> findByOperatorStatusAndCompanyId(
-            @Param("status") OperatorStatus status,
-            @Param("companyId") Long companyId);
 
     @Query("SELECT o FROM Operator o " +
             "WHERE o.operatorStatus = :status " +
@@ -53,4 +44,11 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
             @Param("status") OperatorStatus status,
             @Param("companyIds") List<Long> companyIds
     );
+
+    @Query("SELECT o FROM Operator o WHERE o.user.email = :email")
+    Optional<Operator> findByEmailIncludingInactive(@Param("email") String email);
+
+    @Query("SELECT o FROM Operator o WHERE o.user.phoneNumber = :phoneNumber")
+    Optional<Operator> findByPhoneNumberIncludingInactive(@Param("phoneNumber") String phoneNumber);
+
 }

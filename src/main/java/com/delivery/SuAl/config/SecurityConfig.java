@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/companies/**").permitAll()
                         .requestMatchers("/v1/api/cart/**").permitAll()
                         .requestMatchers("/v1/api/promos/validate").permitAll()
-                        .requestMatchers("/v1/api/customer").permitAll()
+                        .requestMatchers("/v1/api/customer/**").permitAll()
                         .requestMatchers("/v1/api/payment/callback").permitAll()
 
                         .requestMatchers("/v1/api/admins/**").hasRole("ADMIN")
@@ -58,7 +58,9 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/warehouses/*/products/*/containers/**").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/warehouses/**").hasRole("ADMIN")
 
-                        .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
+
+                        .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR", "CUSTOMER")
                         .requestMatchers("/v1/api/drivers/**").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/operators/**").hasRole("ADMIN")
 
@@ -75,8 +77,6 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/orders/my-orders").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/customer/*/reject").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/*").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
-
-                        .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
 
                         .requestMatchers("/v1/api/payment/**").hasAnyRole("ADMIN", "CUSTOMER")
 

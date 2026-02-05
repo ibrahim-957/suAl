@@ -45,7 +45,7 @@ public class AddressController {
                 .body(response);
     }
 
-    @PostMapping("/{customerId}/operator")
+    @PostMapping("/operator/{customerId}")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
             @Valid @RequestBody CreateAddressByOperatorRequest createAddressByOperatorRequest
     ) {

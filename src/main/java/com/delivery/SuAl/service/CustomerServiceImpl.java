@@ -41,57 +41,20 @@ public class CustomerServiceImpl implements CustomerService {
     public AuthenticationResponse createCustomer(CreateCustomerRequest createCustomerRequest) {
         log.info("Creating new customer with phone number {}", createCustomerRequest.getPhoneNumber());
 
-        Optional<User> existingUser = userRepository.findByPhoneNumber(createCustomerRequest.getPhoneNumber());
+        Optional<Customer> existingCustomer = customerRepository
+                .findByPhoneNumberIncludingInactive(createCustomerRequest.getPhoneNumber());
 
-        if (existingUser.isPresent()) {
-            log.warn("User already exists with phone number: {}", createCustomerRequest.getPhoneNumber());
-            throw new AlreadyExistsException(
-                    "An account already exists with phone number: " + createCustomerRequest.getPhoneNumber() +
-                            ". Please login instead."
-            );
-        }
+        if (existingCustomer.isPresent()) {
+            Customer customer = existingCustomer.get();
 
-        Optional<Customer> inactiveCustomer = customerRepository
-                .findByPhoneNumber(createCustomerRequest.getPhoneNumber())
-                .filter(c -> !c.getIsActive());
-
-        if (inactiveCustomer.isPresent()) {
-            log.info("Reactivating inactive customer with phone number {}", createCustomerRequest.getPhoneNumber());
-            Customer customer = inactiveCustomer.get();
-
-            customer.setFirstName(createCustomerRequest.getFirstName());
-            customer.setLastName(createCustomerRequest.getLastName());
-            customer.setIsActive(true);
-
-            Customer savedCustomer = customerRepository.save(customer);
-
-            User user = customer.getUser();
-            if (user != null) {
-                log.info("Reactivating existing user for customer {}", savedCustomer.getId());
-
-                return AuthenticationResponse.builder()
-                        .accessToken(jwtService.generateToken(user))
-                        .refreshToken(jwtService.generateRefreshToken(user))
-                        .tokenType("Bearer")
-                        .expiresIn(3600L)
-                        .userId(user.getId())
-                        .build();
+            if (!customer.getIsActive()) {
+                log.info("Reactivating existing INACTIVE customer with ID: {}", customer.getId());
+                return reactivateCustomer(customer, createCustomerRequest);
             } else {
-                log.info("Creating new user for reactivated customer {}", savedCustomer.getId());
-                AuthenticationResponse response = authenticationService.createUser(
-                        createCustomerRequest.getPhoneNumber(),
-                        createCustomerRequest.getPassword(),
-                        UserRole.CUSTOMER,
-                        savedCustomer.getId()
+                throw new AlreadyExistsException(
+                        "An account already exists with phone number: " + createCustomerRequest.getPhoneNumber() +
+                                ". Please login instead."
                 );
-
-                user = userRepository.findByPhoneNumber(createCustomerRequest.getPhoneNumber())
-                        .orElseThrow(() -> new NotFoundException("User not found after creation"));
-
-                savedCustomer.setUser(user);
-                customerRepository.save(savedCustomer);
-
-                return response;
             }
         }
 
@@ -101,6 +64,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setIsActive(true);
 
         AuthenticationResponse response = authenticationService.createUser(
+                null,
                 createCustomerRequest.getPhoneNumber(),
                 createCustomerRequest.getPassword(),
                 UserRole.CUSTOMER,
@@ -166,14 +130,18 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> new NotFoundException("Customer not found with id " + id));
 
         customer.setIsActive(false);
+        customerRepository.save(customer);
 
         if (customer.getUser() != null) {
-            userRepository.delete(customer.getUser());
+            User user = customer.getUser();
+            customer.setUser(null);
+            customerRepository.save(customer);
+
+            userRepository.delete(user);
             log.info("Deleted User associated with Customer {}", id);
         }
 
-        customerRepository.save(customer);
-        log.info("Customer deleted successfully with id: {}", id);
+        log.info("Customer soft deleted with id: {}", id);
     }
 
     @Override
@@ -194,5 +162,51 @@ public class CustomerServiceImpl implements CustomerService {
         log.info("Fetching customer entity by id: {}", id);
         return customerRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Customer not found with id " + id));
+    }
+
+    private AuthenticationResponse reactivateCustomer(Customer customer, CreateCustomerRequest request) {
+        customer.setFirstName(request.getFirstName());
+        customer.setLastName(request.getLastName());
+        customer.setIsActive(true);
+
+        if (customer.getUser() != null) {
+            log.info("User still exists for inactive customer, reactivating with existing credentials");
+
+            customerRepository.save(customer);
+
+            User user = customer.getUser();
+
+            return AuthenticationResponse.builder()
+                    .accessToken(jwtService.generateToken(user))
+                    .refreshToken(jwtService.generateRefreshToken(user))
+                    .tokenType("Bearer")
+                    .expiresIn(3600L)
+                    .userId(user.getId())
+                    .role(UserRole.CUSTOMER)
+                    .build();
+        } else {
+            log.info("Creating new user for reactivated customer {}", customer.getId());
+
+            AuthenticationResponse response = authenticationService.createUser(
+                    null,
+                    request.getPhoneNumber(),
+                    request.getPassword(),
+                    UserRole.CUSTOMER,
+                    null
+            );
+
+            User user = userRepository.findByPhoneNumber(request.getPhoneNumber())
+                    .orElseThrow(() -> new NotFoundException("User not found after creation"));
+
+            customer.setUser(user);
+            customerRepository.save(customer);
+
+            user.setTargetId(customer.getId());
+            userRepository.save(user);
+
+            log.info("Customer reactivated successfully with ID: {}", customer.getId());
+
+            return response;
+        }
     }
 }

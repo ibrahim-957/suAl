@@ -1,0 +1,11 @@
+ALTER TABLE admins
+    ALTER COLUMN user_id DROP NOT NULL;
+
+ALTER TABLE customers
+    ALTER COLUMN user_id DROP NOT NULL;
+
+ALTER TABLE operators
+    ALTER COLUMN user_id DROP NOT NULL;
+
+ALTER TABLE drivers
+    ALTER COLUMN user_id DROP NOT NULL;
