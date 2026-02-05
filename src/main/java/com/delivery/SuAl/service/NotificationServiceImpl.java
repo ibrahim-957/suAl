@@ -9,6 +9,7 @@ import com.delivery.SuAl.model.response.notification.NotificationResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,20 +20,38 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationMapper notificationMapper;
     private final PushNotificationService pushNotificationService;
 
     @Override
+    @Transactional
     public NotificationResponse createNotification(NotificationRequest request) {
         Notification notification = notificationMapper.toEntity(request);
 
         Notification savedNotification = notificationRepository.save(notification);
 
-        pushNotificationService.sendPushNotification(savedNotification);
+        pushNotificationService.sendPushNotification(savedNotification.getId());
 
         return notificationMapper.toResponse(savedNotification);
+    }
+
+    @Override
+    @Transactional
+    public List<NotificationResponse> createNotificationsBatch(List<NotificationRequest> requests) {
+        List<Notification> notifications = requests.stream()
+                .map(notificationMapper::toEntity)
+                .collect(Collectors.toList());
+
+        List<Notification> savedNotifications = notificationRepository.saveAll(notifications);
+
+        savedNotifications.forEach(notification ->
+                pushNotificationService.sendPushNotification(notification.getId())
+        );
+
+        return notificationMapper.toResponseList(savedNotifications);
     }
 
     @Override
@@ -59,7 +78,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public PageResponse<NotificationResponse> getNotificationsByReceiverPaginated(
             ReceiverType receiverType, Long receiverId, Pageable pageable) {
-        Page<Notification> notifications = notificationRepository.findAll(pageable);
+        Page<Notification> notifications = notificationRepository
+                .findByReceiverTypeAndReceiverId(receiverType, receiverId, pageable);
 
         List<NotificationResponse> responses = notifications.getContent().stream()
                 .map(notificationMapper::toResponse)
@@ -88,10 +108,9 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public void markAllAsRead(ReceiverType receiverType, Long receiverId) {
-        List<Notification> unreadNotifications = notificationRepository
-                .findByReceiverTypeAndReceiverIdAndIsReadOrderByCreatedAtDesc(receiverType, receiverId, false);
-        unreadNotifications.forEach(notification -> notification.setIsRead(true));
-        notificationRepository.saveAll(unreadNotifications);
+        int updatedCount = notificationRepository.markAllAsReadBulk(receiverType, receiverId);
+        log.info("Marked {} notifications as read for receiver: {} ({})",
+                updatedCount, receiverId, receiverType);
     }
 
     @Override

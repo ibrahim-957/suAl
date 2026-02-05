@@ -42,7 +42,7 @@ public class DeviceTokenController {
             ){
         List<DeviceTokenResponse> responses = deviceTokenService.getActiveTokensByReceiver(receiverType, receiverId);
         return ResponseEntity
-                .status(HttpStatus.CREATED)
+                .status(HttpStatus.OK)
                 .body(ApiResponse.success(responses));
     }
 
