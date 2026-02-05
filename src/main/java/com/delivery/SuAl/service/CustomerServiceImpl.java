@@ -82,7 +82,15 @@ public class CustomerServiceImpl implements CustomerService {
         user.setTargetId(savedCustomer.getId());
         userRepository.save(user);
 
-        response.setTargetId(savedCustomer.getId());
+        response = AuthenticationResponse.builder()
+                .accessToken(response.getAccessToken())
+                .refreshToken(response.getRefreshToken())
+                .tokenType(response.getTokenType())
+                .expiresIn(response.getExpiresIn())
+                .userId(response.getUserId())
+                .role(response.getRole())
+                .targetId(savedCustomer.getId())
+                .build();
 
         log.info("Customer created successfully with ID: {} and linked to User", savedCustomer.getId());
 
@@ -206,7 +214,15 @@ public class CustomerServiceImpl implements CustomerService {
             user.setTargetId(customer.getId());
             userRepository.save(user);
 
-            response.setTargetId(customer.getId());
+            response = AuthenticationResponse.builder()
+                    .accessToken(response.getAccessToken())
+                    .refreshToken(response.getRefreshToken())
+                    .tokenType(response.getTokenType())
+                    .expiresIn(response.getExpiresIn())
+                    .userId(response.getUserId())
+                    .role(response.getRole())
+                    .targetId(customer.getId())
+                    .build();
 
             log.info("Customer reactivated successfully with ID: {}", customer.getId());
 
