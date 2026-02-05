@@ -192,7 +192,7 @@ public class Campaign {
 
     public boolean canBeUsed() {
         if (maxTotalUses == null) {
-            return true; // No limit set
+            return true;
         }
         return currentTotalUses < maxTotalUses;
     }
@@ -205,7 +205,7 @@ public class Campaign {
 
     public Integer getRemainingUses() {
         if (maxTotalUses == null) {
-            return null; // Unlimited
+            return null;
         }
         return Math.max(0, maxTotalUses - currentTotalUses);
     }
