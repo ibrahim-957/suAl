@@ -108,8 +108,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Sifariş Uğurla Yerləşdirildi",
-            message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla yerləşdirildi'",
+            title = "Sifariş Uğurla Qeydə alındı",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla qeydə alındı'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -154,7 +154,7 @@ public class OrderServiceImpl implements OrderService {
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
             title = "Sifariş Yaradıldı",
-            message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla yerləşdirildi'",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla qeydə alındı'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
