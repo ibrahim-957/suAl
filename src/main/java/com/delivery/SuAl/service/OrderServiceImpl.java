@@ -108,7 +108,7 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Sifariş Uğurla Yerləşdirildi",
+            title = "Sifariş Uğurla Qeydə alındı",
             message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla qeydə alındı'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
