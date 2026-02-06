@@ -8,6 +8,7 @@ import com.delivery.SuAl.model.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -40,20 +41,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     BigDecimal calculateRevenue(@Param("startDate") LocalDateTime startDate,
                                 @Param("endDate") LocalDateTime endDate);
 
-    Optional<Order> findByCustomerId(Long customerId);
+    @Modifying
+    @Query("UPDATE Order o SET o.address = null WHERE o.address.id = :addressId")
+    void updateAddressToNullByAddressId(@Param("addressId") Long addressId);
 
     Page<Order> findByCustomerId(Long customerId, Pageable pageable);
 
     int countByCustomerIdAndOrderStatus(Long customerId, OrderStatus orderStatus);
-
-    @Query("SELECT o FROM Order o WHERE o.customer.id = :customerId ORDER BY o.createdAt DESC")
-    Page<Order> findCustomerOrdersOrderByDateDesc(@Param("customerId") Long customerId, Pageable pageable);
-
-    @Query("SELECT COUNT(o) FROM Order o WHERE o.driver.id = :driverId")
-    Long countByDriverId(@Param("driverId") Long driverId);
-
-    @Query("SELECT o FROM Order o WHERE o.driver.id = :driverId ORDER BY o.createdAt DESC")
-    Page<Order> findDriverOrdersOrderByDateDesc(@Param("driverId") Long driverId, Pageable pageable);
 
     @Query("SELECT DISTINCT o FROM Order o " +
             "JOIN o.orderDetails od " +
