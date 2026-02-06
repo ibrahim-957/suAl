@@ -108,8 +108,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Order Placed Successfully",
-            message = "'Your order #' + #result.orderNumber + ' has been placed successfully'",
+            title = "Sifariş Uğurla Yerləşdirildi",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla yerləşdirildi'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -132,8 +132,8 @@ public class OrderServiceImpl implements OrderService {
                             .receiverType(ReceiverType.OPERATOR)
                             .receiverId(operator.getId())
                             .notificationType(NotificationType.ORDER)
-                            .title("New Order Received")
-                            .message("New order #" + response.getOrderNumber() + " from " +
+                            .title("Yeni Sifariş Daxil Oldu")
+                            .message("Yeni sifariş #" + response.getOrderNumber() + " - " +
                                     customer.getFirstName() + " " + customer.getLastName())
                             .referenceId(response.getId())
                             .build())
@@ -153,8 +153,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Order Created",
-            message = "'Your order #' + #result.orderNumber + ' has been placed successfully'",
+            title = "Sifariş Yaradıldı",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' uğurla yerləşdirildi'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -245,8 +245,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Driver Assigned",
-            message = "'Driver has been assigned to your order #' + #result.orderNumber",
+            title = "Sürücü Təyin Edildi",
+            message = "'Sifarişinizə #' + #result.orderNumber + ' sürücü təyin edildi'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -254,8 +254,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.DRIVER,
             notificationType = NotificationType.ORDER,
-            title = "New Delivery Assignment",
-            message = "'You have been assigned to order #' + #result.orderNumber",
+            title = "Yeni Çatdırılma Tapşırığı",
+            message = "'Sizə #' + #result.orderNumber + ' nömrəli sifariş təyin edildi",
             evaluateMessage = true,
             receiverIdExpression = "#result.driverId",
             referenceIdExpression = "#result.id"
@@ -281,8 +281,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Order Approved",
-            message = "'Your order #' + #result.orderNumber + ' has been approved and will be delivered soon'",
+            title = "Sifariş Təsdiqləndi",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' təsdiqləndi və tezliklə çatdırılacaq'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -340,8 +340,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Order Cancelled",
-            message = "'Your order #' + #result.orderNumber + ' has been cancelled'",
+            title = "Sifariş Ləğv Edildi",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' ləğv edildi'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -373,20 +373,22 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = orderRepository.save(order);
 
         List<Operator> operatorsToNotify = getOperatorsToNotifyForOrder(savedOrder.getId());
-        for (Operator operator : operatorsToNotify) {
-            notificationService.createNotification(
-                    NotificationRequest.builder()
+        if (!operatorsToNotify.isEmpty()) {
+            List<NotificationRequest> operatorNotifications = operatorsToNotify.stream()
+                    .map(op -> NotificationRequest.builder()
                             .receiverType(ReceiverType.OPERATOR)
-                            .receiverId(operator.getId())
+                            .receiverId(op.getId())
                             .notificationType(NotificationType.ORDER)
-                            .title("Order Cancelled by Customer")
-                            .message("Order #" + savedOrder.getOrderNumber() + " was cancelled by " +
-                                    customer.getFirstName() + ". Reason: " + (reason != null ? reason : "No reason provided"))
+                            .title("Müştəri Sifarişi Ləğv Etdi")
+                            .message("Sifariş #" + savedOrder.getOrderNumber() + " müştəri " +
+                                    customer.getFirstName() + " tərəfindən ləğv edildi. Səbəb: " + (reason != null ? reason : "Səbəb göstərilməyib"))
                             .referenceId(savedOrder.getId())
-                            .build()
-            );
+                            .build())
+                    .collect(Collectors.toList());
+
+            notificationService.createNotificationsBatch(operatorNotifications);
+            log.info("Notified {} operators about order cancellation", operatorsToNotify.size());
         }
-        log.info("Notified {} operators about order cancellation", operatorsToNotify.size());
 
         log.info("Order {} rejected by customer {}", orderId, customer.getId());
         return orderMapper.toResponse(savedOrder);
@@ -397,8 +399,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Order Rejected",
-            message = "'Your order #' + #result.orderNumber + ' has been rejected'",
+            title = "Sifariş Rədd Edildi",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' rədd edildi'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -474,8 +476,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.CUSTOMER,
             notificationType = NotificationType.ORDER,
-            title = "Order Delivered",
-            message = "'Your order #' + #result.orderNumber + ' has been delivered. Thank you!'",
+            title = "Sifariş Çatdırıldı",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' çatdırıldı. Təşəkkür edirik!'",
             evaluateMessage = true,
             receiverIdExpression = "#result.customerId",
             referenceIdExpression = "#result.id"
@@ -483,8 +485,8 @@ public class OrderServiceImpl implements OrderService {
     @SendNotification(
             receiverType = ReceiverType.OPERATOR,
             notificationType = NotificationType.ORDER,
-            title = "Order Completed",
-            message = "'Order #' + #result.orderNumber + ' has been completed by driver'",
+            title = "Sifariş Tamamlandı",
+            message = "'Sifariş #' + #result.orderNumber + ' sürücü tərəfindən tamamlandı'",
             evaluateMessage = true,
             receiverIdExpression = "#result.operatorId",
             referenceIdExpression = "#result.id"
@@ -905,7 +907,6 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // THIS IS THE IMPROVED CAMPAIGN LOGIC FROM 7afa411
         CampaignApplicationResult campaignResult = applyCampaigns(
                 savedOrder,
                 customer,
