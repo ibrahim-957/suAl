@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/companies/**").permitAll()
                         .requestMatchers("/v1/api/cart/**").permitAll()
                         .requestMatchers("/v1/api/promos/validate").permitAll()
-                        .requestMatchers("/v1/api/customer/**").permitAll()
+                        .requestMatchers("/v1/api/customers/**").permitAll()
                         .requestMatchers("/v1/api/payment/callback").permitAll()
 
                         .requestMatchers("/v1/api/admins/**").hasRole("ADMIN")

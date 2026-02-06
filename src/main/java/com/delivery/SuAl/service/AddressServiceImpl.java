@@ -10,6 +10,7 @@ import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.CustomerRepository;
+import com.delivery.SuAl.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class AddressServiceImpl implements AddressService {
     private final AddressRepository addressRepository;
     private final AddressMapper addressMapper;
     private final CustomerRepository customerRepository;
+    private final OrderRepository orderRepository;
 
     @Override
     public AddressResponse createAddressByCustomer(String phoneNumber, CreateAddressByCustomerRequest request) {
@@ -82,6 +84,11 @@ public class AddressServiceImpl implements AddressService {
     @Override
     public void deleteAddress(Long id) {
         log.info("Deleting address with ID: {}", id);
+        if (!addressRepository.existsById(id)) {
+            throw new NotFoundException("Address not found with id: " + id);
+        }
+        orderRepository.updateAddressToNullByAddressId(id);
+
         addressRepository.deleteById(id);
         log.info("Address deleted successfully with ID: {}", id);
     }
