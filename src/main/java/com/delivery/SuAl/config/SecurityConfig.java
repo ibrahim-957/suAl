@@ -61,6 +61,7 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
 
                         .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR", "CUSTOMER")
+                        .requestMatchers("/v1/api/drivers/orders").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/v1/api/drivers/**").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/operators/**").hasRole("ADMIN")
 
@@ -73,7 +74,6 @@ public class SecurityConfig {
 
                         .requestMatchers("/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
 
-                        .requestMatchers("/v1/api/drivers/orders/**").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/v1/api/orders/my-orders").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/customer/**/reject").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
