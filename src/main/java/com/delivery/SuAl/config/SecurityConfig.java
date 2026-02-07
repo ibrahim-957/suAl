@@ -72,10 +72,12 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/orders").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/pending").hasAnyRole("ADMIN", "OPERATOR")
 
+                        .requestMatchers("/v1/api/orders/*/complete").hasAnyRole("ADMIN", "DRIVER")
+
                         .requestMatchers("/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers("/v1/api/orders/my-orders").hasAnyRole("ADMIN", "CUSTOMER")
-                        .requestMatchers("/v1/api/orders/customer/**/reject").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/orders/customer/*/reject").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
 
                         .requestMatchers("/v1/api/payment/**").hasAnyRole("ADMIN", "CUSTOMER")
