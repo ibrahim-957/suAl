@@ -23,6 +23,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "campaigns")
@@ -106,46 +107,46 @@ public class Campaign {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
         validateCampaignFields();
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
         validateCampaignFields();
     }
 
-    public boolean isActive(){
+    public boolean isActive() {
         LocalDate now = LocalDate.now();
         return campaignStatus == CampaignStatus.ACTIVE
                 && !now.isAfter(validTo)
                 && !now.isBefore(validFrom);
     }
 
-    public boolean hasReachedTotalLimit(){
+    public boolean hasReachedTotalLimit() {
         return maxTotalUses != null && currentTotalUses >= maxTotalUses;
     }
 
-    public void incrementUses(){
+    public void incrementUses() {
         this.currentTotalUses++;
     }
 
-    public boolean isFirstOrderOnly(){
+    public boolean isFirstOrderOnly() {
         return Boolean.TRUE.equals(firstOrderOnly);
     }
 
-    public boolean allowPromoCode(){
+    public boolean allowPromoCode() {
         return !Boolean.TRUE.equals(requiresPromoAbsence);
     }
 
-    public boolean isProductBasedCampaign(){
+    public boolean isProductBasedCampaign() {
         return campaignType == CampaignType.BUY_X_GET_Y_FREE ||
                 campaignType == CampaignType.BUY_X_PAY_FOR_Y;
     }
 
-    public boolean isBonusBasedCampaign(){
+    public boolean isBonusBasedCampaign() {
         return campaignType == CampaignType.FIRST_ORDER_BONUS ||
                 campaignType == CampaignType.LOYALTY_BONUS;
     }

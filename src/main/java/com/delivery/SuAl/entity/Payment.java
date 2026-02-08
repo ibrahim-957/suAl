@@ -25,6 +25,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "payments")
@@ -38,7 +39,7 @@ public class Payment {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id",  nullable = false)
+    @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
     @Column(name = "reference_id", unique = true, nullable = false)
@@ -67,7 +68,7 @@ public class Payment {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)
-    private PaymentStatus paymentStatus =  PaymentStatus.CREATED;
+    private PaymentStatus paymentStatus = PaymentStatus.CREATED;
 
     @Column(name = "gateway_payment_url", columnDefinition = "TEXT")
     private String gatewayPaymentUrl;
@@ -133,24 +134,24 @@ public class Payment {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
-    public BigDecimal getAmountAsDecimal(){
+    public BigDecimal getAmountAsDecimal() {
         return amountInCoins != null
-                ? new BigDecimal(amountInCoins).divide(new BigDecimal("100"), 2,  RoundingMode.HALF_UP)
+                ? new BigDecimal(amountInCoins).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
     }
 
-    public BigDecimal getFeeAsDecimal(){
+    public BigDecimal getFeeAsDecimal() {
         return feeInCoins != null
-                ? new BigDecimal(feeInCoins).divide(new BigDecimal("100"), 2,  RoundingMode.HALF_UP)
+                ? new BigDecimal(feeInCoins).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
     }
 

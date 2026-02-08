@@ -17,6 +17,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "promo_usages")
@@ -54,6 +55,6 @@ public class PromoUsage {
     @PrePersist
     protected void onCreate(){
         if (usedAt == null)
-            usedAt = LocalDateTime.now();
+            usedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 }

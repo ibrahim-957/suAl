@@ -9,7 +9,7 @@ import org.mapstruct.MappingTarget;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class})
 public interface NotificationMapper {
 
     @Mapping(target = "id", ignore = true)
@@ -18,6 +18,7 @@ public interface NotificationMapper {
     @Mapping(target = "pushSent", constant = "false")
     Notification toEntity(NotificationRequest request);
 
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     NotificationResponse toResponse(Notification notification);
 
     @Mapping(target = "id", ignore = true)
@@ -27,4 +28,5 @@ public interface NotificationMapper {
     void updateEntityFromRequest(NotificationRequest request, @MappingTarget Notification notification);
 
     List<NotificationResponse> toResponseList(List<Notification> notifications);
+
 }

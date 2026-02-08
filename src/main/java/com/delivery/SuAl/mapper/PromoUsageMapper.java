@@ -9,7 +9,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface PromoUsageMapper {
 
@@ -20,6 +20,7 @@ public interface PromoUsageMapper {
     @Mapping(target = "orderId", source = "order.id")
     @Mapping(target = "orderNumber", source = "order.orderNumber")
     @Mapping(target = "orderAmount", source = "order.totalAmount")
+    @Mapping(target = "usedAt", qualifiedByName = "utcToBaku")
     PromoUsageResponse toResponse(PromoUsage promoUsage);
 
     List<PromoUsageResponse> toResponseList(List<PromoUsage> promoUsages);

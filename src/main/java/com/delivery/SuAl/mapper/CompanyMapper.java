@@ -11,7 +11,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CompanyMapper {
     Company toEntity(CreateCompanyRequest createCompanyRequest);
@@ -22,6 +22,8 @@ public interface CompanyMapper {
     void updateEntityFromRequest(UpdateCompanyRequest updateCompanyRequest,
                                  @MappingTarget Company company);
 
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     CompanyResponse toResponse(Company company);
 
     List<CompanyResponse> toResponseList(List<Company> companyList);

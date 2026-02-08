@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring", uses = {CustomerContainerMapper.class},
+@Mapper(componentModel = "spring", uses = {CustomerContainerMapper.class, DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CustomerMapper {
     Customer toEntity(CreateCustomerRequest createCustomerRequest);
@@ -27,5 +27,7 @@ public interface CustomerMapper {
     @Mapping(source = "user.id", target = "userId")
     @Mapping(source = "user.phoneNumber", target = "phoneNumber")
     @Mapping(source = "customerContainers", target = "customerContainers")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     CustomerResponse toResponse(Customer customer);
 }

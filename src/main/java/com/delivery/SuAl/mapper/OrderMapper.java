@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Mapper(componentModel = "spring", uses = {OrderDetailMapper.class},
+@Mapper(componentModel = "spring", uses = {OrderDetailMapper.class, DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OrderMapper {
     Order toEntity(CreateOrderByOperatorRequest createOrderRequest);
@@ -48,6 +48,8 @@ public interface OrderMapper {
     @Mapping(target = "totalAmount", source = "amount")
     @Mapping(target = "finalAmount", source = "totalAmount")
     @Mapping(target = "campaignBonuses", expression = "java(mapCampaignBonuses(order.getCampaignBonuses()))")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     OrderResponse toResponse(Order order);
 
     @Mapping(target = "orderId", source = "order.id")
@@ -119,4 +121,5 @@ public interface OrderMapper {
         String fullName = (firstName + " " + lastName).trim();
         return fullName.isEmpty() ? null : fullName;
     }
+
 }

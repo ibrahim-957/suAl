@@ -11,7 +11,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OperatorMapper {
     Operator toEntity(CreateOperatorRequest createOperatorRequest);
@@ -30,7 +30,10 @@ public interface OperatorMapper {
     @Mapping(source = "user.phoneNumber", target = "phoneNumber")
     @Mapping(source = "company.id", target = "companyId")
     @Mapping(source = "company.name", target = "companyName")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     OperatorResponse toResponse(Operator operator);
 
     List<OperatorResponse> toResponseList(List<Operator> operators);
+
 }

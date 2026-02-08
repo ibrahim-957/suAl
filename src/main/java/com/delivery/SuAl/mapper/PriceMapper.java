@@ -11,7 +11,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface PriceMapper {
     Price toEntity(CreatePriceRequest createPriceRequest);
@@ -27,6 +27,8 @@ public interface PriceMapper {
     @Mapping(target = "productName", expression = "java(getProductName(price))")
     @Mapping(target = "companyName", expression = "java(getCompanyName(price))")
     @Mapping(target = "categoryType", expression = "java(getCategoryType(price))")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     PriceResponse toResponse(Price price);
 
     List<PriceResponse> toResponseList(List<Price> prices);
@@ -58,4 +60,5 @@ public interface PriceMapper {
         }
         return price.getProduct().getCategory().getCategoryType();
     }
+
 }

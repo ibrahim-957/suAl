@@ -13,7 +13,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 import java.math.BigDecimal;
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface ProductMapper {
 
@@ -34,6 +34,8 @@ public interface ProductMapper {
     @Mapping(target = "categoryType", expression = "java(getCategoryType(product))")
     @Mapping(target = "sellPrice", expression = "java(getCurrentSellPrice(product))")
     @Mapping(target = "buyPrice", expression = "java(getCurrentBuyPrice(product))")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     ProductResponse toResponse(Product product);
 
     List<ProductResponse> toResponseList(List<Product> products);
@@ -67,4 +69,5 @@ public interface ProductMapper {
         Price latestPrice = product.getPrices().get(product.getPrices().size() - 1);
         return latestPrice.getBuyPrice();
     }
+
 }

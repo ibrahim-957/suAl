@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CampaignMapper {
     Campaign toEntity(CreateCampaignRequest request);
@@ -30,6 +30,8 @@ public interface CampaignMapper {
     @Mapping(target = "usageRemaining", expression = "java(calculateUsageRemaining(campaign))")
     @Mapping(target = "isCurrentlyActive", expression = "java(campaign.isActive())")
     @Mapping(target = "maxUsesPerUser", source = "maxUsesPerCustomer")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     CampaignResponse toResponse(Campaign campaign);
 
     default Long getBuyProductId(Campaign campaign) {

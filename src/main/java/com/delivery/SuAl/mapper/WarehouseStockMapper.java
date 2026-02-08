@@ -8,7 +8,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface WarehouseStockMapper {
     @Mapping(target = "totalCount", expression = "java(calculateTotalCount(warehouseStock))")
@@ -18,6 +18,7 @@ public interface WarehouseStockMapper {
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "size", source = "product.size")
     @Mapping(target = "companyName", source = "product.company.name")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     WarehouseStockResponse toResponse(WarehouseStock warehouseStock);
 
     List<WarehouseStockResponse> toResponseList(List<WarehouseStock> warehouseStocks);

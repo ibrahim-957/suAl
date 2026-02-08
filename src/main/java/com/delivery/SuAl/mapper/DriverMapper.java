@@ -11,7 +11,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface DriverMapper {
     Driver toEntity(CreateDriverRequest createDriverRequest);
@@ -26,6 +26,8 @@ public interface DriverMapper {
     @Mapping(source = "user.id", target = "userId")
     @Mapping(source = "user.email", target = "email")
     @Mapping(source = "user.phoneNumber", target = "phoneNumber")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     DriverResponse toResponse(Driver driver);
 
     List<DriverResponse> toResponseList(List<Driver> drivers);

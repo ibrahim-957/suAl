@@ -12,7 +12,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface AddressMapper {
     Address toEntity(CreateAddressByOperatorRequest createAddressByOperatorRequest);
@@ -26,8 +26,9 @@ public interface AddressMapper {
     void updateEntityFromRequest(UpdateAddressRequest updateAddressRequest,
                                  @MappingTarget Address address);
 
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     AddressResponse toResponse(Address address);
 
     List<AddressResponse> toResponseList(List<Address> addresses);
-
 }

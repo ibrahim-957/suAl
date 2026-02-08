@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "container_collections")
@@ -61,9 +62,9 @@ public class ContainerCollection {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
         if (collectionDateTime == null) {
-            collectionDateTime = LocalDateTime.now();
+            collectionDateTime = LocalDateTime.now(ZoneOffset.UTC);
         }
         totalCollected = (emptyContainers != null ? emptyContainers : 0) +
                 (damagedContainers != null ? damagedContainers : 0);

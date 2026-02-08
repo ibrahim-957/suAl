@@ -3,16 +3,14 @@ package com.delivery.SuAl.mapper;
 import com.delivery.SuAl.entity.Payment;
 import com.delivery.SuAl.model.dto.payment.CreatePaymentDTO;
 import com.delivery.SuAl.model.dto.payment.PaymentDTO;
-import com.delivery.SuAl.model.dto.payment.PaymentStatusDTO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.List;
 
-@Mapper(componentModel = "spring", uses = {CurrencyMapper.class},
+@Mapper(componentModel = "spring", uses = {CurrencyMapper.class, DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface PaymentMapper {
     @Mapping(target = "amountInCoins", expression = "java(convertToCoins(dto.getAmount()))")
@@ -28,12 +26,8 @@ public interface PaymentMapper {
 
     @Mapping(target = "orderId", source = "order.id")
     @Mapping(target = "amount", expression = "java(payment.getAmountAsDecimal())")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     PaymentDTO toDto(Payment payment);
-
-    List<PaymentDTO> toDtoList(List<Payment> payments);
-
-    @Mapping(target = "amount", expression = "java(payment.getAmountAsDecimal())")
-    PaymentStatusDTO toStatusDto(Payment payment);
 
     default Long convertToCoins(BigDecimal amount) {
         if (amount == null) return null;
@@ -43,4 +37,5 @@ public interface PaymentMapper {
                 .longValueExact();
 
     }
+
 }

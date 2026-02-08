@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface PromoMapper {
     Promo toEntity(CreatePromoRequest request);
@@ -21,6 +21,8 @@ public interface PromoMapper {
 
     @Mapping(target = "maxUsesPerUser", source = "maxUsesPerCustomer")
     @Mapping(target = "usageRemaining", expression = "java(calculateUsageRemaining(promo))")
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     PromoResponse toResponse(Promo promo);
 
     default Integer calculateUsageRemaining(Promo promo) {
@@ -29,4 +31,5 @@ public interface PromoMapper {
         }
         return Math.max(0, promo.getMaxTotalUses() - promo.getCurrentTotalUses());
     }
+
 }

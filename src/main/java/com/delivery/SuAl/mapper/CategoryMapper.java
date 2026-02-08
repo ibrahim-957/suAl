@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CategoryMapper {
     @Mapping(target = "categoryType", source = "categoryType")
@@ -21,6 +21,7 @@ public interface CategoryMapper {
     void updateEntityFromRequest(UpdateCategoryRequest updateCategoryRequest,
                                  @MappingTarget Category category);
 
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     CategoryResponse toResponse(Category category);
-
 }

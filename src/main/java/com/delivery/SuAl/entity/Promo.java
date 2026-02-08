@@ -20,6 +20,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "promos")
@@ -77,40 +78,40 @@ public class Promo {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
-    public boolean isActive(){
-        LocalDate now = LocalDate.now();
+    public boolean isActive() {
+        LocalDate now = LocalDate.now(ZoneOffset.UTC);
         return promoStatus == PromoStatus.ACTIVE
                 && !now.isAfter(validTo)
                 && !now.isBefore(validFrom);
     }
 
-    public boolean hasReachedTotalLimit(){
+    public boolean hasReachedTotalLimit() {
         return maxTotalUses != null && currentTotalUses >= maxTotalUses;
     }
 
-    public void incrementUses(){
+    public void incrementUses() {
         this.currentTotalUses++;
     }
 
-    public BigDecimal calculateDiscount(BigDecimal orderAmount){
-        if (orderAmount.compareTo(minOrderAmount) < 0){
-            throw  new IllegalArgumentException("Order amount must be greater than minimum amount");
+    public BigDecimal calculateDiscount(BigDecimal orderAmount) {
+        if (orderAmount.compareTo(minOrderAmount) < 0) {
+            throw new IllegalArgumentException("Order amount must be greater than minimum amount");
         }
 
         BigDecimal discount;
-        if (discountType == DiscountType.PERCENTAGE){
+        if (discountType == DiscountType.PERCENTAGE) {
             discount = orderAmount.multiply(discountValue).divide(BigDecimal.valueOf(100));
 
-            if (maxDiscount != null && discount.compareTo(maxDiscount) > 0){
+            if (maxDiscount != null && discount.compareTo(maxDiscount) > 0) {
                 discount = maxDiscount;
             }
         } else {
