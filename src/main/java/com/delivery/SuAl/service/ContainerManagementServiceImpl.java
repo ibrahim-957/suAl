@@ -171,11 +171,8 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
             detail.setContainersReturned(actualCollected);
 
-            if (actualCollected > 0) {
-                removeFromCustomerContainer(customer, detail.getProduct(), actualCollected);
-            } else {
-                log.debug("Customer {}: No containers collected for product {}", customerId, productId);
-            }
+            log.debug("Customer {}: Recorded {} containers collected for product {} (no balance change - already reserved)",
+                    customerId, actualCollected, productId);
         }
 
         customerRepository.save(customer);
@@ -192,7 +189,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                 .mapToInt(BottleCollectionItem::getQuantity)
                 .sum();
 
-        log.info("Completed bottle collection for customer {}: {} bottles collected across {} products",
+        log.info("Completed bottle collection for customer {}: {} bottles collected across {} products (added to warehouse)",
                 customerId, totalCollected, collectedByProduct.size());
     }
 
@@ -224,37 +221,6 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
         log.info("Completed delivery processing for customer {}: {} bottles delivered across {} products",
                 customerId, totalDelivered, orderDetails.size());
-    }
-
-    private void removeFromCustomerContainer(Customer customer, Product product, Integer quantity) {
-        CustomerContainer existing = customer.getCustomerContainers().stream()
-                .filter(cc -> cc.getProduct().getId().equals(product.getId()))
-                .findFirst()
-                .orElse(null);
-
-        if (existing != null) {
-            int previousQuantity = existing.getQuantity();
-            int newQuantity = previousQuantity - quantity;
-
-            if (newQuantity < 0) {
-                log.warn("Customer {}: Trying to remove {} containers for product {}, but only {} available. Setting to 0.",
-                        customer.getId(), quantity, product.getId(), previousQuantity);
-                newQuantity = 0;
-            }
-
-            existing.setQuantity(newQuantity);
-            log.debug("Customer {}: Removed {} containers for product {}. Previous: {}, New: {}",
-                    customer.getId(), quantity, product.getId(), previousQuantity, newQuantity);
-
-            if (newQuantity == 0) {
-                customer.getCustomerContainers().remove(existing);
-                log.debug("Customer {}: Removed empty container record for product {}",
-                        customer.getId(), product.getId());
-            }
-        } else {
-            log.warn("Customer {}: Cannot remove containers for product {} - no container record exists",
-                    customer.getId(), product.getId());
-        }
     }
 
     private void addOrUpdateCustomerContainer(Customer customer, Product product, Integer quantity) {

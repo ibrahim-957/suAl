@@ -88,6 +88,7 @@ public class OrderServiceImpl implements OrderService {
     private final OperatorRepository operatorRepository;
     private final ProductRepository productRepository;
     private final CampaignRepository campaignRepository;
+    private final CustomerContainerRepository customerContainerRepository;
 
     private final OrderCalculationService orderCalculationService;
     private final CartPriceCalculationService cartPriceCalculationService;
@@ -101,7 +102,6 @@ public class OrderServiceImpl implements OrderService {
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
     private final OrderMapper orderMapper;
-    private final CustomerContainerRepository customerContainerRepository;
 
     @Override
     @Transactional
