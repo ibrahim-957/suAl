@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -158,12 +159,12 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
         log.info("Processing {} collected bottles for customer {}", bottlesCollected.size(), customerId);
 
-        Map<Long, Integer> collectedByProduct = bottlesCollected.stream()
-                .collect(Collectors.toMap(
-                        BottleCollectionItem::getProductId,
-                        BottleCollectionItem::getQuantity,
-                        Integer::sum
-                ));
+        Map<Long, Integer> collectedByProduct = new HashMap<>();
+        for (BottleCollectionItem item : bottlesCollected) {
+            Long productId = item.getProductId();
+            Integer quantity = item.getQuantity();
+            collectedByProduct.put(productId, collectedByProduct.getOrDefault(productId, 0) + quantity);
+        }
 
         for (OrderDetail detail : orderDetails) {
             Long productId = detail.getProduct().getId();
@@ -177,17 +178,21 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
         customerRepository.save(customer);
 
-        Map<Long, Integer> bottlesToAddToWarehouse = collectedByProduct.entrySet().stream()
-                .filter(entry -> entry.getValue() > 0)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<Long, Integer> bottlesToAddToWarehouse = new HashMap<>();
+        for (Map.Entry<Long, Integer> entry : collectedByProduct.entrySet()) {
+            if (entry.getValue() > 0) {
+                bottlesToAddToWarehouse.put(entry.getKey(), entry.getValue());
+            }
+        }
 
         if (!bottlesToAddToWarehouse.isEmpty()) {
             inventoryService.addEmptyBottlesBatch(bottlesToAddToWarehouse);
         }
 
-        int totalCollected = bottlesCollected.stream()
-                .mapToInt(BottleCollectionItem::getQuantity)
-                .sum();
+        int totalCollected = 0;
+        for (BottleCollectionItem item : bottlesCollected) {
+            totalCollected += item.getQuantity();
+        }
 
         log.info("Completed bottle collection for customer {}: {} bottles collected across {} products (added to warehouse)",
                 customerId, totalCollected, collectedByProduct.size());
