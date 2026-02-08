@@ -243,15 +243,6 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     @SendNotification(
-            receiverType = ReceiverType.CUSTOMER,
-            notificationType = NotificationType.ORDER,
-            title = "Sürücü Təyin Edildi",
-            message = "'Sifarişinizə #' + #result.orderNumber + ' sürücü təyin edildi'",
-            evaluateMessage = true,
-            receiverIdExpression = "#result.customerId",
-            referenceIdExpression = "#result.id"
-    )
-    @SendNotification(
             receiverType = ReceiverType.DRIVER,
             notificationType = NotificationType.ORDER,
             title = "Yeni Çatdırılma Tapşırığı",
