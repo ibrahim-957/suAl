@@ -922,7 +922,7 @@ public class OrderServiceImpl implements OrderService {
                     finalTotal);
         }
 
-        containerManagementService.reserveContainers(customer.getId(), depositSummary);
+//        containerManagementService.reserveContainers(customer.getId(), depositSummary);
 
         log.debug("Reserved {} containers from customer balance",
                 depositSummary.getTotalContainersUsed());

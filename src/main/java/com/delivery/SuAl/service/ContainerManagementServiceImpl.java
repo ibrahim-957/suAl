@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -166,18 +165,25 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             collectedByProduct.put(productId, collectedByProduct.getOrDefault(productId, 0) + quantity);
         }
 
+        // Update order details and remove collected bottles from customer balance
         for (OrderDetail detail : orderDetails) {
             Long productId = detail.getProduct().getId();
             Integer actualCollected = collectedByProduct.getOrDefault(productId, 0);
 
+            // Update the order detail with actual collected amount
             detail.setContainersReturned(actualCollected);
 
-            log.debug("Customer {}: Recorded {} containers collected for product {} (no balance change - already reserved)",
-                    customerId, actualCollected, productId);
+            // Remove collected bottles from customer container balance
+            if (actualCollected > 0) {
+                removeFromCustomerContainer(customer, detail.getProduct(), actualCollected);
+                log.info("Customer {}: Removed {} containers of product {} from balance",
+                        customerId, actualCollected, productId);
+            }
         }
 
         customerRepository.save(customer);
 
+        // Add collected bottles to warehouse inventory
         Map<Long, Integer> bottlesToAddToWarehouse = new HashMap<>();
         for (Map.Entry<Long, Integer> entry : collectedByProduct.entrySet()) {
             if (entry.getValue() > 0) {
@@ -194,8 +200,40 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             totalCollected += item.getQuantity();
         }
 
-        log.info("Completed bottle collection for customer {}: {} bottles collected across {} products (added to warehouse)",
+        log.info("Completed bottle collection for customer {}: {} bottles collected across {} products",
                 customerId, totalCollected, collectedByProduct.size());
+    }
+
+    private void removeFromCustomerContainer(Customer customer, Product product, Integer quantity) {
+        CustomerContainer existing = customer.getCustomerContainers().stream()
+                .filter(cc -> cc.getProduct().getId().equals(product.getId()))
+                .findFirst()
+                .orElse(null);
+
+        if (existing != null) {
+            int previousQuantity = existing.getQuantity();
+            int newQuantity = previousQuantity - quantity;
+
+            if (newQuantity < 0) {
+                log.warn("Customer {}: Trying to remove {} containers for product {}, but only {} available. Setting to 0.",
+                        customer.getId(), quantity, product.getId(), previousQuantity);
+                newQuantity = 0;
+            }
+
+            existing.setQuantity(newQuantity);
+            log.debug("Customer {}: Removed {} containers for product {}. Previous: {}, New: {}",
+                    customer.getId(), quantity, product.getId(), previousQuantity, newQuantity);
+
+            if (newQuantity == 0) {
+                customer.getCustomerContainers().remove(existing);
+                customerContainerRepository.delete(existing);
+                log.debug("Customer {}: Removed empty container record for product {}",
+                        customer.getId(), product.getId());
+            }
+        } else {
+            log.warn("Customer {}: Cannot remove containers for product {} - no container record exists",
+                    customer.getId(), product.getId());
+        }
     }
 
     @Override
