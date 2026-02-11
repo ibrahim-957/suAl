@@ -246,7 +246,7 @@ public class OrderServiceImpl implements OrderService {
             receiverType = ReceiverType.DRIVER,
             notificationType = NotificationType.ORDER,
             title = "Yeni Çatdırılma Tapşırığı",
-            message = "'Sizə #' + #result.orderNumber + ' nömrəli sifariş təyin edildi",
+            message = "'Sizə ' + #result.orderNumber + ' nömrəli sifariş təyin edildi'",
             evaluateMessage = true,
             receiverIdExpression = "#result.driverId",
             referenceIdExpression = "#result.id"
