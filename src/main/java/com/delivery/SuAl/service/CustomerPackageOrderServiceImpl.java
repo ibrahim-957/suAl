@@ -825,9 +825,23 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             detail.setSubtotal(subtotal);
 
             detail.setDepositPerUnit(product.getDepositAmount());
-            detail.setDepositCharged(product.getDepositAmount()
+
+            BigDecimal depositCharged = product.getDepositAmount()
                     .multiply(BigDecimal.valueOf(prodReq.getQuantity()))
-                    .setScale(2, RoundingMode.HALF_UP));
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            detail.setDepositCharged(depositCharged);
+
+
+            BigDecimal lineTotal = subtotal
+                    .add(depositCharged)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            detail.setLineTotal(lineTotal);
+
+            detail.setContainersReturned(0);
+            detail.setDepositRefunded(BigDecimal.ZERO);
+            detail.setDeposit(depositCharged);
 
             details.add(detail);
         }
