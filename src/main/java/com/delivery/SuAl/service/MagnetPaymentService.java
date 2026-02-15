@@ -1,12 +1,13 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Order;
+import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.Payment;
 import com.delivery.SuAl.exception.AlreadyPaidException;
 import com.delivery.SuAl.exception.GatewayException;
 import com.delivery.SuAl.exception.InvalidPaymentStateException;
 import com.delivery.SuAl.exception.NotFoundException;
-import com.delivery.SuAl.exception.OrderDeletionException;
 import com.delivery.SuAl.exception.PaymentCreationException;
 import com.delivery.SuAl.exception.PaymentRefundException;
 import com.delivery.SuAl.exception.PaymentVerificationException;
@@ -14,10 +15,13 @@ import com.delivery.SuAl.mapper.MagnetGatewayMapper;
 import com.delivery.SuAl.mapper.PaymentMapper;
 import com.delivery.SuAl.model.dto.payment.CreatePaymentDTO;
 import com.delivery.SuAl.model.dto.payment.PaymentDTO;
+import com.delivery.SuAl.model.enums.OrderStatus;
+import com.delivery.SuAl.model.enums.PackageOrderStatus;
 import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.response.payment.CancelRefundResponse;
 import com.delivery.SuAl.model.response.payment.CreatePaymentResponse;
 import com.delivery.SuAl.model.response.payment.PaymentStatusResponse;
+import com.delivery.SuAl.repository.CustomerPackageOrderRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -28,12 +32,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -43,6 +49,7 @@ public class MagnetPaymentService implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final CustomerPackageOrderRepository customerPackageOrderRepository;
     private final PaymentMapper paymentMapper;
     private final MagnetGatewayMapper gatewayMapper;
     private final RestTemplate magnetRestTemplate;
@@ -195,6 +202,14 @@ public class MagnetPaymentService implements PaymentService {
                 updateOrderPaymentStatus(payment.getOrder(), payment);
                 log.info("Order payment status updated to: {}", payment.getOrder().getPaymentStatus());
 
+                if (payment.getOrder().getPackageOrder() != null) {
+                    log.info("Order belongs to package order, updating package payment status");
+                    updatePackageOrderPaymentStatus(
+                            payment.getOrder().getPackageOrder(),
+                            payment.getPaymentStatus()
+                    );
+                }
+
                 if (payment.getPaymentStatus() == PaymentStatus.FAILED) {
                     deleteFailedOrder(payment.getOrder());
                 } else {
@@ -236,33 +251,9 @@ public class MagnetPaymentService implements PaymentService {
                     + currentStatus.getStatus());
         }
 
-        /*boolean isSameDay = payment.getPaidAt() != null
-                && payment.getPaidAt().toLocalDate().equals(LocalDate.now());
-
-        try {
-            if (isSameDay) {
-                log.info("Payment made today - using Cancel(instant reverse) for reference: {}",
-                        payment.getReferenceId());
-                cancelPayment(payment);
-            } else {
-                log.info("Payment made on {} - using Refund(post-settlement) for reference: {}",
-                        payment.getPaidAt().toLocalDate(), payment.getReferenceId());
-                refundPayment(payment);
-            }
-
-            payment = paymentRepository.save(payment);
-            log.info("Refund/Cancel successful for order: {}", orderId);
-
-            return paymentMapper.toDto(payment);
-        } catch (Exception ex) {
-            log.error("Refund/Cancel failed for order: {}", orderId, ex);
-            throw new PaymentRefundException("Failed to process refund: " + ex.getMessage(), ex);
-        }*/
-
         log.info("Payment made on {} - using Refund(post-settlement) for reference: {}",
                 payment.getPaidAt().toLocalDate(), payment.getReferenceId());
         refundPayment(payment);
-
 
         payment = paymentRepository.save(payment);
         log.info("Refund/Cancel successful for order: {}", orderId);
@@ -281,6 +272,55 @@ public class MagnetPaymentService implements PaymentService {
         return paymentMapper.toDto(payment);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected void updatePackageOrderPaymentStatus(
+            CustomerPackageOrder packageOrder,
+            PaymentStatus paymentStatus
+    ) {
+        log.info("Updating package order {} payment status to {}",
+                packageOrder.getId(), paymentStatus);
+
+        packageOrder.setPaymentStatus(paymentStatus);
+
+        if (paymentStatus == PaymentStatus.SUCCESS) {
+            log.info("Payment successful - marking all orders in package as PAID");
+
+            for (Order order : packageOrder.getGeneratedOrders()) {
+                if (order.getPaymentStatus() == PaymentStatus.PENDING) {
+                    order.setPaymentStatus(PaymentStatus.SUCCESS);
+                    order.setPaidAt(LocalDateTime.now());
+                    orderRepository.save(order);
+
+                    log.debug("Order {} in package marked as PAID", order.getId());
+                }
+            }
+
+            log.info("Package order {} fully paid - {} orders updated",
+                    packageOrder.getId(), packageOrder.getGeneratedOrders().size());
+
+        } else if (paymentStatus == PaymentStatus.FAILED) {
+            log.warn("Payment FAILED - cancelling package order and rejecting all orders");
+
+            packageOrder.setOrderStatus(PackageOrderStatus.CANCELLED);
+            packageOrder.setCancelledAt(LocalDateTime.now());
+
+            for (Order order : packageOrder.getGeneratedOrders()) {
+                if (order.getOrderStatus() == OrderStatus.PENDING) {
+                    order.setOrderStatus(OrderStatus.REJECTED);
+                    order.setRejectionReason("Package payment failed");
+                    order.setPaymentStatus(PaymentStatus.FAILED);
+                    orderRepository.save(order);
+
+                    log.debug("Order {} in package rejected due to payment failure", order.getId());
+                }
+            }
+
+            log.info("Package order {} cancelled - all orders rejected", packageOrder.getId());
+        }
+
+        customerPackageOrderRepository.save(packageOrder);
+        log.info("Package order {} payment status updated successfully", packageOrder.getId());
+    }
 
     private PaymentStatusResponse fetchExternalStatus(String reference) {
         try {
@@ -366,29 +406,27 @@ public class MagnetPaymentService implements PaymentService {
         log.info("Order to delete - ID: {}, Number: {}", order.getId(), order.getOrderNumber());
 
         try {
-            promoService.releasePromoUsageByOrder(order.getId());
-
-            campaignService.releaseCampaignUsageByOrder(order.getId());
-
-            if (order.getOrderDetails() != null && !order.getOrderDetails().isEmpty()) {
-                log.info("Clearing {} order_details for order {}",
-                        order.getOrderDetails().size(), order.getOrderNumber());
-                order.getOrderDetails().clear();
+            if (order.getPromo() != null) {
+                promoService.releasePromoUsageByOrder(order.getId());
             }
 
-            if (order.getCampaignBonuses() != null && !order.getCampaignBonuses().isEmpty()) {
-                log.info("Clearing {} campaign_bonuses for order {}",
-                        order.getCampaignBonuses().size(), order.getOrderNumber());
-                order.getCampaignBonuses().clear();
+            List<OrderCampaignBonus> campaignBonuses = order.getCampaignBonuses();
+            if (campaignBonuses != null && !campaignBonuses.isEmpty()) {
+                campaignService.releaseCampaignUsageByOrder(order.getId());
             }
 
-            orderRepository.saveAndFlush(order);
+            if (order.getPackageOrder() != null) {
+                log.info("Order belongs to package order {}, will be handled by package order cancellation",
+                        order.getPackageOrder().getId());
+                return;
+            }
+
             orderRepository.delete(order);
+            orderRepository.flush();
 
             log.info("Order {} and all related entities deleted successfully", order.getOrderNumber());
         } catch (Exception e) {
             log.error("Failed to delete order {}: {}", order.getOrderNumber(), e.getMessage(), e);
-            throw new OrderDeletionException("Failed to delete order after payment failure: " + e.getMessage(), e);
         }
     }
 

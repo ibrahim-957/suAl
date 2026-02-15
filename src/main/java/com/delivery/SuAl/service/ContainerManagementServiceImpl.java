@@ -1,18 +1,21 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.AffordablePackage;
+import com.delivery.SuAl.entity.Customer;
+import com.delivery.SuAl.entity.CustomerContainer;
+import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.entity.Customer;
-import com.delivery.SuAl.entity.CustomerContainer;
 import com.delivery.SuAl.exception.InsufficientContainerException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.ProductDepositInfo;
 import com.delivery.SuAl.model.request.order.BottleCollectionItem;
-import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.repository.AffordablePackageRepository;
 import com.delivery.SuAl.repository.CustomerContainerRepository;
 import com.delivery.SuAl.repository.CustomerRepository;
+import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,11 +38,22 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
     private final CustomerContainerRepository customerContainerRepository;
     private final ProductRepository productRepository;
     private final CustomerRepository customerRepository;
+    private final AffordablePackageRepository affordablePackageRepository;
     private final InventoryService inventoryService;
 
     @Override
     @Transactional(readOnly = true)
-    public ContainerDepositSummary calculateAvailableContainerRefunds(Long customerId, Map<Long, Integer> productQuantities) {
+    public ContainerDepositSummary calculateAvailableContainerRefunds(
+            Long customerId,
+            Map<Long, Integer> productQuantities) {
+        if (customerId == null || customerId <= 0) {
+            throw new IllegalArgumentException("Invalid customer ID");
+        }
+
+        if (productQuantities == null || productQuantities.isEmpty()) {
+            throw new IllegalArgumentException("Product quantities cannot be empty");
+        }
+
         log.info("Calculating container refunds for customer {}", customerId);
 
         List<ProductDepositInfo> productDepositInfos = new ArrayList<>();
@@ -62,6 +77,8 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                     ? product.getDepositAmount()
                     : BigDecimal.ZERO;
 
+            int containersToUse = Math.min(availableContainers, orderQuantity);
+
             BigDecimal refundForProduct = depositPerUnit
                     .multiply(BigDecimal.valueOf(availableContainers))
                     .setScale(2, RoundingMode.HALF_UP);
@@ -70,7 +87,7 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                     productId,
                     orderQuantity,
                     availableContainers,
-                    availableContainers,
+                    containersToUse,
                     depositPerUnit,
                     refundForProduct
             ));
@@ -96,31 +113,51 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
     @Transactional
     public void reserveContainers(Long customerId, ContainerDepositSummary depositSummary) {
         log.info("Reserving containers for customer {}", customerId);
+
+        if (depositSummary == null || depositSummary.getProductDepositInfos().isEmpty()) {
+            log.debug("No containers to reserve");
+            return;
+        }
+
         for (ProductDepositInfo info : depositSummary.getProductDepositInfos()) {
             if (info.getContainersUsed() > 0) {
                 CustomerContainer container = customerContainerRepository
-                        .findByCustomerIdAndProductId(customerId, info.getProductId())
-                        .orElseThrow(() -> new NotFoundException("Container not found for customer " + customerId + " and product " + info.getProductId()));
+                        .findByCustomerIdAndProductIdWithLock(customerId, info.getProductId())
+                        .orElseThrow(() -> new InsufficientContainerException(
+                                String.format("Customer %d does not have containers for product %d",
+                                        customerId, info.getProductId())));
 
                 int newQuantity = container.getQuantity() - info.getContainersUsed();
 
                 if (newQuantity < 0) {
-                    throw new InsufficientContainerException("Customer " + customerId + " does not have enough containers for product " + info.getProductId());
+                    throw new InsufficientContainerException(
+                            String.format("Customer %d does not have enough containers for product %d. " +
+                                            "Available: %d, Required: %d",
+                                    customerId, info.getProductId(), container.getQuantity(), info.getContainersUsed())
+                    );
                 }
 
                 container.setQuantity(newQuantity);
+                container.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
                 customerContainerRepository.save(container);
 
-                log.debug("Reserved {} containers for product {}. Remaining: {}",
+                log.info("Reserved {} containers for product {}. Remaining: {}",
                         info.getContainersUsed(), info.getProductId(), newQuantity);
             }
         }
+        log.info("Successfully reserved {} total containers for customer {}",
+                depositSummary.getTotalContainersUsed(), customerId);
     }
 
     @Override
     @Transactional
     public void releaseReservedContainers(Order order) {
         log.info("Releasing reserved containers for order {}", order.getOrderNumber());
+
+        if (order.getOrderDetails() == null || order.getOrderDetails().isEmpty()) {
+            log.debug("No order details to release containers for");
+            return;
+        }
 
         for (OrderDetail detail : order.getOrderDetails()) {
             if (detail.getContainersReturned() > 0) {
@@ -130,12 +167,30 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                 );
 
                 container.setQuantity(container.getQuantity() + detail.getContainersReturned());
+                container.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
                 customerContainerRepository.save(container);
 
-                log.debug("Released {} containers for product {}",
-                        detail.getContainersReturned(), detail.getProduct().getId());
+                log.info("Released {} containers for product {} back to customer {}",
+                        detail.getContainersReturned(), detail.getProduct().getId(),
+                        order.getCustomer().getId());
             }
         }
+    }
+
+    @Override
+    @Transactional
+    public void processOrderCompletion(
+            Long customerId,
+            List<OrderDetail> orderDetails,
+            List<BottleCollectionItem> bottlesCollected
+    ) {
+        log.info("Processing order completion for customer {}", customerId);
+
+        processDeliveredProducts(customerId, orderDetails);
+
+        processCollectedBottles(customerId, orderDetails, bottlesCollected);
+
+        log.info("Order completion processed successfully for customer {}", customerId);
     }
 
     @Override
@@ -156,7 +211,8 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             return;
         }
 
-        log.info("Processing {} collected bottles for customer {}", bottlesCollected.size(), customerId);
+        log.info("Processing {} collected bottles for customer {}",
+                bottlesCollected.size(), customerId);
 
         Map<Long, Integer> collectedByProduct = new HashMap<>();
         for (BottleCollectionItem item : bottlesCollected) {
@@ -165,15 +221,12 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             collectedByProduct.put(productId, collectedByProduct.getOrDefault(productId, 0) + quantity);
         }
 
-        // Update order details and remove collected bottles from customer balance
         for (OrderDetail detail : orderDetails) {
             Long productId = detail.getProduct().getId();
             Integer actualCollected = collectedByProduct.getOrDefault(productId, 0);
 
-            // Update the order detail with actual collected amount
             detail.setContainersReturned(actualCollected);
 
-            // Remove collected bottles from customer container balance
             if (actualCollected > 0) {
                 removeFromCustomerContainer(customer, detail.getProduct(), actualCollected);
                 log.info("Customer {}: Removed {} containers of product {} from balance",
@@ -183,7 +236,6 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
         customerRepository.save(customer);
 
-        // Add collected bottles to warehouse inventory
         Map<Long, Integer> bottlesToAddToWarehouse = new HashMap<>();
         for (Map.Entry<Long, Integer> entry : collectedByProduct.entrySet()) {
             if (entry.getValue() > 0) {
@@ -195,19 +247,18 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             inventoryService.addEmptyBottlesBatch(bottlesToAddToWarehouse);
         }
 
-        int totalCollected = 0;
-        for (BottleCollectionItem item : bottlesCollected) {
-            totalCollected += item.getQuantity();
-        }
+        int totalCollected = bottlesCollected.stream()
+                .mapToInt(BottleCollectionItem::getQuantity)
+                .sum();
 
         log.info("Completed bottle collection for customer {}: {} bottles collected across {} products",
                 customerId, totalCollected, collectedByProduct.size());
     }
 
     private void removeFromCustomerContainer(Customer customer, Product product, Integer quantity) {
-        CustomerContainer existing = customer.getCustomerContainers().stream()
-                .filter(cc -> cc.getProduct().getId().equals(product.getId()))
-                .findFirst()
+
+        CustomerContainer existing = customerContainerRepository
+                .findByCustomerIdAndProductIdWithLock(customer.getId(), product.getId())
                 .orElse(null);
 
         if (existing != null) {
@@ -215,12 +266,14 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             int newQuantity = previousQuantity - quantity;
 
             if (newQuantity < 0) {
-                log.warn("Customer {}: Trying to remove {} containers for product {}, but only {} available. Setting to 0.",
-                        customer.getId(), quantity, product.getId(), previousQuantity);
-                newQuantity = 0;
+                throw new InsufficientContainerException(
+                        String.format("Cannot remove %d containers for product %d. Customer only has %d",
+                                quantity, product.getId(), previousQuantity)
+                );
             }
 
             existing.setQuantity(newQuantity);
+            existing.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
             log.debug("Customer {}: Removed {} containers for product {}. Previous: {}, New: {}",
                     customer.getId(), quantity, product.getId(), previousQuantity, newQuantity);
 
@@ -229,10 +282,14 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                 customerContainerRepository.delete(existing);
                 log.debug("Customer {}: Removed empty container record for product {}",
                         customer.getId(), product.getId());
+            } else {
+                customerContainerRepository.save(existing);
             }
         } else {
-            log.warn("Customer {}: Cannot remove containers for product {} - no container record exists",
-                    customer.getId(), product.getId());
+            throw new InsufficientContainerException(
+                    String.format("Customer %d has no container record for product %d",
+                            customer.getId(), product.getId())
+            );
         }
     }
 
@@ -267,14 +324,24 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
     }
 
     private void addOrUpdateCustomerContainer(Customer customer, Product product, Integer quantity) {
+
         Optional<CustomerContainer> existing = customerContainerRepository
-                .findByCustomerIdAndProductId(customer.getId(), product.getId());
+                .findByCustomerIdAndProductIdWithLock(customer.getId(), product.getId());
 
         if (existing.isPresent()) {
             CustomerContainer container = existing.get();
             int previousQuantity = container.getQuantity();
+
+            long newCount = (long) previousQuantity + quantity;
+            if (newCount > Integer.MAX_VALUE) {
+                throw new IllegalStateException(
+                        String.format("Container count overflow for customer %d, product %d",
+                                customer.getId(), product.getId())
+                );
+            }
+
             container.setQuantity(previousQuantity + quantity);
-            container.setUpdatedAt(LocalDateTime.now());
+            container.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
             customerContainerRepository.save(container);
 
             log.debug("Customer {}: Updated container for product {}. Previous: {}, New: {}",
@@ -284,8 +351,8 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             newContainer.setCustomer(customer);
             newContainer.setProduct(product);
             newContainer.setQuantity(quantity);
-            newContainer.setCreatedAt(LocalDateTime.now());
-            newContainer.setUpdatedAt(LocalDateTime.now());
+            newContainer.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+            newContainer.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
             customerContainerRepository.save(newContainer);
 
             log.debug("Customer {}: Created new container for product {} with quantity {}",
@@ -312,8 +379,81 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                     newContainer.setCustomer(customer);
                     newContainer.setProduct(product);
                     newContainer.setQuantity(0);
+                    newContainer.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+                    newContainer.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
                     return customerContainerRepository.save(newContainer);
                 });
+    }
+
+    @Override
+    @Transactional
+    public void processPackageOrderCompletion(CustomerPackageOrder packageOrder) {
+        AffordablePackage pkg = packageOrder.getAffordablePackage();
+        Customer customer = packageOrder.getCustomer();
+        int totalBottles = pkg.getTotalContainers() * packageOrder.getFrequency();
+
+        log.info("Processing package order completion. Customer: {}, Package: {}, Bottles needed: {}",
+                customer.getId(), pkg.getId(), totalBottles);
+
+        int totalAvailable = customer.getCustomerContainers().stream()
+                .mapToInt(CustomerContainer::getQuantity)
+                .sum();
+
+        if (totalAvailable < totalBottles) {
+            throw new InsufficientContainerException(
+                    String.format("Customer does not have enough containers. Required: %d, Available: %d",
+                            totalBottles, totalAvailable)
+            );
+        }
+
+        int remaining = totalBottles;
+        List<CustomerContainer> containers = new ArrayList<>(customer.getCustomerContainers());
+
+        for (CustomerContainer container : containers) {
+            if (remaining <= 0) break;
+
+            int toDeduct = Math.min(container.getQuantity(), remaining);
+            container.setQuantity(container.getQuantity() - toDeduct);
+            container.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+
+            if (container.getQuantity() == 0) {
+                customer.getCustomerContainers().remove(container);
+                customerContainerRepository.delete(container);
+                log.debug("Removed empty container record for product {}", container.getProduct().getId());
+            } else {
+                customerContainerRepository.save(container);
+            }
+
+            remaining -= toDeduct;
+        }
+        log.info("Package order containers processed. Customer: {}, Total deducted: {}",
+                customer.getId(), totalBottles);
+    }
+
+    @Override
+    @Transactional
+    public boolean validatePackageContainerAvailability(
+            Long customerId, Long packageId, int quantity) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new NotFoundException("Customer not found with id: " + customerId));
+
+        AffordablePackage pkg = affordablePackageRepository.findById(packageId)
+                .orElseThrow(() -> new NotFoundException("Package not found with id: " + packageId));
+
+        int requiredContainers = pkg.getTotalContainers() * quantity;
+        int availableContainers = customer.getCustomerContainers().stream()
+                .mapToInt(CustomerContainer::getQuantity)
+                .sum();
+
+        return availableContainers >= requiredContainers;
+    }
+
+    @Override
+    @Transactional
+    public int calculatePackageContainerRequirement(Long packageId, int quantity) {
+        AffordablePackage pkg = affordablePackageRepository.findById(packageId)
+                .orElseThrow(() -> new NotFoundException("Package not found with id: " + packageId));
+        return pkg.getTotalContainers() * quantity;
     }
 }

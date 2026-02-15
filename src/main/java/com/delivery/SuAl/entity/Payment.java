@@ -4,6 +4,7 @@ import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentProvider;
 import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.enums.TransactionType;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,6 +41,7 @@ public class Payment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
+    @JsonBackReference("order-payments")
     private Order order;
 
     @Column(name = "reference_id", unique = true, nullable = false)

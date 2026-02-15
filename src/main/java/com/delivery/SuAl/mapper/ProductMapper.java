@@ -11,6 +11,7 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
 
 @Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
@@ -56,18 +57,22 @@ public interface ProductMapper {
 
     default BigDecimal getCurrentSellPrice(Product product) {
         if (product.getPrices() == null || product.getPrices().isEmpty()) {
-            return BigDecimal.ZERO;
+            return null;
         }
-        Price latestPrice = product.getPrices().get(product.getPrices().size() - 1);
-        return latestPrice.getSellPrice();
+        return product.getPrices().stream()
+                .max(Comparator.comparing(Price::getCreatedAt))
+                .map(Price::getSellPrice)
+                .orElse(null);
     }
 
     default BigDecimal getCurrentBuyPrice(Product product) {
         if (product.getPrices() == null || product.getPrices().isEmpty()) {
-            return BigDecimal.ZERO;
+            return null;
         }
-        Price latestPrice = product.getPrices().get(product.getPrices().size() - 1);
-        return latestPrice.getBuyPrice();
+        return product.getPrices().stream()
+                .max(Comparator.comparing(Price::getCreatedAt))
+                .map(Price::getSellPrice)
+                .orElse(null);
     }
 
 }

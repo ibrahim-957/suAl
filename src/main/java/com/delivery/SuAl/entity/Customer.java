@@ -48,7 +48,7 @@ public class Customer {
     @JsonManagedReference("addresses")
     private List<Address> addresses = new ArrayList<>();
 
-    @OneToMany(mappedBy = "customer")
+    @OneToMany(mappedBy = "customer", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JsonManagedReference("orders")
     private List<Order> orders = new ArrayList<>();
 

@@ -3,8 +3,6 @@ package com.delivery.SuAl.repository;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.model.enums.OperatorStatus;
 import com.delivery.SuAl.model.enums.OperatorType;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

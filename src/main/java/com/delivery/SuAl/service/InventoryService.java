@@ -25,6 +25,11 @@ public class InventoryService {
 
     @Transactional
     public void validateAndReserveStock(Long productId, int quantity) {
+        log.info("Reserving {} units of product {}", quantity, productId);
+
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
+        }
         WarehouseStock stock = warehouseStockRepository.findByProductIdWithLock(productId)
                 .orElseThrow(() -> new NotFoundException("product not found in warehouse with id: " + productId));
 
@@ -41,7 +46,8 @@ public class InventoryService {
         stock.setFullCount(stock.getFullCount() - quantity);
         warehouseStockRepository.save(stock);
 
-        log.debug("Reserved {} units of product {}", quantity, product.getName());
+        log.info("Reserved {} units of product '{}'. Remaining: {}",
+                quantity, product.getName(), stock.getFullCount());
     }
 
     @Transactional
@@ -52,6 +58,14 @@ public class InventoryService {
         }
 
         log.info("Batch reserving stock for {} products", productQuantities.size());
+
+        productQuantities.forEach((productId, quantity) -> {
+            if (quantity <= 0) {
+                throw new IllegalArgumentException(
+                        String.format("Invalid quantity %d for product %d", quantity, productId));
+            }
+        });
+
         List<Long> productIds = new ArrayList<>(productQuantities.keySet());
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
@@ -65,6 +79,7 @@ public class InventoryService {
         List<Long> missingProducts = productIds.stream()
                 .filter(id -> !productMap.containsKey(id))
                 .toList();
+
         if (!missingProducts.isEmpty()) {
             throw new NotFoundException("Products not found: " + missingProducts);
         }
@@ -76,13 +91,15 @@ public class InventoryService {
 
             WarehouseStock stock = stockMap.get(productId);
             if (stock == null) {
-                errors.add("Product " + productId + " not available in warehouse");
+                Product product = productMap.get(productId);
+                errors.add(String.format("Product '%s' not available in warehouse",
+                        product.getName()));
                 continue;
             }
 
             if (stock.getFullCount() < quantity) {
                 Product product = productMap.get(productId);
-                errors.add(String.format("Insufficient stock for %s. Available: %d, Requested: %d",
+                errors.add(String.format("Insufficient stock for '%s'. Available: %d, Requested: %d",
                         product.getName(), stock.getFullCount(), quantity));
             }
         }
@@ -109,25 +126,39 @@ public class InventoryService {
 
     @Transactional
     public void releaseStock(Long productId, int quantity) {
-        log.info("Releasing stock for {} units of product {}", quantity, productId);
+        if (quantity <= 0) {
+            log.warn("Attempted to release non-positive quantity {} for product {}", quantity, productId);
+            return;
+        }
+
+        log.info("Releasing stock for {} units of product {} back to warehouse", quantity, productId);
 
         warehouseStockRepository.findByProductIdWithLock(productId)
                 .ifPresentOrElse(
                         stock -> {
                             stock.setFullCount(stock.getFullCount() + quantity);
                             warehouseStockRepository.save(stock);
-                            log.debug("Released {} units of product ID {}. New count: {}",
+                            log.info("Released {} units of product ID {}. New count: {}",
                                     quantity, productId, stock.getFullCount());
                         },
-                        () -> log.warn("Cannot release stock - product {} not found in warehouse", productId)
+                        () -> {
+                            log.error("Cannot release stock - product {} not found in warehouse", productId);
+                            throw new NotFoundException(
+                                    "Product not found in warehouse with id: " + productId);
+                        }
                 );
     }
 
     @Transactional
     public void adjustStock(Long productId, int quantityChange) {
+        if (quantityChange == 0) {
+            log.debug("No stock adjustment needed for product {}", productId);
+            return;
+        }
+
         if (quantityChange > 0) {
             releaseStock(productId, quantityChange);
-        } else if (quantityChange < 0) {
+        } else {
             validateAndReserveStock(productId, Math.abs(quantityChange));
         }
     }
@@ -140,6 +171,7 @@ public class InventoryService {
         }
 
         log.info("Batch adding empty bottles for {} products", emptyBottlesByProduct.size());
+
         List<Long> productIds = new ArrayList<>(emptyBottlesByProduct.keySet());
 
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
@@ -152,13 +184,23 @@ public class InventoryService {
             Integer bottleCount = entry.getValue();
 
             if (bottleCount <= 0) {
+                log.debug("Skipping product {} - non-positive bottle count: {}", productId, bottleCount);
                 continue;
             }
 
             WarehouseStock stock = stockMap.get(productId);
             if (stock != null) {
                 int previousEmpty = stock.getEmptyCount();
-                stock.setEmptyCount(stock.getEmptyCount() + bottleCount);
+
+                long newCount = (long) previousEmpty + bottleCount;
+                if (newCount > Integer.MAX_VALUE) {
+                    log.error("Empty bottle count overflow for product {}: {} + {} > Integer.MAX_VALUE",
+                            productId, previousEmpty, bottleCount);
+                    throw new IllegalStateException(
+                            String.format("Empty bottle count overflow for product %d", productId));
+                }
+
+                stock.setEmptyCount((int) newCount);
                 totalBottlesAdded += bottleCount;
 
                 log.debug("Added {} empty bottles for product {}. Previous: {}, New: {}",
@@ -171,5 +213,50 @@ public class InventoryService {
         warehouseStockRepository.saveAll(stocks);
         log.info("Successfully added {} total empty bottles across {} products",
                 totalBottlesAdded, emptyBottlesByProduct.size());
+    }
+
+    @Transactional(readOnly = true)
+    public void validateStockAvailability(Map<Long, Integer> productQuantities){
+        if (productQuantities == null || productQuantities.isEmpty()) {
+            return;
+        }
+
+        log.debug("Validating stock availability for {} products", productQuantities.size());
+
+        List<Long> productIds = new ArrayList<>(productQuantities.keySet());
+
+        List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
+
+        Map<Long, WarehouseStock> stockMap = stocks.stream()
+                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
+
+        Map<Long, Product> productMap = productRepository.findAllById(productIds)
+                .stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+
+        List<String> errors = new ArrayList<>();
+        for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
+            Long productId = entry.getKey();
+            Integer quantity = entry.getValue();
+
+            WarehouseStock stock = stockMap.get(productId);
+            if (stock == null) {
+                Product product = productMap.get(productId);
+                errors.add(String.format("Product '%s' not available in warehouse",
+                        product != null ? product.getName() : productId));
+                continue;
+            }
+
+            if (stock.getFullCount() < quantity) {
+                Product product = productMap.get(productId);
+                errors.add(String.format("Insufficient stock for '%s'. Available: %d, Requested: %d",
+                        product != null ? product.getName() : productId,
+                        stock.getFullCount(), quantity));
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new InsufficientStockException("Stock validation failed: " + String.join("; ", errors));
+        }
     }
 }

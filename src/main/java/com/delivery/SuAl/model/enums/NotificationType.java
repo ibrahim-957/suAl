@@ -4,5 +4,6 @@ public enum NotificationType {
     ORDER,
     PAYMENT,
     CAMPAIGN,
-    SYSTEM
+    SYSTEM,
+    PACKAGE_ORDER
 }

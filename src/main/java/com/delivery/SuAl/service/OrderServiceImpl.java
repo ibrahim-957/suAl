@@ -5,6 +5,7 @@ import com.delivery.SuAl.entity.Address;
 import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.CustomerContainer;
+import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.entity.Order;
@@ -12,6 +13,7 @@ import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.exception.BusinessRuleViolationException;
+import com.delivery.SuAl.exception.InsufficientContainerException;
 import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.PaymentRefundException;
@@ -52,6 +54,7 @@ import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AddressRepository;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.CustomerContainerRepository;
+import com.delivery.SuAl.repository.CustomerPackageOrderRepository;
 import com.delivery.SuAl.repository.CustomerRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
@@ -89,6 +92,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final CampaignRepository campaignRepository;
     private final CustomerContainerRepository customerContainerRepository;
+    private final CustomerPackageOrderRepository customerPackageOrderRepository;
 
     private final OrderCalculationService orderCalculationService;
     private final CartPriceCalculationService cartPriceCalculationService;
@@ -98,6 +102,7 @@ public class OrderServiceImpl implements OrderService {
     private final ContainerManagementService containerManagementService;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
+    private final CustomerPackageOrderService customerPackageOrderService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -181,10 +186,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateOrder(Long orderId, UpdateOrderRequest updateRequest) {
-        log.info("Updating order for Customer {}", orderId);
+        log.info("Updating order {}", orderId);
 
         Order order = findOrderById(orderId);
-
         validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
@@ -223,6 +227,15 @@ public class OrderServiceImpl implements OrderService {
 
         if (needsRecalculation) {
             recalculateOrder(order);
+
+            Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
+                    .collect(Collectors.toMap(
+                            detail -> detail.getProduct().getId(),
+                            OrderDetail::getCount,
+                            Integer::sum
+                    ));
+
+            inventoryService.validateStockAvailability(productQuantities);
         }
 
         Order savedOrder = orderRepository.save(order);
@@ -354,7 +367,6 @@ public class OrderServiceImpl implements OrderService {
         }
 
         promoService.releasePromoUsageByOrder(orderId);
-
         campaignService.releaseCampaignUsageByOrder(orderId);
 
         refundPayment(order);
@@ -372,7 +384,8 @@ public class OrderServiceImpl implements OrderService {
                             .notificationType(NotificationType.ORDER)
                             .title("Müştəri Sifarişi Ləğv Etdi")
                             .message("Sifariş #" + savedOrder.getOrderNumber() + " müştəri " +
-                                    customer.getFirstName() + " tərəfindən ləğv edildi. Səbəb: " + (reason != null ? reason : "Səbəb göstərilməyib"))
+                                    customer.getFirstName() + " tərəfindən ləğv edildi. Səbəb: " +
+                                    (reason != null ? reason : "Səbəb göstərilməyib"))
                             .referenceId(savedOrder.getId())
                             .build())
                     .collect(Collectors.toList());
@@ -407,7 +420,6 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Order order = findOrderById(orderId);
-
         validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
@@ -415,8 +427,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         promoService.releasePromoUsageByOrder(orderId);
-
         campaignService.releaseCampaignUsageByOrder(orderId);
+
 
         refundPayment(order);
 
@@ -491,55 +503,74 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderStateException("Order must be APPROVED before completing order");
         }
 
-        if (order.getDriver() == null)
+        if (order.getDriver() == null) {
             throw new InvalidOrderStateException("Driver must be assigned before completing order");
-
-        validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
-
-        log.info("Adding delivered products to customer container balance");
-        containerManagementService.processDeliveredProducts(
-                order.getCustomer().getId(),
-                order.getOrderDetails()
-        );
-
-        log.info("Processing collected bottles");
-        containerManagementService.processCollectedBottles(
-                order.getCustomer().getId(),
-                order.getOrderDetails(),
-                completeDeliveryRequest.getBottlesCollected()
-        );
-
-        int totalExpected = order.getEmptyBottlesExpected();
-        int totalCollected = calculateTotalBottlesCollected(order);
-        int missingBottles = totalExpected - totalCollected;
-
-        log.info("Container collection -Expected: {}, Collected: {}, Missing: {}",
-                totalExpected, totalCollected, missingBottles);
-
-        orderCalculationService.recalculateDepositsFromActualCollection(order);
-
-        if (missingBottles > 0) {
-            BigDecimal depositPerUnit = order.getOrderDetails().isEmpty()
-                    ? BigDecimal.ZERO
-                    : order.getOrderDetails().getFirst().getDepositPerUnit();
-
-            BigDecimal extraDepositCharge = depositPerUnit
-                    .multiply(BigDecimal.valueOf(missingBottles))
-                    .setScale(2, RoundingMode.HALF_UP);
-
-            log.warn("CUSTOMER DID NOT RETURN {} CONTAINERS - Extra deposit kept: {} ({}×{})",
-                    missingBottles, extraDepositCharge, missingBottles, depositPerUnit);
-
-            String missingContainerNote = String.format(
-                    "Missing containers: %d bottles not returned. Deposit not refunded: %s AZN (%s × %d)",
-                    missingBottles, extraDepositCharge, depositPerUnit, missingBottles
-            );
-            appendNotes(order, missingContainerNote);
-
-            log.info("Deposit kept for missing containers: {}", extraDepositCharge);
         }
 
-        order.setEmptyBottlesCollected(totalCollected);
+        if (order.getPackageOrder() != null) {
+            log.info("Processing package order completion");
+
+            CustomerPackageOrder packageOrder = order.getPackageOrder();
+
+            if (!containerManagementService.validatePackageContainerAvailability(
+                    packageOrder.getCustomer().getId(),
+                    packageOrder.getAffordablePackage().getId(),
+                    packageOrder.getFrequency())) {
+                throw new InsufficientContainerException(
+                        "Customer does not have enough containers for this package order"
+                );
+            }
+
+            containerManagementService.processPackageOrderCompletion(packageOrder);
+            customerPackageOrderRepository.save(packageOrder);
+
+            customerPackageOrderService.updatePackageOrderStatus(packageOrder.getId());
+
+            log.info("Package order completed: {} bottles delivered",
+                    packageOrder.getAffordablePackage().getTotalContainers() * packageOrder.getFrequency());
+        } else {
+            validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
+
+            log.info("Processing order completion (delivery + collection) atomically");
+            containerManagementService.processOrderCompletion(
+                    order.getCustomer().getId(),
+                    order.getOrderDetails(),
+                    completeDeliveryRequest.getBottlesCollected()
+            );
+
+            int totalExpected = order.getEmptyBottlesExpected();
+            int totalCollected = calculateTotalBottlesCollected(order);
+            int missingBottles = totalExpected - totalCollected;
+
+            log.info("Container collection - Expected: {}, Collected: {}, Missing: {}",
+                    totalExpected, totalCollected, missingBottles);
+
+            orderCalculationService.recalculateDepositsFromActualCollection(order);
+
+            if (missingBottles > 0) {
+                BigDecimal depositPerUnit = order.getOrderDetails().isEmpty()
+                        ? BigDecimal.ZERO
+                        : order.getOrderDetails().getFirst().getDepositPerUnit();
+
+                BigDecimal extraDepositCharge = depositPerUnit
+                        .multiply(BigDecimal.valueOf(missingBottles))
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                log.warn("CUSTOMER DID NOT RETURN {} CONTAINERS - Extra deposit kept: {} ({}×{})",
+                        missingBottles, extraDepositCharge, missingBottles, depositPerUnit);
+
+                String missingContainerNote = String.format(
+                        "Missing containers: %d bottles not returned. Deposit not refunded: %s AZN (%s × %d)",
+                        missingBottles, extraDepositCharge, depositPerUnit, missingBottles
+                );
+                appendNotes(order, missingContainerNote);
+
+                log.info("Deposit kept for missing containers: {}", extraDepositCharge);
+            }
+
+            order.setEmptyBottlesCollected(totalCollected);
+        }
+
         order.setOrderStatus(OrderStatus.COMPLETED);
         order.setCompletedAt(LocalDateTime.now());
 
@@ -547,21 +578,6 @@ public class OrderServiceImpl implements OrderService {
                 order.getPaymentStatus() == PaymentStatus.PENDING) {
             order.setPaymentStatus(PaymentStatus.SUCCESS);
             order.setPaidAt(LocalDateTime.now());
-        } else if (order.getPaymentMethod() == PaymentMethod.CARD) {
-            if (missingBottles > 0) {
-                BigDecimal originalAmount = order.getSubtotal().add(order.getTotalDepositCharged())
-                        .subtract(order.getTotalDepositRefunded());
-                BigDecimal difference = order.getTotalAmount().subtract(originalAmount);
-
-                if (difference.compareTo(BigDecimal.ZERO) > 0) {
-                    log.warn("Order was paid online but deposit of {} was not refunded. " +
-                            "Amount difference: {}", difference, difference);
-
-                    appendNotes(order,
-                            "Note: Online payment - Deposit " + difference +
-                                    " AZN kept for " + missingBottles + " missing containers");
-                }
-            }
         }
 
         appendNotes(order, completeDeliveryRequest.getNotes());
@@ -569,11 +585,6 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = orderRepository.save(order);
 
         log.info("Order {} completed successfully", savedOrder.getOrderNumber());
-        log.info("Expected bottles: {}, Collected: {}, Missing: {}",
-                totalExpected, totalCollected, missingBottles);
-        log.info("Delivered: {}, Final amount: {}",
-                order.getOrderDetails().stream().mapToInt(OrderDetail::getCount).sum(),
-                savedOrder.getTotalAmount());
         return orderMapper.toResponse(savedOrder);
     }
 
@@ -820,7 +831,8 @@ public class OrderServiceImpl implements OrderService {
         Map<Long, Integer> productQuantities = items.stream()
                 .collect(Collectors.toMap(
                         CartItem::getProductId,
-                        CartItem::getQuantity
+                        CartItem::getQuantity,
+                        Integer::sum
                 ));
 
         ContainerDepositSummary depositSummary =
@@ -855,8 +867,13 @@ public class OrderServiceImpl implements OrderService {
                 : BigDecimal.ZERO);
         order.setCampaignDiscount(BigDecimal.ZERO);
 
-        BigDecimal amount = order.getSubtotal().subtract(order.getPromoDiscount());
-        BigDecimal totalAmount = amount.add(order.getNetDeposit());
+        BigDecimal amount = order.getSubtotal()
+                .subtract(order.getPromoDiscount())
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalAmount = amount
+                .add(order.getNetDeposit())
+                .setScale(2, RoundingMode.HALF_UP);
+
         order.setAmount(amount);
         order.setTotalAmount(totalAmount);
 
@@ -910,9 +927,13 @@ public class OrderServiceImpl implements OrderService {
             savedOrder.setCampaignDiscount(campaignResult.getTotalDiscount());
 
             BigDecimal finalAmount = savedOrder.getSubtotal()
-                    .subtract(savedOrder.getPromoDiscount());
+                    .subtract(savedOrder.getPromoDiscount())
+                    .subtract(campaignResult.getTotalDiscount())
+                    .setScale(2, RoundingMode.HALF_UP);
 
-            BigDecimal finalTotal = finalAmount.add(savedOrder.getNetDeposit());
+            BigDecimal finalTotal = finalAmount
+                    .add(savedOrder.getNetDeposit())
+                    .setScale(2, RoundingMode.HALF_UP);
 
             savedOrder.setAmount(finalAmount);
             savedOrder.setTotalAmount(finalTotal);
@@ -922,9 +943,9 @@ public class OrderServiceImpl implements OrderService {
                     finalTotal);
         }
 
-//        containerManagementService.reserveContainers(customer.getId(), depositSummary);
+        //containerManagementService.reserveContainers(customer.getId(), depositSummary);
 
-        log.debug("Reserved {} containers from customer balance",
+        log.info("Reserved {} containers from customer balance",
                 depositSummary.getTotalContainersUsed());
 
         Order finalOrder = orderRepository.save(savedOrder);

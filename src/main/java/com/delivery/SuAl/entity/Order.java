@@ -123,6 +123,25 @@ public class Order {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "package_order_id")
+    private CustomerPackageOrder packageOrder;
+
+    @Column(name = "is_package_order")
+    private Boolean isPackageOrder = false;
+
+    @Column(name = "delivery_number")
+    private Integer deliveryNumber;
+
+    @Column(name = "old_containers_to_collect")
+    private Integer oldContainersToCollect = 0;
+
+    @Column(name = "expected_deposit_refunded_at_creation", precision = 10, scale = 2)
+    private BigDecimal expectedDepositRefundedAtCreation = BigDecimal.ZERO;
+
+    @Column(name = "actual_deposit_refunded_at_completion", precision = 10, scale = 2)
+    private BigDecimal actualDepositRefundedAtCompletion = BigDecimal.ZERO;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -139,7 +158,8 @@ public class Order {
     @JsonManagedReference("order-campaign-bonus")
     private List<OrderCampaignBonus> campaignBonuses = new ArrayList<>();
 
-    @OneToMany(mappedBy = "order")
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @JsonManagedReference("order-payments")
     private List<Payment> payments = new ArrayList<>();
 
     @PrePersist
@@ -151,5 +171,21 @@ public class Order {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+    }
+
+    public boolean isPackageOrder(){
+        return Boolean.TRUE.equals(isPackageOrder);
+    }
+
+    public boolean isFirstPackageDelivery() {
+        return isPackageOrder() && deliveryNumber != null && deliveryNumber == 1;
+    }
+
+    public boolean isSubsequentPackageDelivery() {
+        return isPackageOrder() && deliveryNumber != null && deliveryNumber > 1;
+    }
+
+    public boolean shouldCollectOldContainers() {
+        return isFirstPackageDelivery() && oldContainersToCollect != null && oldContainersToCollect > 0;
     }
 }

@@ -1,6 +1,7 @@
 package com.delivery.SuAl.entity;
 
 import com.delivery.SuAl.model.enums.UserRole;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,6 +17,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -40,6 +42,9 @@ public class User implements UserDetails {
     @Column(unique = true)
     private String email;
 
+    @Column
+    @JsonIgnore
+    @ToString.Exclude
     private String password;
 
     @Column(unique = true, nullable = false)

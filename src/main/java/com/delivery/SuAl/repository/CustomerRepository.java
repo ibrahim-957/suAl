@@ -18,4 +18,14 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     @Query("SELECT c FROM Customer c LEFT JOIN c.user u WHERE u.phoneNumber = :phoneNumber OR (c.isActive = false AND c.user IS NULL)")
     Optional<Customer> findByPhoneNumberIncludingInactive(@Param("phoneNumber") String phoneNumber);
 
+    @Query("SELECT c FROM Customer c " +
+            "LEFT JOIN FETCH c.user " +
+            "LEFT JOIN FETCH c.addresses " +
+            "WHERE c.id = :customerId")
+    Optional<Customer> findByIdWithDetails(@Param("customerId") Long customerId);
+
+    @Query("SELECT c FROM Customer c " +
+            "JOIN FETCH c.user u " +
+            "WHERE u.phoneNumber = :phoneNumber")
+    Optional<Customer> findByPhoneNumberWithUser(@Param("phoneNumber") String phoneNumber);
 }

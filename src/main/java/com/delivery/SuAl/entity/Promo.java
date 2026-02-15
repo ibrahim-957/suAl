@@ -103,8 +103,17 @@ public class Promo {
     }
 
     public BigDecimal calculateDiscount(BigDecimal orderAmount) {
+        if (!isActive()) {
+            throw new IllegalStateException("Promo is not active");
+        }
+        if (!canBeUsed()) {
+            throw new IllegalStateException("Promo usage limit exceeded");
+        }
+
         if (orderAmount.compareTo(minOrderAmount) < 0) {
-            throw new IllegalArgumentException("Order amount must be greater than minimum amount");
+            throw new IllegalArgumentException(
+                    "Order amount " + orderAmount + " is less than minimum " + minOrderAmount
+            );
         }
 
         BigDecimal discount;

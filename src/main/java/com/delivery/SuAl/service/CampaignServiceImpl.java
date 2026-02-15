@@ -8,6 +8,7 @@ import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.CampaignUsageLimitExceededException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.CampaignValidationContext;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
@@ -40,6 +41,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,6 +156,10 @@ public class CampaignServiceImpl implements CampaignService {
 
         Campaign campaign = campaignRepository.findByCampaignCodeWithLock(request.getCampaignCode())
                 .orElseThrow(() -> new NotFoundException("Campaign not found: " + request.getCampaignCode()));
+
+        if (!campaign.canBeUsed()){
+            throw new CampaignUsageLimitExceededException("Campaign usage limit exceeded");
+        }
 
         Customer customer = customerService.getCustomerEntityById(request.getCustomerId());
 
@@ -674,11 +680,22 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private BigDecimal calculateBonusValue(Campaign campaign) {
-        Price lastPrice = campaign.getFreeProduct().getPrices().getLast();
-        if (lastPrice == null || lastPrice.getSellPrice() == null) {
+        Product freeProduct = campaign.getFreeProduct();
+        if (freeProduct == null || freeProduct.getPrices() == null || freeProduct.getPrices().isEmpty()) {
+            log.warn("Campaign {} has free product with no price", campaign.getCampaignCode());
             return BigDecimal.ZERO;
         }
-        return lastPrice.getSellPrice()
+
+        Price latestPrice = freeProduct.getPrices().stream()
+                .max(Comparator.comparing(Price::getCreatedAt))
+                .orElse(null);
+
+        if (latestPrice == null || latestPrice.getSellPrice() == null) {
+            log.warn("Campaign {} free product price is null", campaign.getCampaignCode());
+            return BigDecimal.ZERO;
+        }
+
+        return latestPrice.getSellPrice()
                 .multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
     }
 

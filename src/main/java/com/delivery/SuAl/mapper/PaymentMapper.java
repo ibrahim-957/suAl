@@ -31,11 +31,20 @@ public interface PaymentMapper {
 
     default Long convertToCoins(BigDecimal amount) {
         if (amount == null) return null;
-        return amount
-                .multiply(BigDecimal.valueOf(100))
-                .setScale(0, RoundingMode.HALF_UP)
-                .longValueExact();
 
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative");
+        }
+
+        BigDecimal coins = amount
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(0, RoundingMode.HALF_UP);
+
+        if (coins.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0) {
+            throw new IllegalArgumentException("Amount too large to convert to coins");
+        }
+
+        return coins.longValue();
     }
 
 }

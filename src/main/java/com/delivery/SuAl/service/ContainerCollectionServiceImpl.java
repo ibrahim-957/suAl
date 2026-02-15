@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,6 +63,12 @@ public class ContainerCollectionServiceImpl implements ContainerCollectionServic
                     "At least one container (empty or damaged) must be collected");
         }
 
+        if ((request.getEmptyContainers() != null && request.getEmptyContainers() < 0) ||
+                (request.getDamagedContainers() != null && request.getDamagedContainers() < 0)) {
+            throw new IllegalArgumentException(
+                    "Container quantities cannot be negative");
+        }
+
         ContainerCollection collection = ContainerCollection.builder()
                 .warehouse(warehouse)
                 .product(product)
@@ -73,11 +81,16 @@ public class ContainerCollectionServiceImpl implements ContainerCollectionServic
 
         ContainerCollection savedCollection = containerCollectionRepository.save(collection);
 
-        log.info("Container collection saved with ID: {}. Total: {} containers",
-                savedCollection.getId(), savedCollection.getTotalCollected());
+        log.info("Container collection saved with ID: {}. Total: {} containers (Empty: {}, Damaged: {})",
+                savedCollection.getId(),
+                savedCollection.getTotalCollected(),
+                savedCollection.getEmptyContainers(),
+                savedCollection.getDamagedContainers());
 
-        Admin admin = adminRepository.findById(user.getTargetId())
-                .orElse(null);
+        Admin admin = null;
+        if (user.getTargetId() != null) {
+            admin = adminRepository.findById(user.getTargetId()).orElse(null);
+        }
 
         return mapper.toResponse(savedCollection, admin);
     }
@@ -90,9 +103,18 @@ public class ContainerCollectionServiceImpl implements ContainerCollectionServic
         Page<ContainerCollection> collections = containerCollectionRepository
                 .findByWarehouseId(warehouseId, pageable);
 
+        List<Long> userTargetIds = collections.getContent().stream()
+                .map(c -> c.getCollectedBy().getTargetId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, Admin> adminMap = adminRepository.findAllById(userTargetIds).stream()
+                .collect(Collectors.toMap(Admin::getId, admin -> admin));
+
         return collections.map(collection -> {
-            Admin admin = adminRepository.findById(collection.getCollectedBy().getTargetId())
-                    .orElse(null);
+            Long targetId = collection.getCollectedBy().getTargetId();
+            Admin admin = targetId != null ? adminMap.get(targetId) : null;
             return mapper.toResponse(collection, admin);
         });
     }
@@ -100,16 +122,35 @@ public class ContainerCollectionServiceImpl implements ContainerCollectionServic
     @Override
     @Transactional(readOnly = true)
     public List<ContainerCollectionResponse> getCollectionsByDateRange(
-            LocalDateTime startDate, LocalDateTime endDate) {
+            LocalDateTime startDate,
+            LocalDateTime endDate) {
+
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Start date must be before end date");
+        }
+
         log.info("Fetching container collections between {} and {}", startDate, endDate);
 
         List<ContainerCollection> collections = containerCollectionRepository
                 .findByCollectionDateTimeBetween(startDate, endDate);
 
+        List<Long> userTargetIds = collections.stream()
+                .map(c -> c.getCollectedBy().getTargetId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, Admin> adminMap = adminRepository.findAllById(userTargetIds).stream()
+                .collect(Collectors.toMap(Admin::getId, admin -> admin));
+
         return collections.stream()
                 .map(collection -> {
-                    Admin admin = adminRepository.findById(collection.getCollectedBy().getTargetId())
-                            .orElse(null);
+                    Long targetId = collection.getCollectedBy().getTargetId();
+                    Admin admin = targetId != null ? adminMap.get(targetId) : null;
                     return mapper.toResponse(collection, admin);
                 })
                 .collect(Collectors.toList());
@@ -148,8 +189,11 @@ public class ContainerCollectionServiceImpl implements ContainerCollectionServic
                 .orElseThrow(() -> new NotFoundException(
                         "Container collection not found with ID: " + collectionId));
 
-        Admin admin = adminRepository.findById(collection.getCollectedBy().getTargetId())
-                .orElse(null);
+        Admin admin = null;
+        if (collection.getCollectedBy().getTargetId() != null) {
+            admin = adminRepository.findById(collection.getCollectedBy().getTargetId())
+                    .orElse(null);
+        }
 
         return mapper.toResponse(collection, admin);
     }

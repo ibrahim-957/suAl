@@ -1,6 +1,7 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.CustomerContainer;
+import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
@@ -16,9 +17,17 @@ public interface ContainerManagementService {
 
     void releaseReservedContainers(Order order);
 
+    void processOrderCompletion(Long customerId, List<OrderDetail> orderDetails, List<BottleCollectionItem> bottlesCollected);
+
     void processCollectedBottles(Long userId, List<OrderDetail> orderDetails, List<BottleCollectionItem> bottlesCollected);
 
     void processDeliveredProducts(Long userId, List<OrderDetail> orderDetails);
 
     CustomerContainer getOrCreateContainer(Long userId, Long productId);
+
+    void processPackageOrderCompletion(CustomerPackageOrder packageOrder);
+
+    boolean validatePackageContainerAvailability(Long customerId, Long packageId, int quantity);
+
+    int calculatePackageContainerRequirement(Long packageId, int quantity);
 }

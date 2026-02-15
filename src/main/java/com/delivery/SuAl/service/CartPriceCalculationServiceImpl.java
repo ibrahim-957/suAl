@@ -20,9 +20,11 @@ import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +41,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
     private final CampaignService campaignService;
 
     @Override
+    @Transactional(readOnly = true)
     public CartCalculationResponse calculatePrice(CalculatePriceRequest request) {
         log.info("Calculating price for customerId: {}, {} items",
                 request.getCustomerId(), request.getItems().size());
@@ -53,25 +56,31 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
 
         BigDecimal subtotal = itemResponses.stream()
                 .map(CartItemResponse::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal totalDepositCharged = itemResponses.stream()
                 .map(item -> Optional.ofNullable(item.getDepositPerUnit())
                         .orElse(BigDecimal.ZERO)
                         .multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal totalDepositRefunded = itemResponses.stream()
                 .map(item -> item.getDepositPerUnit()
                         .multiply(new BigDecimal(item.getAvailableContainers())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
+        BigDecimal netDeposit = totalDepositCharged
+                .subtract(totalDepositRefunded)
+                .setScale(2, RoundingMode.HALF_UP);
 
         Map<Long, Integer> productQuantities = request.getItems().stream()
                 .collect(Collectors.toMap(
                         CartItem::getProductId,
-                        CartItem::getQuantity
+                        CartItem::getQuantity,
+                        Integer::sum
                 ));
 
         boolean willUsePromo = (request.getPromoCode() != null && !request.getPromoCode().isBlank());
@@ -80,13 +89,18 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                 .customerId(request.getCustomerId())
                 .productQuantities(productQuantities)
                 .willUsePromoCode(willUsePromo)
+                .orderTotal(subtotal)
                 .build();
 
         EligibleCampaignsResponse eligibleCampaigns = campaignService.getEligibleCampaigns(campaignsRequest);
-        BigDecimal campaignDiscount = eligibleCampaigns.getTotalCampaignDiscount();
+        BigDecimal campaignDiscount = eligibleCampaigns.getTotalCampaignDiscount() != null
+                ? eligibleCampaigns.getTotalCampaignDiscount()
+                : BigDecimal.ZERO;
 
         BigDecimal amount = subtotal;
-        BigDecimal totalAmount = amount.add(netDeposit);
+        BigDecimal totalAmount = amount
+                .add(netDeposit)
+                .setScale(2, RoundingMode.HALF_UP);
 
         CartCalculationResponse.CartCalculationResponseBuilder responseBuilder = CartCalculationResponse.builder()
                 .subtotal(subtotal)
@@ -99,7 +113,8 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                 .items(itemResponses);
 
         if (willUsePromo) {
-            log.info("Validating promo code: {} for customer: {}", request.getPromoCode(), request.getCustomerId());
+            log.info("Validating promo code: {} for customer: {}",
+                    request.getPromoCode(), request.getCustomerId());
 
             ValidatePromoRequest validateRequest = new ValidatePromoRequest();
             validateRequest.setPromoCode(request.getPromoCode());
@@ -108,10 +123,18 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
 
             ValidatePromoResponse promoValidation = promoService.validatePromo(validateRequest);
 
-            if (Boolean.TRUE.equals(promoValidation.getIsValid()) && Boolean.TRUE.equals(promoValidation.getCustomerCanUse())) {
+            if (Boolean.TRUE.equals(promoValidation.getIsValid()) &&
+                    Boolean.TRUE.equals(promoValidation.getCustomerCanUse())) {
+
                 BigDecimal promoDiscount = promoValidation.getEstimatedDiscount();
-                BigDecimal newAmount = subtotal.subtract(promoDiscount);
-                BigDecimal newTotalAmount = newAmount.add(netDeposit);
+
+                BigDecimal newAmount = subtotal
+                        .subtract(promoDiscount)
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal newTotalAmount = newAmount
+                        .add(netDeposit)
+                        .setScale(2, RoundingMode.HALF_UP);
 
                 responseBuilder
                         .promoCode(request.getPromoCode())
@@ -127,6 +150,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                         .promoCode(request.getPromoCode())
                         .promoDiscount(BigDecimal.ZERO)
                         .promoValid(false)
+                        .promoMessage(promoValidation.getMessage())
                         .amount(amount)
                         .totalAmount(totalAmount);
 
@@ -135,8 +159,10 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
 
         } else {
             responseBuilder
-                    .promoCode(request.getPromoCode())
+                    .promoCode(null)
                     .promoDiscount(BigDecimal.ZERO)
+                    .promoValid(false)
+                    .promoMessage(null)
                     .amount(amount)
                     .totalAmount(totalAmount);
         }
@@ -144,6 +170,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
     }
 
     private CartItemResponse mapCartItemToResponse(Long customerId, CartItem cartItem) {
+
         Product product = productRepository.findById(cartItem.getProductId())
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + cartItem.getProductId()));
 
@@ -151,8 +178,15 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
             throw new InvalidRequestException("Product is not active: " + cartItem.getProductId());
         }
 
-        Price currentPrice = priceRepository.findFirstByProduct_IdOrderByCreatedAtDesc(product.getId())
-                .orElseThrow(() -> new NotFoundException("Price not found for product with id: " + product.getId()));
+        Price currentPrice;
+        if (product.getPrices() != null && !product.getPrices().isEmpty()) {
+            currentPrice = product.getPrices().stream()
+                    .max(Comparator.comparing(Price::getCreatedAt))
+                    .orElseThrow(() -> new NotFoundException(
+                            "Price not found for product: " + product.getName()));
+        } else {
+            throw new NotFoundException("Price not found for product: " + product.getName());
+        }
 
         Map<Long, Integer> productQuantities = Map.of(product.getId(), cartItem.getQuantity());
 

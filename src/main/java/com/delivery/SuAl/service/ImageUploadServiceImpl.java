@@ -83,7 +83,7 @@ public class ImageUploadServiceImpl implements ImageUploadService {
     }
 
     private String extractPublicId(String imageUrl) {
-        try{
+        try {
             String[] parts = imageUrl.split("/upload/");
             if (parts.length < 2) {
                 throw new ImageUploadException("Invalid Cloudinary URL format");
@@ -91,14 +91,14 @@ public class ImageUploadServiceImpl implements ImageUploadService {
 
             String pathAfterUpload = parts[1];
 
-            String publicIdWithExtension = pathAfterUpload.replace("v\\d+/", "");
+            String publicIdWithExtension = pathAfterUpload.replaceAll("v\\d+/", "");
 
             int lastDotIndex = publicIdWithExtension.lastIndexOf(".");
-
             return lastDotIndex > 0
                     ? publicIdWithExtension.substring(0, lastDotIndex)
                     : publicIdWithExtension;
-        } catch (Exception e){
+
+        } catch (Exception e) {
             log.error("Failed to extract public_id from URL: {}", imageUrl, e);
             throw new ImageUploadException("Failed to extract public_id from URL", e);
         }

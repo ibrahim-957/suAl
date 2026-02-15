@@ -1,7 +1,6 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.model.enums.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,4 +28,14 @@ public interface ProductRepository extends JpaRepository<Product,Long> {
     @Query("SELECT p FROM Product p " +
             "WHERE p.id = :productId AND p.company.id = :companyId")
     Optional<Product> findByIdAndCompanyId(@Param("productId") Long productId, @Param("companyId") Long companyId);
+
+    @Query("SELECT p.company.id, COUNT(p) FROM Product p " +
+            "WHERE p.company.id IN :companyIds " +
+            "GROUP BY p.company.id")
+    List<Object[]> countByCompanyIdGrouped(@Param("companyIds") List<Long> companyIds);
+
+    @Query("SELECT p.category.id, COUNT(p) FROM Product p " +
+            "WHERE p.category.id IN :categoryIds " +
+            "GROUP BY p.category.id")
+    List<Object[]> countByCategoryIdGrouped(@Param("categoryIds") List<Long> categoryIds);
 }

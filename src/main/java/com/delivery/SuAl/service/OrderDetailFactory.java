@@ -35,6 +35,8 @@ public class OrderDetailFactory {
             return Collections.emptyList();
         }
 
+        log.info("Creating order details from {} cart items", cartItems.size());
+
         List<Long> productIds = cartItems.stream()
                 .map(CartItem::getProductId)
                 .distinct()
@@ -50,7 +52,8 @@ public class OrderDetailFactory {
         Map<Long, Price> priceMap = prices.stream()
                 .collect(Collectors.toMap(
                         price -> price.getProduct().getId(),
-                        p -> p
+                        p -> p,
+                        (p1, p2) -> p1.getCreatedAt().isAfter(p2.getCreatedAt()) ? p1 : p2
                 ));
 
         validateAllPricesExist(productIds, priceMap);
@@ -93,7 +96,12 @@ public class OrderDetailFactory {
                 .toList();
 
         if (!missingIds.isEmpty()) {
-            throw new NotFoundException("Product not found: " + missingIds);
+            log.error("Products not found: {}", missingIds);
+            throw new NotFoundException(
+                    String.format("Products not found. Missing %d product(s). First few IDs: %s",
+                            missingIds.size(),
+                            missingIds.stream().limit(3).map(String::valueOf).collect(Collectors.joining(", ")))
+            );
         }
     }
 
@@ -103,7 +111,11 @@ public class OrderDetailFactory {
                 .toList();
 
         if (!missingIds.isEmpty()) {
-            throw new NotFoundException("Price not found for products: " + missingIds);
+            throw new NotFoundException(
+                    String.format("Products not found. Missing %d product(s): %s",
+                            missingIds.size(),
+                            missingIds.stream().limit(5).map(String::valueOf).collect(Collectors.joining(", ")))
+            );
         }
     }
 }

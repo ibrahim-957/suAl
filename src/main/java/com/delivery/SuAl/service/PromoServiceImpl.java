@@ -23,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,8 +63,12 @@ public class PromoServiceImpl implements PromoService {
         Promo promo = promoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Promo not found with id: " + id));
 
-        checkAndUpdateExpiredStatus(promo);
-        return promoMapper.toResponse(promo);
+        PromoResponse response = promoMapper.toResponse(promo);
+
+        if (promo.getPromoStatus() == PromoStatus.ACTIVE && isExpired(promo)) {
+            response.setPromoStatus(PromoStatus.EXPIRED);
+        }
+        return response;
     }
 
     @Override
@@ -72,9 +78,14 @@ public class PromoServiceImpl implements PromoService {
 
         Page<Promo> promos = promoRepository.findAll(pageable);
 
-        promos.getContent().forEach(this::checkAndUpdateExpiredStatus);
+        return promos.map(promo -> {
+            PromoResponse response = promoMapper.toResponse(promo);
 
-        return promos.map(promoMapper::toResponse);
+            if (promo.getPromoStatus() == PromoStatus.ACTIVE && isExpired(promo)) {
+                response.setPromoStatus(PromoStatus.EXPIRED);
+            }
+            return response;
+        });
     }
 
     @Override
@@ -169,7 +180,11 @@ public class PromoServiceImpl implements PromoService {
         log.info("Applying promo code: {} for customer: {}", request.getPromoCode(), request.getCustomerId());
 
         Promo promo = promoRepository.findByPromoCodeWithLock(request.getPromoCode())
-                .orElseThrow(() -> new NotFoundException("Promo not found with code: " + request.getPromoCode()));
+                .orElseThrow(() -> new NotFoundException("Promo not found"));
+
+        if (!promo.canBeUsed()) {
+            throw new PromoUsageLimitExceededException("Promo usage limit exceeded");
+        }
 
         validatePromoEligibility(promo, request.getCustomerId(), request.getOrderAmount());
 
@@ -264,15 +279,40 @@ public class PromoServiceImpl implements PromoService {
                 .orElseThrow(() -> new NotFoundException("Promo not found with code: " + promoCode));
     }
 
-    private void checkAndUpdateExpiredStatus(Promo promo) {
-        if (promo.getPromoStatus() == PromoStatus.ACTIVE) {
-            LocalDate now = LocalDate.now();
-            if (now.isAfter(promo.getValidTo())) {
-                promo.setPromoStatus(PromoStatus.EXPIRED);
-                promoRepository.save(promo);
-                log.info("Promo {} status changed to EXPIRED", promo.getPromoCode());
-            }
+    @Scheduled(cron = "0 0 1 * * *")
+    @Transactional
+    public void expireOldPromos() {
+        log.info("Running scheduled promo expiration job");
+
+        LocalDate now = LocalDate.now();
+
+        List<Promo> promosToExpire = promoRepository.findAll().stream()
+                .filter(promo -> promo.getPromoStatus() == PromoStatus.ACTIVE)
+                .filter(promo -> now.isAfter(promo.getValidTo()))
+                .toList();
+
+        if (promosToExpire.isEmpty()) {
+            log.info("No promos to expire");
+            return;
         }
+
+        promosToExpire.forEach(promo -> {
+            promo.setPromoStatus(PromoStatus.EXPIRED);
+            log.info("Expired promo: {} (valid until {})",
+                    promo.getPromoCode(), promo.getValidTo());
+        });
+
+        promoRepository.saveAll(promosToExpire);
+
+        log.info("Expired {} promo(s) automatically", promosToExpire.size());
+    }
+
+    private boolean isExpired(Promo promo) {
+        if (promo.getPromoStatus() != PromoStatus.ACTIVE){
+            return true;
+        }
+        LocalDate now = LocalDate.now();
+        return now.isAfter(promo.getValidTo());
     }
 
     private void validatePromoEligibility(Promo promo, Long customerId, BigDecimal orderAmount) {

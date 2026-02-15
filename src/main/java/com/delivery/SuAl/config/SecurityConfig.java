@@ -50,20 +50,24 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/customers/**").permitAll()
                         .requestMatchers("/v1/api/payment/callback").permitAll()
 
+                        .requestMatchers("/v1/api/affordable-packages/active").permitAll()
+
                         .requestMatchers("/v1/api/admins/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/api/operators/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/api/warehouses/**").hasRole("ADMIN")
+
+                        .requestMatchers("/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers("/v1/api/warehouses/collect-containers").hasRole("ADMIN")
                         .requestMatchers("/v1/api/warehouses/*/collections").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/warehouses/collections/**").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/warehouses/*/products/*/containers/**").hasAnyRole("ADMIN", "OPERATOR")
-                        .requestMatchers("/v1/api/warehouses/**").hasRole("ADMIN")
 
                         .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
-
                         .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR", "CUSTOMER")
+
                         .requestMatchers("/v1/api/drivers/orders").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/v1/api/drivers/**").hasAnyRole("ADMIN", "OPERATOR")
-                        .requestMatchers("/v1/api/operators/**").hasRole("ADMIN")
 
                         .requestMatchers("/v1/api/orders/create-by-operator").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/*/approve").hasAnyRole("ADMIN", "OPERATOR")
@@ -71,14 +75,19 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/orders/*/assign-driver").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/pending").hasAnyRole("ADMIN", "OPERATOR")
-
                         .requestMatchers("/v1/api/orders/*/complete").hasAnyRole("ADMIN", "DRIVER")
-
-                        .requestMatchers("/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
-
                         .requestMatchers("/v1/api/orders/my-orders").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/customer/*/reject").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
+
+                        .requestMatchers("/v1/api/package-orders/my-package-orders").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/package-orders/*/cancel").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/package-orders/*/auto-renew").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/package-orders/*/initialize-payment").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/package-orders/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
+
+                        .requestMatchers("/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
+
 
                         .requestMatchers("/v1/api/payment/**").hasAnyRole("ADMIN", "CUSTOMER")
 
