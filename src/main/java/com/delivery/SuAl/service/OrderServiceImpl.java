@@ -1215,15 +1215,30 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void refundPayment(Order order) {
-        if (order.getPaymentStatus() == PaymentStatus.SUCCESS) {
+
+        if (order.getPaymentStatus() == PaymentStatus.SUCCESS &&
+                order.getPaymentMethod() == PaymentMethod.CARD) {
+
             try {
-                log.info("Order {} has successful payment, initiating refund", order.getId());
+                log.info("Order {} has successful CARD payment, initiating refund", order.getId());
                 paymentService.refundPayment(order.getId());
                 order.setPaymentStatus(PaymentStatus.REFUNDED);
+                log.info("Refund processed successfully for order {}", order.getId());
+
             } catch (Exception e) {
                 log.error("Failed to refund payment for order {}", order.getId(), e);
                 throw new PaymentRefundException("Could not process refund: " + e.getMessage(), e);
             }
+
+        } else if (order.getPaymentStatus() == PaymentStatus.SUCCESS &&
+                order.getPaymentMethod() == PaymentMethod.CASH) {
+
+            log.info("Order {} was paid with CASH, no online refund needed", order.getId());
+            order.setPaymentStatus(PaymentStatus.CANCELLED);
+
+        } else {
+            log.info("Order {} payment status is {}, no refund action needed",
+                    order.getId(), order.getPaymentStatus());
         }
     }
 
