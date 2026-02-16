@@ -3,6 +3,7 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.*;
 import com.delivery.SuAl.exception.BusinessRuleViolationException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.helper.ContainerDepositSummary;
 import com.delivery.SuAl.helper.OrderDepositInfo;
 import com.delivery.SuAl.helper.PackageDepositSummary;
 import com.delivery.SuAl.mapper.CustomerPackageOrderMapper;
@@ -27,6 +28,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -48,6 +50,8 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
     private final PaymentService paymentService;
     private final NotificationService notificationService;
     private final OperatorRepository operatorRepository;
+    private final ContainerManagementService containerManagementService;
+    private final InventoryService inventoryService;
 
     @Override
     @Transactional
@@ -63,6 +67,12 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
 
         if (!affordablePackage.getIsActive()) {
             throw new BusinessRuleViolationException("Package is not active.");
+        }
+
+        if (!affordablePackage.isFrequencyValid(request.getFrequency())) {
+            String errorMessage = affordablePackage.getFrequencyErrorMessage(request.getFrequency());
+            log.warn("Invalid frequency for package {}: {}", request.getPackageId(), errorMessage);
+            throw new BusinessRuleViolationException(errorMessage);
         }
 
         Customer customer = customerRepository.findByIdAndIsActiveTrue(customerId)
@@ -88,6 +98,31 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
 
         orderRepository.saveAll(generatedOrders);
         packageOrder.setGeneratedOrders(generatedOrders);
+
+        if (!generatedOrders.isEmpty()) {
+            Order firstOrder = generatedOrders.getFirst();
+
+            if (depositSummary.getOldContainersToCollect() > 0){
+                Map<Long, Integer> firstOrderProducts = firstOrder.getOrderDetails().stream()
+                        .collect(Collectors.toMap(
+                                detail -> detail.getProduct().getId(),
+                                OrderDetail::getCount,
+                                Integer::sum
+                        ));
+
+                ContainerDepositSummary firstOrderDepositSummary =
+                        containerManagementService.calculateAvailableContainerRefunds(
+                                customerId, firstOrderProducts
+                        );
+
+                containerManagementService.reserveContainersForOrder(
+                        firstOrder, firstOrderDepositSummary
+                );
+
+                log.info("Reserved {} containers for first package order delivery",
+                        firstOrderDepositSummary.getTotalContainersUsed());
+            }
+        }
 
         packageOrder.setPaymentStatus(PaymentStatus.PENDING);
 
@@ -215,7 +250,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
     @Override
     @Transactional
     public CustomerPackageOrderResponse cancelPackageOrder(Long customerId, Long packageOrderId) {
-        log.info("Customer {} cancelling package order {}", customerId, packageOrderId);
+        log.info("Customer {} requesting to cancel package order {}", customerId, packageOrderId);
 
         CustomerPackageOrder packageOrder = customerPackageOrderRepository.findById(packageOrderId)
                 .orElseThrow(() -> new NotFoundException("Package order not found"));
@@ -224,16 +259,48 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             throw new BusinessRuleViolationException("Unauthorized to cancel this package");
         }
 
-        if (packageOrder.isCancelled() || packageOrder.isCompleted()) {
-            throw new BusinessRuleViolationException(
-                    "Cannot cancel package in status: " + packageOrder.getOrderStatus());
+        if (packageOrder.isCancelled()) {
+            throw new BusinessRuleViolationException("Package is already cancelled");
         }
+
+        if (packageOrder.isCompleted()) {
+            throw new BusinessRuleViolationException("Cannot cancel completed package");
+        }
+
+        long completedDeliveries = packageOrder.getGeneratedOrders().stream()
+                .filter(order -> order.getOrderStatus() == OrderStatus.COMPLETED)
+                .count();
+
+        if (completedDeliveries > 0) {
+            throw new BusinessRuleViolationException(
+                    "Cannot cancel package after deliveries have started. " +
+                    "Please contact customer service at [phone number] for assistance."
+            );
+        }
+
+        log.info("No deliveries completed yet. Proceeding with package cancellation.");
 
         for (Order order : packageOrder.getGeneratedOrders()) {
             if (order.getOrderStatus() == OrderStatus.PENDING ||
                     order.getOrderStatus() == OrderStatus.APPROVED) {
                 order.setOrderStatus(OrderStatus.REJECTED);
-                order.setRejectionReason("Package cancelled by customer");
+                order.setRejectionReason("Package cancelled by customer before first delivery");
+
+                if (order.getOrderStatus() == OrderStatus.APPROVED) {
+                    log.info("Releasing stock for approved order {} in cancelled package",
+                            order.getOrderNumber());
+
+                    Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
+                            .collect(Collectors.toMap(
+                                    detail -> detail.getProduct().getId(),
+                                    OrderDetail::getCount,
+                                    Integer::sum
+                            ));
+
+                    inventoryService.releaseStockBatch(productQuantities);
+                }
+
+                containerManagementService.releaseContainerReservations(order.getId());
             }
         }
 
@@ -262,7 +329,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
         }
 
         CustomerPackageOrder saved = customerPackageOrderRepository.save(packageOrder);
-        log.info("Package order {} cancelled successfully", packageOrderId);
+        log.info("Package order {} cancelled successfully (before first delivery)", packageOrderId);
 
         return mapToResponse(saved);
     }
@@ -716,6 +783,8 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
         List<OrderDepositInfo> depositInfos = depositCalculationService
                 .distributeDepositsAcrossOrders(packageDepositSummary, distributions);
 
+        Map<Long, Integer> allPackageProducts = new HashMap<>();
+
         for (int i = 0; i < distributions.size(); i++) {
             DeliveryDistributionRequest dist = distributions.get(i);
             OrderDepositInfo depositInfo = depositInfos.get(i);
@@ -770,6 +839,11 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             }
 
             order.setOrderStatus(OrderStatus.PENDING);
+
+            order.setStockReservationType(StockReservationType.SOFT);
+            order.setStockReservedAt(LocalDateTime.now(ZoneOffset.UTC));
+            order.setStockReservationExpiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));
+
             order.setPromoDiscount(BigDecimal.ZERO);
             order.setCampaignDiscount(BigDecimal.ZERO);
 
@@ -777,7 +851,16 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             order.setOrderDetails(orderDetails);
 
             orders.add(order);
+
+            for (DeliveryProductRequest prod : dist.getProducts()) {
+                allPackageProducts.merge(prod.getProductId(), prod.getQuantity(), Integer::sum);
+            }
         }
+
+        inventoryService.softReserveStockBatch(allPackageProducts);
+
+        log.info("Soft reserved stock for package: {} total products across {} deliveries",
+                allPackageProducts.size(), distributions.size());
 
         return orders;
     }

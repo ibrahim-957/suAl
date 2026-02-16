@@ -48,6 +48,9 @@ public class AffordablePackage {
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
+    @Column(name = "max_frequency", nullable = false)
+    private Integer maxFrequency = 4;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
@@ -87,5 +90,32 @@ public class AffordablePackage {
         return packageProducts.stream()
                 .mapToInt(AffordablePackageProduct::getQuantity)
                 .sum();
+    }
+
+    public boolean isFrequencyValid(int requestedFrequency) {
+        return requestedFrequency > 0 && requestedFrequency <= maxFrequency;
+    }
+
+    public String getFrequencyErrorMessage(int requestedFrequency) {
+        if (requestedFrequency <= 0) {
+            return "Çatdırılma sayı ən azı 1 olmalıdır";
+        }
+        if (requestedFrequency > maxFrequency) {
+            if (maxFrequency == 1) {
+                return "Bu paket yalnız bir dəfəlik çatdırılma üçündür. Çoxsaylı çatdırılmaya icazə verilmir.";
+            }
+            if (maxFrequency == 2) {
+                return String.format(
+                        "Bu sınaq paketi maksimum 2 çatdırılmaya icazə verir. Siz %d çatdırılma sorğusu verdiniz.",
+                        requestedFrequency
+                );
+            }
+            return String.format(
+                    "Bu paket maksimum %d çatdırılmaya icazə verir. Siz %d çatdırılma sorğusu verdiniz.",
+                    maxFrequency,
+                    requestedFrequency
+            );
+        }
+        return null;
     }
 }

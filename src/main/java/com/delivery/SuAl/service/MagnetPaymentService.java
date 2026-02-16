@@ -3,11 +3,13 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderCampaignBonus;
+import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Payment;
 import com.delivery.SuAl.exception.AlreadyPaidException;
 import com.delivery.SuAl.exception.GatewayException;
 import com.delivery.SuAl.exception.InvalidPaymentStateException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.exception.OrderDeletionException;
 import com.delivery.SuAl.exception.PaymentCreationException;
 import com.delivery.SuAl.exception.PaymentRefundException;
 import com.delivery.SuAl.exception.PaymentVerificationException;
@@ -39,7 +41,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -55,6 +59,8 @@ public class MagnetPaymentService implements PaymentService {
     private final RestTemplate magnetRestTemplate;
     private final CampaignService campaignService;
     private final PromoService promoService;
+    private final InventoryService inventoryService;
+    private final ContainerManagementService containerManagementService;
 
     @Value("${magnet.api.base-url}")
     private String baseUrl;
@@ -415,6 +421,13 @@ public class MagnetPaymentService implements PaymentService {
                 campaignService.releaseCampaignUsageByOrder(order.getId());
             }
 
+            if(order.getOrderStatus() == OrderStatus.APPROVED){
+                Map<Long, Integer> productQuantities = calculateAllProductQuantities(order);
+                inventoryService.releaseStockBatch(productQuantities);
+            }
+
+            containerManagementService.releaseContainerReservations(order.getId());
+
             if (order.getPackageOrder() != null) {
                 log.info("Order belongs to package order {}, will be handled by package order cancellation",
                         order.getPackageOrder().getId());
@@ -427,6 +440,7 @@ public class MagnetPaymentService implements PaymentService {
             log.info("Order {} and all related entities deleted successfully", order.getOrderNumber());
         } catch (Exception e) {
             log.error("Failed to delete order {}: {}", order.getOrderNumber(), e.getMessage(), e);
+            throw new OrderDeletionException("Failed to clean up order resources", e);
         }
     }
 
@@ -480,5 +494,29 @@ public class MagnetPaymentService implements PaymentService {
             log.error("Refund request failed", ex);
             throw new PaymentRefundException("Refund failed: " + ex.getMessage(), ex);
         }
+    }
+
+    private Map<Long, Integer> calculateAllProductQuantities(Order order){
+        Map<Long, Integer> quantities = new HashMap<>();
+
+        for (OrderDetail detail : order.getOrderDetails()) {
+            quantities.merge(
+                    detail.getProduct().getId(),
+                    detail.getCount(),
+                    Integer::sum
+            );
+        }
+
+        for (OrderCampaignBonus bonus : order.getCampaignBonuses()) {
+            if (bonus.getProduct() != null && bonus.getQuantity() > 0){
+                quantities.merge(
+                        bonus.getProduct().getId(),
+                        bonus.getQuantity(),
+                        Integer::sum
+                );
+            }
+        }
+
+        return quantities;
     }
 }

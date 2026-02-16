@@ -160,6 +160,7 @@ public class PackageDepositCalculationService {
         return result;
     }
 
+
     private BigDecimal calculateDepositForProducts(List<DeliveryProductRequest> products) {
         if (products == null || products.isEmpty()) return BigDecimal.ZERO;
 

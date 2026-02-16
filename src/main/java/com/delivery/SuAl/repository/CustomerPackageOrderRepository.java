@@ -64,4 +64,9 @@ public interface CustomerPackageOrderRepository extends JpaRepository<CustomerPa
             "LEFT JOIN FETCH cpo.deliveryDistributions " +
             "WHERE cpo.id = :id")
     Optional<CustomerPackageOrder> findByIdWithDetails(@Param("id") Long id);
+
+    @Query("SELECT cpo FROM CustomerPackageOrder cpo " +
+            "WHERE cpo.affordablePackage.id = :packageId " +
+            "AND cpo.orderStatus IN ('PENDING', 'ACTIVE')")
+    List<CustomerPackageOrder> findActivePackagesByPackageId(@Param("packageId") Long packageId);
 }

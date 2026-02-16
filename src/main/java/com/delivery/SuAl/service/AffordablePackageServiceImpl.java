@@ -3,7 +3,9 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.AffordablePackage;
 import com.delivery.SuAl.entity.AffordablePackageProduct;
 import com.delivery.SuAl.entity.Company;
+import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.exception.BusinessRuleViolationException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.UnauthorizedOperationException;
 import com.delivery.SuAl.mapper.AffordablePackageMapper;
@@ -15,6 +17,7 @@ import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AffordablePackageProductRepository;
 import com.delivery.SuAl.repository.AffordablePackageRepository;
 import com.delivery.SuAl.repository.CompanyRepository;
+import com.delivery.SuAl.repository.CustomerPackageOrderRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.security.OperatorContext;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,7 @@ import java.util.List;
 public class AffordablePackageServiceImpl implements AffordablePackageService {
     private final AffordablePackageRepository affordablePackageRepository;
     private final AffordablePackageProductRepository affordablePackageProductRepository;
+    private final CustomerPackageOrderRepository customerPackageOrderRepository;
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository;
     private final AffordablePackageMapper affordablePackageMapper;
@@ -61,6 +65,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         affordablePackage.setName(request.getName());
         affordablePackage.setDescription(request.getDescription());
         affordablePackage.setTotalPrice(request.getTotalPrice());
+        affordablePackage.setMaxFrequency(request.getMaxFrequency());
         affordablePackage.setIsActive(true);
         affordablePackage.setCompany(company);
 
@@ -91,6 +96,10 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         }
         if (request.getTotalPrice() != null) {
             affordablePackage.setTotalPrice(request.getTotalPrice());
+        }
+        if (request.getMaxFrequency() != null) {
+            validateMaxFrequencyUpdate(affordablePackage, request.getMaxFrequency());
+            affordablePackage.setMaxFrequency(request.getMaxFrequency());
         }
         if (request.getIsActive() != null) {
             affordablePackage.setIsActive(request.getIsActive());
@@ -290,5 +299,26 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         }
 
         return packageProducts;
+    }
+
+
+    private void validateMaxFrequencyUpdate(AffordablePackage affordablePackage, Integer newMaxFrequency) {
+        List<CustomerPackageOrder> activePackageOrders = customerPackageOrderRepository
+                .findActivePackagesByPackageId(affordablePackage.getId());
+
+        for (CustomerPackageOrder packageOrder : activePackageOrders) {
+            if (packageOrder.getFrequency() > newMaxFrequency) {
+                throw new BusinessRuleViolationException(
+                        String.format(
+                                "Cannot reduce max frequency to %d. " +
+                                "There are active package orders with %d deliveries (Order #%s). " +
+                                "Please wait until these orders are completed.",
+                                newMaxFrequency,
+                                packageOrder.getFrequency(),
+                                packageOrder.getOrderNumber()
+                        )
+                );
+            }
+        }
     }
 }

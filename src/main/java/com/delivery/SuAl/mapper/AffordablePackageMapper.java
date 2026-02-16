@@ -27,6 +27,7 @@ public interface AffordablePackageMapper {
     @Mapping(target = "products", expression = "java(mapProducts(affordablePackage.getPackageProducts()))")
     @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "frequencyDescription", expression = "java(getFrequencyDescription(affordablePackage))")
     AffordablePackageResponse toResponse(AffordablePackage affordablePackage);
 
     @Mapping(target = "productId", source = "product.id")
@@ -69,5 +70,16 @@ public interface AffordablePackageMapper {
                 .max(Comparator.comparing(Price::getCreatedAt))
                 .map(Price::getSellPrice)
                 .orElse(null);
+    }
+
+    default String getFrequencyDescription(AffordablePackage affordablePackage) {
+        Integer max = affordablePackage.getMaxFrequency();
+        if (max == null || max <= 0) {
+            return "Unlimited deliveries";
+        }
+        if (max == 1) {
+            return "Single delivery only";
+        }
+        return String.format("1-%d deliveries allowed", max);
     }
 }

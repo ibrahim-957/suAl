@@ -3,6 +3,7 @@ package com.delivery.SuAl.entity;
 import com.delivery.SuAl.model.enums.OrderStatus;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
+import com.delivery.SuAl.model.enums.StockReservationType;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.CascadeType;
@@ -68,7 +69,7 @@ public class Order {
     private Integer totalItems;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal subtotal;
+    private BigDecimal subtotal; //product sum price
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promo_id")
@@ -93,7 +94,7 @@ public class Order {
     private BigDecimal netDeposit = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal amount; // productAmount
+    private BigDecimal amount; // subtotal - promoDiscount
 
     private LocalDate deliveryDate;
 
@@ -142,6 +143,16 @@ public class Order {
     @Column(name = "actual_deposit_refunded_at_completion", precision = 10, scale = 2)
     private BigDecimal actualDepositRefundedAtCompletion = BigDecimal.ZERO;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_reservation_type")
+    private StockReservationType stockReservationType = StockReservationType.NONE;
+
+    @Column(name = "stock_reserved_at")
+    private LocalDateTime stockReservedAt;
+
+    @Column(name = "stock_reservation_expires_at")
+    private LocalDateTime stockReservationExpiresAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -187,5 +198,15 @@ public class Order {
 
     public boolean shouldCollectOldContainers() {
         return isFirstPackageDelivery() && oldContainersToCollect != null && oldContainersToCollect > 0;
+    }
+
+    public boolean hasStockReserved() {
+        return stockReservationType != StockReservationType.NONE;
+    }
+
+    public boolean isStockReservationExpired() {
+        return stockReservationType == StockReservationType.SOFT
+                && stockReservationExpiresAt != null
+                && LocalDateTime.now().isAfter(stockReservationExpiresAt);
     }
 }

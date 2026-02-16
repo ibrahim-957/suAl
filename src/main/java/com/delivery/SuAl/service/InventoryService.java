@@ -125,6 +125,20 @@ public class InventoryService {
     }
 
     @Transactional
+    public void softReserveStockBatch(Map<Long, Integer> productQuantities) {
+        log.info("SOFT reserving stock for {} products", productQuantities.size());
+
+        validateStockAvailability(productQuantities);
+    }
+
+    @Transactional
+    public void convertSoftToHardReservation(Map<Long, Integer> productQuantities) {
+        log.info("Converting SOFT to HARD reservation for {} products", productQuantities.size());
+
+        validateAndReserveStockBatch(productQuantities);
+    }
+
+    @Transactional
     public void releaseStock(Long productId, int quantity) {
         if (quantity <= 0) {
             log.warn("Attempted to release non-positive quantity {} for product {}", quantity, productId);
@@ -147,6 +161,60 @@ public class InventoryService {
                                     "Product not found in warehouse with id: " + productId);
                         }
                 );
+    }
+
+    @Transactional
+    public void releaseStockBatch(Map<Long, Integer> productQuantities) {
+        if (productQuantities == null || productQuantities.isEmpty()) {
+            log.debug("No products to release");
+            return;
+        }
+
+        log.info("Batch releasing stock for {} products", productQuantities.size());
+
+        productQuantities.forEach((productId, quantity) -> {
+            if (quantity <= 0) {
+                throw new IllegalArgumentException(
+                        String.format("Invalid quantity %d for product %d", quantity, productId));
+            }
+        });
+
+        List<Long> productIds = new ArrayList<>(productQuantities.keySet());
+
+        List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
+        Map<Long, WarehouseStock> stockMap = stocks.stream()
+                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
+
+        Map<Long, Product> productMap = productRepository.findAllById(productIds)
+                .stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+
+        List<Long> missingStocks = new ArrayList<>();
+        for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
+            Long productId = entry.getKey();
+            Integer quantity = entry.getValue();
+
+            WarehouseStock stock = stockMap.get(productId);
+            if (stock == null) {
+                missingStocks.add(productId);
+                log.error("Cannot release stock - product {} not found in warehouse", productId);
+                continue;
+            }
+
+            stock.setFullCount(stock.getFullCount() + quantity);
+
+            Product product = productMap.get(productId);
+            log.debug("Released {} units of {} ({}). New count: {}",
+                    quantity, productId, product != null ? product.getName() : "Unknown",
+                    stock.getFullCount());
+        }
+
+        if (!missingStocks.isEmpty()) {
+            throw new NotFoundException("Products not found in warehouse: " + missingStocks);
+        }
+
+        warehouseStockRepository.saveAll(stocks);
+        log.info("Successfully released stock for {} products", productQuantities.size());
     }
 
     @Transactional

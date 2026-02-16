@@ -18,6 +18,7 @@ public class AffordablePackageResponse {
     private String name;
     private String description;
     private BigDecimal totalPrice;
+    private Integer maxFrequency;
     private Boolean isActive;
     private Long companyId;
     private String companyName;
@@ -25,4 +26,5 @@ public class AffordablePackageResponse {
     private List<PackageProductResponse> products;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String frequencyDescription;
 }

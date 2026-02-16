@@ -12,16 +12,8 @@ import java.util.Map;
 
 public interface ContainerManagementService {
     ContainerDepositSummary calculateAvailableContainerRefunds(Long userId, Map<Long, Integer> productQuantities);
-
-    void reserveContainers(Long userId, ContainerDepositSummary depositSummary);
-
-    void releaseReservedContainers(Order order);
-
     void processOrderCompletion(Long customerId, List<OrderDetail> orderDetails, List<BottleCollectionItem> bottlesCollected);
 
-    void processCollectedBottles(Long userId, List<OrderDetail> orderDetails, List<BottleCollectionItem> bottlesCollected);
-
-    void processDeliveredProducts(Long userId, List<OrderDetail> orderDetails);
 
     CustomerContainer getOrCreateContainer(Long userId, Long productId);
 
@@ -29,5 +21,9 @@ public interface ContainerManagementService {
 
     boolean validatePackageContainerAvailability(Long customerId, Long packageId, int quantity);
 
-    int calculatePackageContainerRequirement(Long packageId, int quantity);
+    void reserveContainersForOrder(Order order, ContainerDepositSummary depositSummary);
+
+    void releaseContainerReservations(Long orderId);
+
+
 }

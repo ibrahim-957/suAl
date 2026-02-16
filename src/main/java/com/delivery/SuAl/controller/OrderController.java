@@ -86,6 +86,15 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order updated successfully", response));
     }
 
+    @GetMapping("/{orderId}/modification-guidance")
+    public ResponseEntity<ApiResponse<String>> getModificationGuidance(
+            @PathVariable Long orderId
+    ){
+        String guidance = orderService.getOrderModificationGuidance(orderId);
+
+        return ResponseEntity.ok(ApiResponse.success(guidance));
+    }
+
     @PutMapping("/{orderId}/assign-driver")
     public ResponseEntity<ApiResponse<OrderResponse>> assignDriver(
             @PathVariable Long orderId,

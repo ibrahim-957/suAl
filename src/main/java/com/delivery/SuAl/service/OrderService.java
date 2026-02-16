@@ -19,6 +19,8 @@ public interface OrderService {
 
     OrderResponse updateOrder(Long orderId, UpdateOrderRequest request);
 
+    String getOrderModificationGuidance(Long orderId);
+
     OrderResponse getOrderById(Long id);
 
     OrderResponse assignDriver(Long orderId, Long driverId);
@@ -42,4 +44,5 @@ public interface OrderService {
     PageResponse<OrderResponse> getAllOrdersByCustomer(Pageable pageable, String phoneNumber);
 
     DriverCollectionInfoResponse getDriverCollectionInfo(Long orderId);
+
 }

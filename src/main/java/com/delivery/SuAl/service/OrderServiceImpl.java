@@ -5,15 +5,12 @@ import com.delivery.SuAl.entity.Address;
 import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.CustomerContainer;
-import com.delivery.SuAl.entity.CustomerPackageOrder;
 import com.delivery.SuAl.entity.Driver;
 import com.delivery.SuAl.entity.Operator;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.exception.BusinessRuleViolationException;
-import com.delivery.SuAl.exception.InsufficientContainerException;
 import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.PaymentRefundException;
@@ -30,13 +27,13 @@ import com.delivery.SuAl.model.enums.OrderStatus;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.enums.ReceiverType;
+import com.delivery.SuAl.model.enums.StockReservationType;
 import com.delivery.SuAl.model.request.cart.CalculatePriceRequest;
 import com.delivery.SuAl.model.request.cart.CartItem;
 import com.delivery.SuAl.model.request.marketing.ApplyCampaignRequest;
 import com.delivery.SuAl.model.request.marketing.ApplyPromoRequest;
 import com.delivery.SuAl.model.request.marketing.GetEligibleCampaignsRequest;
 import com.delivery.SuAl.model.request.notification.NotificationRequest;
-import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByCustomerRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
@@ -73,6 +70,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -107,6 +105,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
     private final OrderMapper orderMapper;
+    private final OrderCompletionService orderCompletionService;
 
     @Override
     @Transactional
@@ -170,7 +169,7 @@ public class OrderServiceImpl implements OrderService {
         Operator operator = operatorRepository.findByEmail(operatorEmail)
                 .orElseThrow(() -> new NotFoundException("Operator not found with email: " + operatorEmail));
 
-        if (OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             for (CartItem item : request.getItems()) {
                 validateProductAccess(item.getProductId());
             }
@@ -192,7 +191,24 @@ public class OrderServiceImpl implements OrderService {
         validateOrderAccess(order);
 
         if (order.getOrderStatus() != OrderStatus.PENDING) {
-            throw new InvalidOrderStateException("Order must be PENDING to be updated");
+            throw new InvalidOrderStateException(
+                    "Order must be PENDING to be updated. Current status: " + order.getOrderStatus()
+            );
+        }
+
+        if (order.getPaymentStatus() == PaymentStatus.SUCCESS) {
+            throw new InvalidOrderStateException(
+                    "Cannot modify order after payment is completed. " +
+                    "Please cancel this order and create a new one, or contact support."
+            );
+        }
+
+        if (order.getPaymentStatus() == PaymentStatus.PROCESSING ||
+                order.getPaymentStatus() == PaymentStatus.AUTHORIZED) {
+            throw new InvalidOrderStateException(
+                    "Cannot modify order while payment is being processed. " +
+                    "Please wait for payment to complete or cancel."
+            );
         }
 
         boolean needsRecalculation = false;
@@ -206,7 +222,9 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (updateRequest.getAddressId() != null) {
-            Address newAddress = findCustomerAddress(order.getCustomer().getId(), updateRequest.getAddressId());
+            Address newAddress = findCustomerAddress(
+                    order.getCustomer().getId(),
+                    updateRequest.getAddressId());
             order.setAddress(newAddress);
         }
 
@@ -242,6 +260,25 @@ public class OrderServiceImpl implements OrderService {
         log.info("Order updated successfully: {}", orderId);
 
         return orderMapper.toResponse(savedOrder);
+    }
+
+    public String getOrderModificationGuidance(Long orderId) {
+        Order order = findOrderById(orderId);
+        if (order.getPaymentStatus() == PaymentStatus.SUCCESS) {
+            return String.format(
+                    """
+                            Sifariş #%s ödənilib (%s AZN). Dəyişiklik etmək üçün:
+                            1. Bu sifarişi ləğv edin (pul geri qaytarılacaq)
+                            2. İstədiyiniz dəyişikliklərlə yeni sifariş yaradın
+                            3. Müştəri yeni ödəniş etsin
+                            
+                            Və ya müştəri ilə əlaqə saxlayaraq dəyişikliklərin qəbul olunduğunu təsdiqləyin.""",
+                    order.getOrderNumber(),
+                    order.getTotalAmount()
+            );
+        }
+
+        return "Sifariş normal şəkildə yenilənə bilər.";
     }
 
     @Override
@@ -324,7 +361,15 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        inventoryService.validateAndReserveStockBatch(productQuantities);
+        if (order.getStockReservationType() == StockReservationType.SOFT) {
+            inventoryService.convertSoftToHardReservation(productQuantities);
+            order.setStockReservationType(StockReservationType.HARD);
+            order.setStockReservationExpiresAt(null);
+        } else {
+            inventoryService.validateAndReserveStockBatch(productQuantities);
+            order.setStockReservationType(StockReservationType.HARD);
+        }
+
         for (OrderDetail detail : order.getOrderDetails()) {
             Product product = detail.getProduct();
             product.setOrderCount(product.getOrderCount() + detail.getCount());
@@ -499,93 +544,10 @@ public class OrderServiceImpl implements OrderService {
 
         Order order = findOrderById(orderId);
 
-        if (order.getOrderStatus() != OrderStatus.APPROVED) {
-            throw new InvalidOrderStateException("Order must be APPROVED before completing order");
-        }
+        Order completedOrder = orderCompletionService.completeOrder(order, completeDeliveryRequest);
 
-        if (order.getDriver() == null) {
-            throw new InvalidOrderStateException("Driver must be assigned before completing order");
-        }
-
-        if (order.getPackageOrder() != null) {
-            log.info("Processing package order completion");
-
-            CustomerPackageOrder packageOrder = order.getPackageOrder();
-
-            if (!containerManagementService.validatePackageContainerAvailability(
-                    packageOrder.getCustomer().getId(),
-                    packageOrder.getAffordablePackage().getId(),
-                    packageOrder.getFrequency())) {
-                throw new InsufficientContainerException(
-                        "Customer does not have enough containers for this package order"
-                );
-            }
-
-            containerManagementService.processPackageOrderCompletion(packageOrder);
-            customerPackageOrderRepository.save(packageOrder);
-
-            customerPackageOrderService.updatePackageOrderStatus(packageOrder.getId());
-
-            log.info("Package order completed: {} bottles delivered",
-                    packageOrder.getAffordablePackage().getTotalContainers() * packageOrder.getFrequency());
-        } else {
-            validateCollectedBottles(order, completeDeliveryRequest.getBottlesCollected());
-
-            log.info("Processing order completion (delivery + collection) atomically");
-            containerManagementService.processOrderCompletion(
-                    order.getCustomer().getId(),
-                    order.getOrderDetails(),
-                    completeDeliveryRequest.getBottlesCollected()
-            );
-
-            int totalExpected = order.getEmptyBottlesExpected();
-            int totalCollected = calculateTotalBottlesCollected(order);
-            int missingBottles = totalExpected - totalCollected;
-
-            log.info("Container collection - Expected: {}, Collected: {}, Missing: {}",
-                    totalExpected, totalCollected, missingBottles);
-
-            orderCalculationService.recalculateDepositsFromActualCollection(order);
-
-            if (missingBottles > 0) {
-                BigDecimal depositPerUnit = order.getOrderDetails().isEmpty()
-                        ? BigDecimal.ZERO
-                        : order.getOrderDetails().getFirst().getDepositPerUnit();
-
-                BigDecimal extraDepositCharge = depositPerUnit
-                        .multiply(BigDecimal.valueOf(missingBottles))
-                        .setScale(2, RoundingMode.HALF_UP);
-
-                log.warn("CUSTOMER DID NOT RETURN {} CONTAINERS - Extra deposit kept: {} ({}×{})",
-                        missingBottles, extraDepositCharge, missingBottles, depositPerUnit);
-
-                String missingContainerNote = String.format(
-                        "Missing containers: %d bottles not returned. Deposit not refunded: %s AZN (%s × %d)",
-                        missingBottles, extraDepositCharge, depositPerUnit, missingBottles
-                );
-                appendNotes(order, missingContainerNote);
-
-                log.info("Deposit kept for missing containers: {}", extraDepositCharge);
-            }
-
-            order.setEmptyBottlesCollected(totalCollected);
-        }
-
-        order.setOrderStatus(OrderStatus.COMPLETED);
-        order.setCompletedAt(LocalDateTime.now());
-
-        if (order.getPaymentMethod() == PaymentMethod.CASH &&
-                order.getPaymentStatus() == PaymentStatus.PENDING) {
-            order.setPaymentStatus(PaymentStatus.SUCCESS);
-            order.setPaidAt(LocalDateTime.now());
-        }
-
-        appendNotes(order, completeDeliveryRequest.getNotes());
-
-        Order savedOrder = orderRepository.save(order);
-
-        log.info("Order {} completed successfully", savedOrder.getOrderNumber());
-        return orderMapper.toResponse(savedOrder);
+        log.info("Order {} completed successfully", completedOrder.getOrderNumber());
+        return orderMapper.toResponse(completedOrder);
     }
 
     @Override
@@ -609,7 +571,7 @@ public class OrderServiceImpl implements OrderService {
         log.info("Getting pending orders with page: {}", pageable);
         Page<Order> orderPage;
 
-        if(OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             Long companyId = OperatorContext.getCurrentCompanyId();
             log.info("Supplier operator requesting pending orders - filtering by company ID: {}", companyId);
             orderPage = orderRepository.findByOrderStatusAndCompanyId(OrderStatus.PENDING, companyId, pageable);
@@ -835,6 +797,7 @@ public class OrderServiceImpl implements OrderService {
                         Integer::sum
                 ));
 
+
         ContainerDepositSummary depositSummary =
                 containerManagementService.calculateAvailableContainerRefunds(
                         customer.getId(),
@@ -856,6 +819,10 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderStatus(OrderStatus.PENDING);
         order.setPaymentStatus(PaymentStatus.PENDING);
         order.setPaymentMethod(PaymentMethod.CASH);
+
+        order.setStockReservationType(StockReservationType.SOFT);
+        order.setStockReservedAt(LocalDateTime.now(ZoneOffset.UTC));
+        order.setStockReservationExpiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));
 
         order.setSubtotal(pricing.getSubtotal());
         order.setTotalDepositCharged(pricing.getTotalDepositCharged());
@@ -923,6 +890,25 @@ public class OrderServiceImpl implements OrderService {
                 savedOrder.getSubtotal()
         );
 
+        Map<Long, Integer> allProducts = new HashMap<>(productQuantities);
+
+        for (OrderCampaignBonus bonus : savedOrder.getCampaignBonuses()) {
+            if (bonus.getProduct() != null && bonus.getQuantity() > 0) {
+                allProducts.merge(
+                        bonus.getProduct().getId(),
+                        bonus.getQuantity(),
+                        Integer::sum
+                );
+            }
+        }
+
+        inventoryService.softReserveStockBatch(allProducts);
+
+        log.info("Soft reserved stock for {} regular products + {} campaign bonuses = {} total products",
+                productQuantities.size(),
+                savedOrder.getCampaignBonuses().size(),
+                allProducts.size());
+
         if (campaignResult.getTotalDiscount().compareTo(BigDecimal.ZERO) > 0) {
             savedOrder.setCampaignDiscount(campaignResult.getTotalDiscount());
 
@@ -943,7 +929,7 @@ public class OrderServiceImpl implements OrderService {
                     finalTotal);
         }
 
-        //containerManagementService.reserveContainers(customer.getId(), depositSummary);
+        containerManagementService.reserveContainersForOrder(savedOrder, depositSummary);
 
         log.info("Reserved {} containers from customer balance",
                 depositSummary.getTotalContainersUsed());
@@ -1228,65 +1214,6 @@ public class OrderServiceImpl implements OrderService {
                 order.getSubtotal(), order.getNetDeposit(), order.getTotalAmount());
     }
 
-    private void appendNotes(Order order, String newNotes) {
-        if (newNotes == null || newNotes.trim().isEmpty()) {
-            return;
-        }
-        String existingNotes = order.getNotes();
-        if (existingNotes != null && !existingNotes.trim().isEmpty()) {
-            order.setNotes(existingNotes + " /// " + newNotes);
-        } else {
-            order.setNotes(newNotes);
-        }
-        log.info("Notes appended: {}", order.getNotes());
-    }
-
-    private void validateCollectedBottles(Order order, List<BottleCollectionItem> bottlesCollected) {
-        if (bottlesCollected == null || bottlesCollected.isEmpty()) {
-            log.info("No bottles collected for order {}", order.getOrderNumber());
-            return;
-        }
-
-        Map<Long, OrderDetail> orderDetailMap = order.getOrderDetails().stream()
-                .collect(Collectors.toMap(
-                        detail -> detail.getProduct().getId(),
-                        detail -> detail
-                ));
-
-        List<String> error = new ArrayList<>();
-
-        for (BottleCollectionItem item : bottlesCollected) {
-            OrderDetail detail = orderDetailMap.get(item.getProductId());
-
-            if (detail == null) {
-                error.add(String.format("Product %d was not in this order", item.getProductId()));
-                continue;
-            }
-
-            if (item.getQuantity() < 0) {
-                error.add(String.format("Invalid quantity %d for product %d",
-                        item.getQuantity(), item.getProductId()));
-                continue;
-            }
-
-            if (item.getQuantity() > detail.getCount()) {
-                log.warn("Order {}: Collecting {} bottles of product {} but only delivered {}. " +
-                                "Customer returned extra bottles from previous orders.",
-                        order.getOrderNumber(), item.getQuantity(), item.getProductId(), detail.getCount());
-            }
-        }
-
-        if (!error.isEmpty()) {
-            throw new BusinessRuleViolationException("Bottle collection validation failed: " + String.join(", ", error));
-        }
-    }
-
-    private int calculateTotalBottlesCollected(Order order) {
-        return order.getOrderDetails().stream()
-                .mapToInt(OrderDetail::getContainersReturned)
-                .sum();
-    }
-
     private void refundPayment(Order order) {
         if (order.getPaymentStatus() == PaymentStatus.SUCCESS) {
             try {
@@ -1300,12 +1227,12 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void validateProductAccess(Long productId){
-        if (OperatorContext.isSupplierOperator()){
+    private void validateProductAccess(Long productId) {
+        if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
             Product product = findProductById(productId);
 
-            if(!product.getCompany().getId().equals(operatorCompanyId)){
+            if (!product.getCompany().getId().equals(operatorCompanyId)) {
                 throw new UnauthorizedOperationException(
                         "You don't have permission to create orders with products from other companies"
                 );
@@ -1313,14 +1240,14 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void validateOrderAccess(Order order){
-        if (OperatorContext.isSupplierOperator()){
+    private void validateOrderAccess(Order order) {
+        if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
 
             boolean hasCompanyProducts = order.getOrderDetails().stream()
                     .anyMatch(detail -> detail.getProduct().getId().equals(operatorCompanyId));
 
-            if(!hasCompanyProducts){
+            if (!hasCompanyProducts) {
                 throw new UnauthorizedOperationException(
                         "You don't have permission to access this order. It doesn't contain products from your company."
                 );
@@ -1328,7 +1255,7 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private List<Operator> getOperatorsToNotifyForOrder(Long orderId){
+    private List<Operator> getOperatorsToNotifyForOrder(Long orderId) {
         Order order = findOrderById(orderId);
 
         List<Long> companyIds = order.getOrderDetails().stream()
@@ -1336,7 +1263,7 @@ public class OrderServiceImpl implements OrderService {
                 .distinct()
                 .toList();
 
-        if(companyIds.isEmpty()){
+        if (companyIds.isEmpty()) {
             log.warn("order {} has no products, notifying only SYSTEM operators", orderId);
             return operatorRepository.findByOperatorStatusAndOperatorType(
                     OperatorStatus.ACTIVE, OperatorType.SYSTEM
