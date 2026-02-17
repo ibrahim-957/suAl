@@ -73,7 +73,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
 
         List<AffordablePackageProduct> packageProducts = createPackageProducts(savedPackage, request.getProducts());
         affordablePackageProductRepository.saveAll(packageProducts);
-        savedPackage.setPackageProducts(packageProducts);
+        savedPackage.getPackageProducts().addAll(packageProducts);
 
         log.info("Package created successfully: {}", savedPackage.getId());
 
@@ -106,19 +106,17 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         }
 
         if (request.getProducts() != null && !request.getProducts().isEmpty()) {
-            // Validate products access if supplier operator
             if (OperatorContext.isSupplierOperator()) {
                 Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
                 validateProductsAccess(request.getProducts(), operatorCompanyId);
             }
 
-            // Remove old products and add new ones
             affordablePackageProductRepository.deleteAll(affordablePackage.getPackageProducts());
             affordablePackage.getPackageProducts().clear();
 
             List<AffordablePackageProduct> newProducts = createPackageProducts(affordablePackage, request.getProducts());
             affordablePackageProductRepository.saveAll(newProducts);
-            affordablePackage.setPackageProducts(newProducts);
+            affordablePackage.getPackageProducts().addAll(newProducts);
         }
 
         AffordablePackage updated = affordablePackageRepository.save(affordablePackage);
