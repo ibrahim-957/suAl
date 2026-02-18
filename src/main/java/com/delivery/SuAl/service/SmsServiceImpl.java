@@ -36,7 +36,7 @@ public class SmsServiceImpl implements SmsService {
         String text = "Sizin təsdiq kodunuz: " + otpCode;
         try {
             String passwordHash = md5(password);
-            String keySource = passwordHash + login + text + msisdn;
+            String keySource = passwordHash + login + text + msisdn + sender;
             String key = md5(keySource);
 
             URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + "/send")
@@ -45,6 +45,7 @@ public class SmsServiceImpl implements SmsService {
                     .queryParam("text", text)
                     .queryParam("sender", sender)
                     .queryParam("key", key)
+                    .queryParam("unicode", 0)
                     .build()
                     .toUri();
 
@@ -73,8 +74,11 @@ public class SmsServiceImpl implements SmsService {
     }
 
     private String normalizePhone(String phoneNumber) {
-        if (phoneNumber.startsWith("+944")) {
+        if (phoneNumber.startsWith("+994")) {
             return phoneNumber.substring(4);
+        }
+        if (phoneNumber.startsWith("994")) {
+            return phoneNumber.substring(3);
         }
         if (phoneNumber.startsWith("0")) {
             return phoneNumber.substring(1);
