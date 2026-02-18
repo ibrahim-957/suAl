@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthenticationServiceImpl implements AuthenticationService {
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -30,44 +31,46 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     @Transactional
-    public AuthenticationResponse createUser(String email, String phoneNumber, String password, UserRole role, Long targetId) {
+    public AuthenticationResponse createUser(String email, String phoneNumber, String password,
+                                             UserRole role, Long targetId) {
         log.info("Creating user for role {} with targetId {}", role, targetId);
 
-        if (email != null && userRepository.existsByEmail(email)) {
-            throw new AlreadyExistsException("Email already registered: " + email);
+
+        if (email != null && userRepository.existsByEmailAndRole(email, role)) {
+            throw new AlreadyExistsException("Email already registered for this role: " + email);
         }
 
-        if (phoneNumber != null && userRepository.existsByPhoneNumber(phoneNumber)) {
-            throw new AlreadyExistsException("Phone number already registered: " + phoneNumber);
+        if (phoneNumber != null && userRepository.existsByPhoneNumberAndRole(phoneNumber, role)) {
+            throw new AlreadyExistsException("Phone number already registered for this role: " + phoneNumber);
         }
 
         User.UserBuilder userBuilder = User.builder()
-                .password(passwordEncoder.encode(password))
                 .role(role)
                 .targetId(targetId);
 
         if (role == UserRole.CUSTOMER) {
-            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            if (phoneNumber == null || phoneNumber.isBlank()) {
                 throw new IllegalArgumentException("Phone number is required for CUSTOMER role");
             }
             userBuilder.phoneNumber(phoneNumber);
         } else {
-            if (email == null || email.trim().isEmpty()) {
+            if (email == null || email.isBlank()) {
                 throw new IllegalArgumentException("Email is required for " + role + " role");
             }
-            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            if (phoneNumber == null || phoneNumber.isBlank()) {
                 throw new IllegalArgumentException("Phone number is required for " + role + " role");
             }
-            userBuilder.email(email).phoneNumber(phoneNumber);
+            userBuilder
+                    .email(email)
+                    .phoneNumber(phoneNumber)
+                    .password(passwordEncoder.encode(password));
         }
 
-        User user = userBuilder.build();
-        User savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(userBuilder.build());
+        log.info("User created with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
 
-        log.info("User created successfully with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
-
-        var jwtToken = jwtService.generateToken(savedUser);
-        var refreshToken = jwtService.generateRefreshToken(savedUser);
+        String jwtToken = jwtService.generateToken(savedUser);
+        String refreshToken = jwtService.generateRefreshToken(savedUser);
 
         return AuthenticationResponse.builder()
                 .accessToken(jwtToken)
@@ -78,19 +81,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .targetId(savedUser.getTargetId())
                 .role(role)
                 .build();
-    }
-
-    @Deprecated
-    @Transactional
-    public AuthenticationResponse createUser(String identifier, String password, UserRole role, Long targetId) {
-        log.info("Creating user for role {} with targetId {} (legacy method)", role, targetId);
-
-        if (role == UserRole.CUSTOMER) {
-            return createUser(null, identifier, password, role, targetId);
-        } else {
-            log.warn("Using legacy createUser method for non-CUSTOMER role. Consider using the new method signature.");
-            return createUser(identifier, null, password, role, targetId);
-        }
     }
 
     @Override
@@ -105,28 +95,24 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 )
         );
 
-        if (request.getIdentifier() != null) {
-            User user = userRepository.findByPhoneNumber(request.getIdentifier())
-                    .orElseGet(() -> userRepository.findByEmail(request.getIdentifier())
-                            .orElseThrow(() -> new NotFoundException("User not found with identifier: " + request.getIdentifier())));
+        User user = resolveUserByIdentifier(request.getIdentifier());
 
-            log.info("User authenticated successfully with ID: {}", user.getId());
+        log.info("User authenticated with ID: {}", user.getId());
 
-            var jwtToken = jwtService.generateToken(user);
-            var refreshToken = jwtService.generateRefreshToken(user);
+        return buildAuthResponse(user);
+    }
 
-            return AuthenticationResponse.builder()
-                    .accessToken(jwtToken)
-                    .refreshToken(refreshToken)
-                    .tokenType("Bearer")
-                    .expiresIn(3600L)
-                    .userId(user.getId())
-                    .role(user.getRole())
-                    .targetId(user.getTargetId())
-                    .build();
-        } else {
-            throw new NotFoundException("User not found");
-        }
+    @Transactional
+    public AuthenticationResponse authenticateCustomerAfterOtp(String phoneNumber) {
+        log.info("Issuing JWT for OTP-verified customer with phone ending: {}",
+                phoneNumber.substring(Math.max(0, phoneNumber.length() - 4)));
+
+        User user = userRepository.findByPhoneNumberAndRole(phoneNumber, UserRole.CUSTOMER)
+                .orElseThrow(() -> new NotFoundException(
+                        "Customer not found with phone: " + phoneNumber
+                ));
+
+        return buildAuthResponse(user);
     }
 
     @Override
@@ -136,42 +122,35 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         log.info("Refreshing token for identifier: {}", identifier);
 
-        if (identifier != null) {
-            User user = userRepository.findByPhoneNumber(identifier)
-                    .orElseGet(() -> userRepository.findByEmail(identifier)
-                            .orElseThrow(() -> new NotFoundException("User not found with identifier: " + identifier)));
-
-            if (jwtService.isTokenValid(refreshToken, user)) {
-                var accessToken = jwtService.generateToken(user);
-
-                log.info("Token refreshed successfully with ID: {}", accessToken);
-
-                return AuthenticationResponse.builder()
-                        .accessToken(accessToken)
-                        .refreshToken(refreshToken)
-                        .tokenType("Bearer")
-                        .expiresIn(3600L)
-                        .userId(user.getId())
-                        .role(user.getRole())
-                        .targetId(user.getTargetId())
-                        .build();
-            }
+        if (identifier == null) {
+            throw new RuntimeException("Invalid refresh token");
         }
-        throw new RuntimeException("Invalid refresh token");
-    }
 
-    @Override
-    public void deleteUser(Long targetId, UserRole role) {
-        log.info("Deleting user for role {} with identifier {}", role, targetId);
-        userRepository.deleteByTargetIdAndRole(targetId, role);
+        User user = resolveUserByIdentifier(identifier);
+
+        if (!jwtService.isTokenValid(refreshToken, user)) {
+            throw new RuntimeException("Invalid refresh token");
+        }
+
+        log.info("Token refreshed for user ID: {}", user.getId());
+
+        return AuthenticationResponse.builder()
+                .accessToken(jwtService.generateToken(user))
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(3600L)
+                .userId(user.getId())
+                .role(user.getRole())
+                .targetId(user.getTargetId())
+                .build();
     }
 
     @Override
     @Transactional
     public ApiResponse<String> changePassword(ChangePasswordRequest request, Long userId) {
-        log.info("Processing password change request for user ID: {}", userId);
+        log.info("Processing password change for user ID: {}", userId);
 
-        if (!request.getNewPassword().equals(request.getConfirmNewPassword())){
+        if (!request.getNewPassword().equals(request.getConfirmNewPassword())) {
             throw new IllegalArgumentException("Passwords don't match");
         }
 
@@ -182,20 +161,56 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found with ID: " + userId));
 
+        if (user.getRole() == UserRole.CUSTOMER) {
+            throw new IllegalArgumentException("Customers use OTP login and do not have a password");
+        }
+
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            log.warn("Failed password change attempt for user ID: {} - incorrect current password", userId);
+            log.warn("Failed password change for user ID: {} — incorrect current password", userId);
             throw new IllegalArgumentException("Current password is incorrect");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        log.info("Password changed successfully with ID: {}", user.getId());
+        log.info("Password changed successfully for user ID: {}", userId);
 
         return ApiResponse.<String>builder()
                 .success(true)
                 .message("Password changed successfully")
                 .data("Your password has been updated")
+                .build();
+    }
+
+    @Override
+    public void deleteUser(Long targetId, UserRole role) {
+        log.info("Deleting user for role {} with targetId {}", role, targetId);
+        userRepository.deleteByTargetIdAndRole(targetId, role);
+    }
+
+    private User resolveUserByIdentifier(String identifier) {
+        if (isPhoneNumber(identifier)) {
+            return userRepository.findByPhoneNumberAndRole(identifier, UserRole.CUSTOMER)
+                    .orElseThrow(() -> new NotFoundException("Customer not found: " + identifier));
+        } else {
+            return userRepository.findFirstByEmailAndRoleNot(identifier, UserRole.CUSTOMER)
+                    .orElseThrow(() -> new NotFoundException("User not found: " + identifier));
+        }
+    }
+
+    private boolean isPhoneNumber(String identifier) {
+        return identifier != null && identifier.replaceAll("^\\+", "").matches("\\d+");
+    }
+
+    private AuthenticationResponse buildAuthResponse(User user) {
+        return AuthenticationResponse.builder()
+                .accessToken(jwtService.generateToken(user))
+                .refreshToken(jwtService.generateRefreshToken(user))
+                .tokenType("Bearer")
+                .expiresIn(3600L)
+                .userId(user.getId())
+                .role(user.getRole())
+                .targetId(user.getTargetId())
                 .build();
     }
 }

@@ -8,12 +8,11 @@ import com.delivery.SuAl.mapper.CustomerMapper;
 import com.delivery.SuAl.model.enums.UserRole;
 import com.delivery.SuAl.model.request.customer.CreateCustomerRequest;
 import com.delivery.SuAl.model.request.customer.UpdateCustomerRequest;
-import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.customer.CustomerResponse;
+import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.CustomerRepository;
 import com.delivery.SuAl.repository.UserRepository;
-import com.delivery.SuAl.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -34,11 +32,10 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerMapper customerMapper;
     private final AuthenticationService authenticationService;
     private final UserRepository userRepository;
-    private final JwtService jwtService;
 
     @Override
     @Transactional
-    public AuthenticationResponse createCustomer(CreateCustomerRequest createCustomerRequest) {
+    public ApiResponse<String> createCustomer(CreateCustomerRequest createCustomerRequest) {
         log.info("Creating new customer with phone number {}", createCustomerRequest.getPhoneNumber());
 
         Optional<Customer> existingCustomer = customerRepository
@@ -63,10 +60,10 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setLastName(createCustomerRequest.getLastName());
         customer.setIsActive(true);
 
-        AuthenticationResponse response = authenticationService.createUser(
+        authenticationService.createUser(
                 null,
                 createCustomerRequest.getPhoneNumber(),
-                createCustomerRequest.getPassword(),
+                null,
                 UserRole.CUSTOMER,
                 null
         );
@@ -75,26 +72,18 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> new NotFoundException("User not found after creation"));
 
         customer.setUser(user);
-
         Customer savedCustomer = customerRepository.save(customer);
-        log.info("Customer entity created with ID: {}", savedCustomer.getId());
 
         user.setTargetId(savedCustomer.getId());
         userRepository.save(user);
 
-        response = AuthenticationResponse.builder()
-                .accessToken(response.getAccessToken())
-                .refreshToken(response.getRefreshToken())
-                .tokenType(response.getTokenType())
-                .expiresIn(response.getExpiresIn())
-                .userId(response.getUserId())
-                .role(response.getRole())
-                .targetId(savedCustomer.getId())
+        log.info("Customer created successfully with ID: {}", savedCustomer.getId());
+
+        return ApiResponse.<String>builder()
+                .success(true)
+                .message("Account created successfully")
+                .data("Please login via OTP to continue")
                 .build();
-
-        log.info("Customer created successfully with ID: {} and linked to User", savedCustomer.getId());
-
-        return response;
     }
 
     @Override
@@ -146,7 +135,6 @@ public class CustomerServiceImpl implements CustomerService {
             User user = customer.getUser();
             customer.setUser(null);
             customerRepository.save(customer);
-
             userRepository.delete(user);
             log.info("Deleted User associated with Customer {}", id);
         }
@@ -174,33 +162,16 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> new NotFoundException("Customer not found with id " + id));
     }
 
-    private AuthenticationResponse reactivateCustomer(Customer customer, CreateCustomerRequest request) {
+    private ApiResponse<String> reactivateCustomer(Customer customer, CreateCustomerRequest request) {
         customer.setFirstName(request.getFirstName());
         customer.setLastName(request.getLastName());
         customer.setIsActive(true);
 
-        if (customer.getUser() != null) {
-            log.info("User still exists for inactive customer, reactivating with existing credentials");
-
-            customerRepository.save(customer);
-
-            User user = customer.getUser();
-
-            return AuthenticationResponse.builder()
-                    .accessToken(jwtService.generateToken(user))
-                    .refreshToken(jwtService.generateRefreshToken(user))
-                    .tokenType("Bearer")
-                    .expiresIn(3600L)
-                    .userId(user.getId())
-                    .role(UserRole.CUSTOMER)
-                    .build();
-        } else {
-            log.info("Creating new user for reactivated customer {}", customer.getId());
-
-            AuthenticationResponse response = authenticationService.createUser(
+        if (customer.getUser() == null) {
+            authenticationService.createUser(
                     null,
                     request.getPhoneNumber(),
-                    request.getPassword(),
+                    null,
                     UserRole.CUSTOMER,
                     null
             );
@@ -213,20 +184,16 @@ public class CustomerServiceImpl implements CustomerService {
 
             user.setTargetId(customer.getId());
             userRepository.save(user);
-
-            response = AuthenticationResponse.builder()
-                    .accessToken(response.getAccessToken())
-                    .refreshToken(response.getRefreshToken())
-                    .tokenType(response.getTokenType())
-                    .expiresIn(response.getExpiresIn())
-                    .userId(response.getUserId())
-                    .role(response.getRole())
-                    .targetId(customer.getId())
-                    .build();
-
-            log.info("Customer reactivated successfully with ID: {}", customer.getId());
-
-            return response;
+        } else {
+            customerRepository.save(customer);
         }
+
+        log.info("Customer reactivated successfully with ID: {}", customer.getId());
+
+        return ApiResponse.<String>builder()
+                .success(true)
+                .message("Account reactivated successfully")
+                .data("Please login via OTP to continue")
+                .build();
     }
 }

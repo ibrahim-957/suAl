@@ -63,3 +63,9 @@ magnet:
 
   connection-timeout: ${MAGNET_CONNECTION_TIMEOUT}
   read-timeout: ${MAGNET_READ_TIMEOUT}
+
+sms:
+  login: ${SMS_LOGIN}
+  password: ${SMS_PASSWORD}
+  sender: ${SMS_SENDER}
+  base-url: ${SMS_BASE_URL}

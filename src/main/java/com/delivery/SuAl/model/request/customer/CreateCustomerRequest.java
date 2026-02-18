@@ -20,8 +20,4 @@ public class CreateCustomerRequest {
     @NotBlank
     @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
     private String phoneNumber;
-
-    @NotBlank
-    @Size(min = 6)
-    private String password;
 }

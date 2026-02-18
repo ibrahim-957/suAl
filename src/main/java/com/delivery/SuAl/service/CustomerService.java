@@ -1,16 +1,15 @@
 package com.delivery.SuAl.service;
 
-
 import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.model.request.customer.CreateCustomerRequest;
 import com.delivery.SuAl.model.request.customer.UpdateCustomerRequest;
-import com.delivery.SuAl.model.response.auth.AuthenticationResponse;
 import com.delivery.SuAl.model.response.customer.CustomerResponse;
+import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import org.springframework.data.domain.Pageable;
 
 public interface CustomerService {
-    AuthenticationResponse createCustomer(CreateCustomerRequest createCustomerRequest);
+    ApiResponse<String> createCustomer(CreateCustomerRequest createCustomerRequest);
 
     CustomerResponse updateCustomer(Long id, UpdateCustomerRequest updateCustomerRequest);
 

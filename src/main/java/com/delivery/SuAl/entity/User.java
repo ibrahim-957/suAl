@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,7 +29,11 @@ import java.util.Collection;
 import java.util.List;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uq_users_phone_role", columnNames = {"phone_number", "role"}),
+                @UniqueConstraint(name = "uq_users_email_role", columnNames = {"email", "role"})
+        })
 @Getter
 @Setter
 @Builder
@@ -39,7 +44,7 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
+    @Column
     private String email;
 
     @Column
@@ -47,7 +52,7 @@ public class User implements UserDetails {
     @ToString.Exclude
     private String password;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String phoneNumber;
 
     @Column(name = "target_id")
