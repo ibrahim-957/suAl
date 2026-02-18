@@ -32,7 +32,7 @@ public class SmsServiceImpl implements SmsService {
 
     @Override
     public void sendOtp(String phoneNumber, String otpCode) {
-        String msisdn = "+994" + normalizePhone(phoneNumber);
+        String msisdn = "994" + normalizePhone(phoneNumber);
         String text = "Sizin təsdiq kodunuz: " + otpCode;
         try {
             String passwordHash = md5(password);
