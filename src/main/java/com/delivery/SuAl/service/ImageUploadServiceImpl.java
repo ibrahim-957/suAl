@@ -27,6 +27,11 @@ public class ImageUploadServiceImpl implements ImageUploadService {
         return generateUrl(file, "campaign");
     }
 
+    @Override
+    public String uploadImageForAffordablePackage(MultipartFile file) {
+        return generateUrl(file, "affordable package");
+    }
+
     private String generateUrl(MultipartFile file, String type) {
         try{
             validateFile(file);

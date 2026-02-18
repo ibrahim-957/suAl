@@ -6,6 +6,8 @@ import com.delivery.SuAl.model.response.affordablepackage.AffordablePackageRespo
 import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.service.AffordablePackageService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,9 +15,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/v1/api/affordable-packages")
@@ -25,26 +30,33 @@ import org.springframework.web.bind.annotation.*;
 public class AffordablePackageController {
     private final AffordablePackageService affordablePackageService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Create a new campaign")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ResponseEntity<ApiResponse<AffordablePackageResponse>> createPackage(
-            @RequestBody @Valid CreateAffordablePackageRequest request
+            @Valid @RequestPart("request") CreateAffordablePackageRequest request,
+            @Parameter(description = "Campaign image file")
+            @RequestPart(value = "image", required = false) MultipartFile image
     ) {
         log.info("POST /v1/api/affordable-packages - Creating new affordable package: {}", request.getName());
 
-        AffordablePackageResponse response = affordablePackageService.createPackage(request);
+        AffordablePackageResponse response = affordablePackageService.createPackage(request, image);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Package created successfully", response));
     }
 
-    @PutMapping("/{packageId}")
+    @PutMapping(value = "/{packageId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ResponseEntity<ApiResponse<AffordablePackageResponse>> updatePackage(
             @PathVariable Long packageId,
-            @RequestBody @Valid UpdateAffordablePackageRequest request
+            @RequestPart("request") @Valid UpdateAffordablePackageRequest request,
+            @Parameter(description = "Campaign image file")
+            @RequestPart(value = "image", required = false) MultipartFile image
     ) {
         log.info("PUT /v1/api/affordable-packages/{} - Updating package", packageId);
 
-        AffordablePackageResponse response = affordablePackageService.updatePackage(packageId, request);
+        AffordablePackageResponse response = affordablePackageService.updatePackage(packageId, request, image);
         return ResponseEntity.ok(ApiResponse.success("Package updated successfully", response));
     }
 

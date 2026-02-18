@@ -5,11 +5,12 @@ import com.delivery.SuAl.model.request.affordablepackage.UpdateAffordablePackage
 import com.delivery.SuAl.model.response.affordablepackage.AffordablePackageResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface AffordablePackageService {
-    AffordablePackageResponse createPackage(CreateAffordablePackageRequest request);
+    AffordablePackageResponse createPackage(CreateAffordablePackageRequest request, MultipartFile image);
 
-    AffordablePackageResponse updatePackage(Long packageId, UpdateAffordablePackageRequest request);
+    AffordablePackageResponse updatePackage(Long packageId, UpdateAffordablePackageRequest request, MultipartFile image);
 
     AffordablePackageResponse getPackageById(Long packageId);
 

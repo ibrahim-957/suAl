@@ -26,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,10 +41,11 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository;
     private final AffordablePackageMapper affordablePackageMapper;
+    private final ImageUploadService imageUploadService;
 
     @Override
     @Transactional
-    public AffordablePackageResponse createPackage(CreateAffordablePackageRequest request) {
+    public AffordablePackageResponse createPackage(CreateAffordablePackageRequest request, MultipartFile image) {
         log.info("Creating affordable package: {}", request.getName());
 
         Company company = null;
@@ -61,6 +63,8 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
             log.info("System operator/admin creating package");
         }
 
+        String imageUrl = imageUploadService.uploadImageForAffordablePackage(image);
+
         AffordablePackage affordablePackage = new AffordablePackage();
         affordablePackage.setName(request.getName());
         affordablePackage.setDescription(request.getDescription());
@@ -68,6 +72,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         affordablePackage.setMaxFrequency(request.getMaxFrequency());
         affordablePackage.setIsActive(true);
         affordablePackage.setCompany(company);
+        affordablePackage.setImageUrl(imageUrl);
 
         AffordablePackage savedPackage = affordablePackageRepository.save(affordablePackage);
 
@@ -82,7 +87,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
 
     @Override
     @Transactional
-    public AffordablePackageResponse updatePackage(Long packageId, UpdateAffordablePackageRequest request) {
+    public AffordablePackageResponse updatePackage(Long packageId, UpdateAffordablePackageRequest request, MultipartFile image) {
         log.info("Updating package: {}", packageId);
 
         AffordablePackage affordablePackage = findPackageById(packageId);
@@ -105,6 +110,19 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
             affordablePackage.setIsActive(request.getIsActive());
         }
 
+        if (image != null && !image.isEmpty()) {
+            if (affordablePackage.getImageUrl() != null) {
+                try {
+                    imageUploadService.deleteImage(affordablePackage.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete old image, continuing with update", e);
+                }
+            }
+
+            String newImageUrl = imageUploadService.uploadImageForProduct(image);
+            affordablePackage.setImageUrl(newImageUrl);
+        }
+
         if (request.getProducts() != null && !request.getProducts().isEmpty()) {
             if (OperatorContext.isSupplierOperator()) {
                 Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
@@ -118,6 +136,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
             affordablePackageProductRepository.saveAll(newProducts);
             affordablePackage.getPackageProducts().addAll(newProducts);
         }
+
 
         AffordablePackage updated = affordablePackageRepository.save(affordablePackage);
         log.info("Package updated successfully: {}", packageId);

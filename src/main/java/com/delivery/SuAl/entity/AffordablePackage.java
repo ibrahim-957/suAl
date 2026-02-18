@@ -42,6 +42,9 @@ public class AffordablePackage {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false, name = "image_url")
+    private String imageUrl;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

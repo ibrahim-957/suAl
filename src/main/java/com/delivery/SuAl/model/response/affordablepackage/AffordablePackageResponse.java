@@ -17,6 +17,7 @@ public class AffordablePackageResponse {
     private Long id;
     private String name;
     private String description;
+    private String imageUrl;
     private BigDecimal totalPrice;
     private Integer maxFrequency;
     private Boolean isActive;
