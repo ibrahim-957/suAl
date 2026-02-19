@@ -31,4 +31,3 @@ UPDATE products p SET sell_price = (
 
 ALTER TABLE prices DROP COLUMN sell_price;
 ALTER TABLE prices ADD COLUMN source_reference VARCHAR(255);
-ALTER TABLE products DROP COLUMN order_count;
