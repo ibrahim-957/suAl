@@ -81,7 +81,7 @@ public class OrderDetailFactory {
         orderDetail.setCompany(product.getCompany());
         orderDetail.setCategory(product.getCategory());
         orderDetail.setCount(cartItem.getQuantity());
-        orderDetail.setPricePerUnit(price.getSellPrice());
+        orderDetail.setPricePerUnit(product.getSellPrice());
         orderDetail.setBuyPrice(price.getBuyPrice());
         orderDetail.setDepositPerUnit(product.getDepositAmount());
         orderDetail.setContainersReturned(containersReturned);

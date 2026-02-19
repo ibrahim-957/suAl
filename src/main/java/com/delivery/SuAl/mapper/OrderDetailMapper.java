@@ -17,9 +17,9 @@ public interface OrderDetailMapper {
 
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "companyName", source = "company.name")
-    @Mapping(target = "size", source = "product.size")
+    @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "size", source = "product.size.label")
     @Mapping(target = "quantity", source = "count")
-    @Mapping(target = "categoryType", source = "category.categoryType")
     OrderDetailResponse toResponse(OrderDetail orderDetail);
 
     List<OrderDetailResponse> toResponseList(List<OrderDetail> orderDetails);

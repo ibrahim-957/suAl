@@ -13,7 +13,7 @@ public interface CustomerContainerMapper {
     @Mappings({
             @Mapping(target = "productId", source = "product.id"),
             @Mapping(target = "productName", source = "product.name"),
-            @Mapping(target = "productSize", source = "product.size"),
+            @Mapping(target = "productSize", source = "product.size.label"),
             @Mapping(target = "companyName", source = "product.company.name"),
             @Mapping(target = "depositAmount", source = "product.depositAmount"),
             @Mapping(target = "createdAt", qualifiedByName = "utcToBaku"),

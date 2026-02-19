@@ -34,17 +34,17 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse createCategory(CreateCategoryRequest createCategoryRequest) {
-        log.info("Creating new category with type: {}", createCategoryRequest.getCategoryType());
+        log.info("Creating new category with type: {}", createCategoryRequest.getName());
 
-        categoryRepository.findByCategoryType(createCategoryRequest.getCategoryType())
+        categoryRepository.findByName(createCategoryRequest.getName())
                 .ifPresent(existing -> {
-                    throw new AlreadyExistsException("Category already exists with type: " + createCategoryRequest.getCategoryType());
+                    throw new AlreadyExistsException("Category already exists with type: " + createCategoryRequest.getName());
                 });
 
         Category category = categoryMapper.toEntity(createCategoryRequest);
         Category savedCategory = categoryRepository.save(category);
 
-        log.info("Created category with type: {}", category.getCategoryType());
+        log.info("Created category with type: {}", category.getName());
 
         CategoryResponse categoryResponse = categoryMapper.toResponse(savedCategory);
         categoryResponse.setProductCount(0L);
@@ -64,7 +64,7 @@ public class CategoryServiceImpl implements CategoryService {
         CategoryResponse response = categoryMapper.toResponse(category);
         response.setProductCount(productRepository.countByCategoryId(id));
 
-        log.info("Category found: {}", category.getCategoryType());
+        log.info("Category found: {}", category.getName());
         return response;
     }
 

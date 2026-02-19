@@ -25,29 +25,23 @@ public class PriceServiceImpl implements PriceService {
     private final PriceRepository priceRepository;
     private final ProductRepository productRepository;
     private final PriceMapper priceMapper;
+
     @Override
     @Transactional
     public void createPrice(CreatePriceRequest createPriceRequest) {
         Product product = productRepository.findById(createPriceRequest.getProductId())
                 .orElseThrow(() -> new NotFoundException("Product not found with id " + createPriceRequest.getProductId()));
 
-        Price price = priceMapper.toEntity(createPriceRequest);
+        Price price = new Price();
         price.setProduct(product);
+        price.setBuyPrice(createPriceRequest.getBuyPrice());
+        if (createPriceRequest.getSourceReference() != null) {
+            price.setSourceReference(createPriceRequest.getSourceReference());
+        }
 
         Price savedPrice = priceRepository.save(price);
-
-        log.info("Price created successfully");
+        log.info("Price created successfully for product ID: {}", product.getId());
         priceMapper.toResponse(savedPrice);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PriceResponse getPriceById(Long id) {
-        log.info("Get price by id {}", id);
-
-        Price price = priceRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Price not found with id " + id));
-        return priceMapper.toResponse(price);
     }
 
     @Override
@@ -58,11 +52,26 @@ public class PriceServiceImpl implements PriceService {
         Price price = priceRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Price not found with id " + id));
 
-        priceMapper.updateEntityFromRequest(updatePriceRequest, price);
-        Price updatedPrice = priceRepository.save(price);
+        if (updatePriceRequest.getBuyPrice() != null) {
+            price.setBuyPrice(updatePriceRequest.getBuyPrice());
+        }
+        if (updatePriceRequest.getSourceReference() != null) {
+            price.setSourceReference(updatePriceRequest.getSourceReference());
+        }
 
+        Price updatedPrice = priceRepository.save(price);
         log.info("Price updated successfully");
         priceMapper.toResponse(updatedPrice);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PriceResponse getPriceById(Long id) {
+        log.info("Get price by id {}", id);
+
+        Price price = priceRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Price not found with id " + id));
+        return priceMapper.toResponse(price);
     }
 
     @Override

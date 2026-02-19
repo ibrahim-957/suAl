@@ -20,12 +20,8 @@ public class UpdateProductRequest {
     private String name;
 
     private Long companyId;
-
     private Long categoryId;
-
-    private String size;
-
-    private BigDecimal buyPrice;
+    private Long sizeId;
 
     private BigDecimal sellPrice;
 
@@ -34,10 +30,8 @@ public class UpdateProductRequest {
 
     private Map<String, String> mineralComposition;
 
-    @DecimalMin(value = "0.0", inclusive = true, message = "Deposit amount cannot be negative")
-    @DecimalMax(value = "999.99", message = "Deposit amount is too large")
-    @Digits(integer = 3, fraction = 2, message = "Deposit amount must have at most 3 digits before decimal and 2 after")
+    @DecimalMin("0.0") @DecimalMax("999.99") @Digits(integer = 3, fraction = 2)
     private BigDecimal depositAmount;
 
-    private ProductStatus  productStatus;
+    private ProductStatus productStatus;
 }

@@ -1,7 +1,6 @@
 package com.delivery.SuAl.entity;
 
 import com.delivery.SuAl.model.enums.ProductStatus;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -15,7 +14,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapKeyColumn;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -28,13 +26,12 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Entity
-@Table(name = "products", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "name"}))
+@Table(name = "products",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "name", "size_id"}))
 @Getter
 @Setter
 @AllArgsConstructor
@@ -61,7 +58,9 @@ public class Product {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    private String size;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "size_id", nullable = false)
+    private ProductSize size;
 
     @Column(name = "deposit_amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal depositAmount = BigDecimal.ZERO;
@@ -70,8 +69,8 @@ public class Product {
     @Enumerated(EnumType.STRING)
     private ProductStatus productStatus = ProductStatus.ACTIVE;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Price> prices = new ArrayList<>();
+    @Column(name = "sell_price", precision = 10, scale = 2)
+    private BigDecimal sellPrice;
 
     @ElementCollection
     @CollectionTable(

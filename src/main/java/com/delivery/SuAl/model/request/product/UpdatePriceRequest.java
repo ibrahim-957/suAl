@@ -3,7 +3,6 @@ package com.delivery.SuAl.model.request.product;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,8 +18,5 @@ public class UpdatePriceRequest {
     @Digits(integer = 3, fraction = 2, message = "Buy price must have at most 3 digits before decimal and 2 after")
     private BigDecimal buyPrice;
 
-    @DecimalMin(value = "0.01", message = "Sell price must be greater than 0")
-    @DecimalMax(value = "999.99", message = "Sell price is too large")
-    @Digits(integer = 3, fraction = 2, message = "Sell price must have at most 3 digits before decimal and 2 after")
-    private BigDecimal sellPrice;
+    private String sourceReference;
 }

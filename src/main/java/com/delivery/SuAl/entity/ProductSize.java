@@ -12,25 +12,26 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.checkerframework.checker.units.qual.C;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 @Entity
-@Table(name = "categories")
+@Table(name = "product_sizes")
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Category {
+public class ProductSize {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String name = "Uncategorized";
+    private String label;
 
-    @Column(name = "is_active", nullable = false)
+    @Column(nullable = false, name = "is_active")
     private Boolean isActive = true;
 
     @Column(name = "created_at", updatable = false, nullable = false)
@@ -41,10 +42,8 @@ public class Category {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now(ZoneOffset.UTC);
-        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+        createdAt = updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
-
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now(ZoneOffset.UTC);

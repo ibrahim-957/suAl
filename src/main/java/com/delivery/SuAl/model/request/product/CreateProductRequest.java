@@ -34,22 +34,19 @@ public class CreateProductRequest {
     @NotNull
     private Long categoryId;
 
+    @Schema(description = "Size ID", example = "2", required = true)
+    @NotNull
+    private Long sizeId;
+
     @Schema(description = "Warehouse ID", example = "1", required = true)
     @NotNull
     private Long warehouseId;
 
-    @Schema(description = "Product size", example = "19L", required = true)
-    @Size(max = 50)
-    private String size;
-
     @Schema(description = "Deposit amount", example = "10.00", required = true)
-    @DecimalMin(value = "0.0", inclusive = true, message = "Deposit amount cannot be negative")
+    @DecimalMin(value = "0.0", message = "Deposit amount cannot be negative")
     @DecimalMax(value = "999.99", message = "Deposit amount is too large")
     @Digits(integer = 3, fraction = 2, message = "Deposit amount must have at most 3 digits before decimal and 2 after")
     private BigDecimal depositAmount;
-
-    @Schema(description = "Buy price", example = "4", required = true)
-    private BigDecimal buyPrice;
 
     @Schema(description = "Sell price", example = "5", required = true)
     private BigDecimal sellPrice;

@@ -44,6 +44,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final PackageDeliveryDistributionRepository distributionRepository;
+    private final PriceRepository priceRepository;
     private final PackageDepositCalculationService depositCalculationService;
     private final OrderNumberGenerator orderNumberGenerator;
     private final CustomerPackageOrderMapper packageOrderMapper;
@@ -871,10 +872,20 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
     ) {
         List<OrderDetail> details = new ArrayList<>();
 
+        List<Long> productIds = products.stream()
+                .map(DeliveryProductRequest::getProductId)
+                .toList();
+
+        Map<Long, Price> priceMap = priceRepository.findAllByProductIdIn(productIds).stream()
+                .collect(Collectors.toMap(
+                        price -> price.getProduct().getId(),
+                        p -> p,
+                        (p1, p2) -> p1.getCreatedAt().isAfter(p2.getCreatedAt()) ? p1 : p2
+                ));
+
         for (DeliveryProductRequest prodReq : products) {
             Product product = productRepository.findById(prodReq.getProductId())
-                    .orElseThrow(() -> new NotFoundException(
-                            "Product not found with id: " + prodReq.getProductId()));
+                    .orElseThrow(() -> new NotFoundException("Product not found with id: " + prodReq.getProductId()));
 
             OrderDetail detail = new OrderDetail();
             detail.setOrder(order);
@@ -883,22 +894,14 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             detail.setCategory(product.getCategory());
             detail.setCount(prodReq.getQuantity());
 
-            BigDecimal pricePerUnit = product.getPrices() != null && !product.getPrices().isEmpty()
-                    ? product.getPrices().stream()
-                    .max(Comparator.comparing(Price::getCreatedAt))
-                    .map(Price::getSellPrice)
-                    .orElse(BigDecimal.ZERO)
+            BigDecimal pricePerUnit = product.getSellPrice() != null
+                    ? product.getSellPrice()
                     : BigDecimal.ZERO;
-
             detail.setPricePerUnit(pricePerUnit);
 
-            BigDecimal buyPrice = product.getPrices() != null && !product.getPrices().isEmpty()
-                    ? product.getPrices().stream()
-                    .max(Comparator.comparing(Price::getCreatedAt))
+            BigDecimal buyPrice = Optional.ofNullable(priceMap.get(product.getId()))
                     .map(Price::getBuyPrice)
-                    .orElse(BigDecimal.ZERO)
-                    : BigDecimal.ZERO;
-
+                    .orElse(BigDecimal.ZERO);
             detail.setBuyPrice(buyPrice);
 
             BigDecimal subtotal = pricePerUnit

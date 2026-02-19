@@ -16,6 +16,7 @@ public class WarehouseStockResponse {
     private Long productId;
     private String productName;
     private String companyName;
+    private String categoryName;
     private String size;
     private Integer fullCount;
     private Integer emptyCount;

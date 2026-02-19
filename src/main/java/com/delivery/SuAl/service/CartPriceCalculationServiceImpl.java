@@ -1,6 +1,5 @@
 package com.delivery.SuAl.service;
 
-import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.exception.InvalidRequestException;
 import com.delivery.SuAl.exception.NotFoundException;
@@ -24,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -178,14 +176,9 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
             throw new InvalidRequestException("Product is not active: " + cartItem.getProductId());
         }
 
-        Price currentPrice;
-        if (product.getPrices() != null && !product.getPrices().isEmpty()) {
-            currentPrice = product.getPrices().stream()
-                    .max(Comparator.comparing(Price::getCreatedAt))
-                    .orElseThrow(() -> new NotFoundException(
-                            "Price not found for product: " + product.getName()));
-        } else {
-            throw new NotFoundException("Price not found for product: " + product.getName());
+        BigDecimal sellPrice = product.getSellPrice();
+        if (sellPrice == null) {
+            throw new NotFoundException("Sell price not set for product: " + product.getName());
         }
 
         Map<Long, Integer> productQuantities = Map.of(product.getId(), cartItem.getQuantity());
@@ -201,7 +194,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
 
         Integer containersTOReturn = Math.min(cartItem.getQuantity(), availableContainers);
 
-        BigDecimal subtotal = currentPrice.getSellPrice()
+        BigDecimal subtotal = sellPrice
                 .multiply(new BigDecimal(cartItem.getQuantity()))
                 .setScale(2, RoundingMode.HALF_UP);
 
@@ -209,7 +202,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                 .productId(product.getId())
                 .productName(product.getName())
                 .quantity(cartItem.getQuantity())
-                .pricePerUnit(currentPrice.getSellPrice())
+                .pricePerUnit(sellPrice)
                 .subtotal(subtotal)
                 .depositPerUnit(product.getDepositAmount())
                 .availableContainers(availableContainers)

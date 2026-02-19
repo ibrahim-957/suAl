@@ -18,9 +18,7 @@ public class PriceResponse {
     private Long productId;
     private String productName;
     private String companyName;
-    private CategoryType categoryType;
     private BigDecimal buyPrice;
-    private BigDecimal sellPrice;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -5,7 +5,6 @@ import com.delivery.SuAl.entity.CampaignUsage;
 import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
-import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.CampaignUsageLimitExceededException;
@@ -41,7 +40,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,7 +155,7 @@ public class CampaignServiceImpl implements CampaignService {
         Campaign campaign = campaignRepository.findByCampaignCodeWithLock(request.getCampaignCode())
                 .orElseThrow(() -> new NotFoundException("Campaign not found: " + request.getCampaignCode()));
 
-        if (!campaign.canBeUsed()){
+        if (!campaign.canBeUsed()) {
             throw new CampaignUsageLimitExceededException("Campaign usage limit exceeded");
         }
 
@@ -681,29 +679,19 @@ public class CampaignServiceImpl implements CampaignService {
 
     private BigDecimal calculateBonusValue(Campaign campaign) {
         Product freeProduct = campaign.getFreeProduct();
-        if (freeProduct == null || freeProduct.getPrices() == null || freeProduct.getPrices().isEmpty()) {
+        if (freeProduct == null || freeProduct.getSellPrice() == null) {
             log.warn("Campaign {} has free product with no price", campaign.getCampaignCode());
             return BigDecimal.ZERO;
         }
-
-        Price latestPrice = freeProduct.getPrices().stream()
-                .max(Comparator.comparing(Price::getCreatedAt))
-                .orElse(null);
-
-        if (latestPrice == null || latestPrice.getSellPrice() == null) {
-            log.warn("Campaign {} free product price is null", campaign.getCampaignCode());
-            return BigDecimal.ZERO;
-        }
-
-        return latestPrice.getSellPrice()
+        return freeProduct.getSellPrice()
                 .multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
     }
 
     private BigDecimal getFreeProductPrice(Product product) {
-        if (product == null || product.getPrices() == null || product.getPrices().isEmpty()) {
+        if (product == null || product.getSellPrice() == null) {
             return BigDecimal.ZERO;
         }
-        return product.getPrices().getLast().getSellPrice();
+        return product.getSellPrice();
     }
 
     private int calculateEligibleFreeQuantity(int basketQuantity, int buyQuantity, int freeQuantity) {

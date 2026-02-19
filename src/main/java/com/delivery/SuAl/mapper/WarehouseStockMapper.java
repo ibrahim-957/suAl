@@ -16,7 +16,7 @@ public interface WarehouseStockMapper {
     @Mapping(target = "outOfStock", expression = "java(isOutOfStock(warehouseStock))")
     @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "productName", source = "product.name")
-    @Mapping(target = "size", source = "product.size")
+    @Mapping(target = "size", source = "product.size.label")
     @Mapping(target = "companyName", source = "product.company.name")
     @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     WarehouseStockResponse toResponse(WarehouseStock warehouseStock);
@@ -24,9 +24,7 @@ public interface WarehouseStockMapper {
     List<WarehouseStockResponse> toResponseList(List<WarehouseStock> warehouseStocks);
 
     default Integer calculateTotalCount(WarehouseStock warehouseStock) {
-        return warehouseStock.getFullCount() +
-                warehouseStock.getEmptyCount() +
-                warehouseStock.getDamagedCount();
+        return warehouseStock.getFullCount() + warehouseStock.getEmptyCount() + warehouseStock.getDamagedCount();
     }
 
     default boolean isLowStock(WarehouseStock warehouseStock) {

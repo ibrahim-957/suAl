@@ -17,21 +17,11 @@ public class CreatePriceRequest {
     @NotNull
     private Long productId;
 
-    @NotNull
-    private Long companyId;
-
-    @NotNull
-    private Long categoryId;
-
     @NotNull(message = "Buy price is required")
     @DecimalMin(value = "0.01", message = "Buy price must be greater than 0")
     @DecimalMax(value = "999.99", message = "Buy price is too large")
     @Digits(integer = 3, fraction = 2, message = "Buy price must have at most 3 digits before decimal and 2 after")
     private BigDecimal buyPrice;
 
-    @NotNull(message = "Sell price is required")
-    @DecimalMin(value = "0.01", message = "Sell price must be greater than 0")
-    @DecimalMax(value = "999.99", message = "Sell price is too large")
-    @Digits(integer = 3, fraction = 2, message = "Sell price must have at most 3 digits before decimal and 2 after")
-    private BigDecimal sellPrice;
+    private String sourceReference;
 }

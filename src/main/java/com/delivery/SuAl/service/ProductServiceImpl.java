@@ -3,22 +3,21 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.Category;
 import com.delivery.SuAl.entity.Company;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.ProductSize;
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.UnauthorizedOperationException;
 import com.delivery.SuAl.mapper.ProductMapper;
-import com.delivery.SuAl.model.request.product.CreatePriceRequest;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
-import com.delivery.SuAl.model.request.product.UpdatePriceRequest;
 import com.delivery.SuAl.model.request.product.UpdateProductRequest;
-import com.delivery.SuAl.model.response.product.PriceResponse;
 import com.delivery.SuAl.model.response.product.ProductResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.CategoryRepository;
 import com.delivery.SuAl.repository.CompanyRepository;
 import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.repository.ProductSizeRepository;
 import com.delivery.SuAl.repository.WarehouseRepository;
 import com.delivery.SuAl.repository.WarehouseStockRepository;
 import com.delivery.SuAl.security.OperatorContext;
@@ -32,7 +31,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -42,7 +40,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final CompanyRepository companyRepository;
-    private final PriceService priceService;
+    private final ProductSizeRepository productSizeRepository;
     private final WarehouseStockRepository warehouseStockRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductMapper productMapper;
@@ -53,14 +51,13 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse createProduct(CreateProductRequest request, MultipartFile image) {
         log.info("Creating new product with name: {}", request.getName());
 
-        if (OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
-            if (!operatorCompanyId.equals(request.getCompanyId())){
+            if (!operatorCompanyId.equals(request.getCompanyId())) {
                 throw new UnauthorizedOperationException(
                         "Supplier operators can only create products for their own company (ID: " + operatorCompanyId + ")"
                 );
             }
-            log.info("Supplier operator creating product for their company: {}", operatorCompanyId);
         }
 
         Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
@@ -72,25 +69,24 @@ public class ProductServiceImpl implements ProductService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new NotFoundException("Category not found with id: " + request.getCategoryId()));
 
+        ProductSize size = productSizeRepository.findById(request.getSizeId())  // NEW
+                .orElseThrow(() -> new NotFoundException("Size not found with id: " + request.getSizeId()));
+
+        if (productRepository.existsByCompanyIdAndNameAndSizeId(
+                request.getCompanyId(), request.getName(), request.getSizeId())) {
+            throw new AlreadyExistsException("Product already exists with this name and size for this company");
+        }
+
         String imageUrl = imageUploadService.uploadImageForProduct(image);
 
         Product product = productMapper.toEntity(request);
         product.setCategory(category);
         product.setCompany(company);
+        product.setSize(size);
         product.setImageUrl(imageUrl);
+        product.setSellPrice(request.getSellPrice());
 
         Product savedProduct = productRepository.save(product);
-
-        if (request.getBuyPrice() != null || request.getSellPrice() != null) {
-            CreatePriceRequest priceRequest = new CreatePriceRequest();
-            priceRequest.setProductId(savedProduct.getId());
-            priceRequest.setCategoryId(category.getId());
-            priceRequest.setCompanyId(company.getId());
-            priceRequest.setSellPrice(request.getSellPrice());
-            priceRequest.setBuyPrice(request.getBuyPrice());
-
-            priceService.createPrice(priceRequest);
-        }
 
         WarehouseStock warehouseStock = new WarehouseStock();
         warehouseStock.setWarehouse(warehouse);
@@ -100,53 +96,46 @@ public class ProductServiceImpl implements ProductService {
         warehouseStock.setDamagedCount(defaultValue(request.getInitialDamagedCount(), 0));
         warehouseStock.setMinimumStockAlert(defaultValue(request.getMinimumStockAlert(), 10));
         warehouseStock.setLastRestocked(LocalDateTime.now());
-
         warehouseStockRepository.save(warehouseStock);
 
-        ProductResponse response = productMapper.toResponse(savedProduct);
-        enrichWithPriceData(response, savedProduct.getId());
-
-        log.info("Product created successfully with ID: {} and price", savedProduct.getId());
-        return response;
+        log.info("Product created successfully with ID: {}", savedProduct.getId());
+        return productMapper.toResponse(savedProduct);  // no more enrichWithPriceData
     }
 
     @Override
-    @Transactional(readOnly = true)
     public ProductResponse getProductByID(Long id) {
         log.info("Getting product by ID: {}", id);
 
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
-        if (OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
             if (!product.getCompany().getId().equals(operatorCompanyId)) {
                 throw new UnauthorizedOperationException(
-                        "You don't have permission to view this product. It belongs to a different company."
+                        "You don't have permission to view this product."
                 );
             }
         }
 
-        ProductResponse response = productMapper.toResponse(product);
-        enrichWithPriceData(response, product.getId());
-        return response;
+        return productMapper.toResponse(product);
     }
 
     @Override
+    @Transactional
     public ProductResponse updateProduct(Long id, UpdateProductRequest request, MultipartFile image) {
-        log.info("Updating product with name: {}", request.getName());
+        log.info("Updating product with ID: {}", id);
 
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
-        if (OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
             if (!product.getCompany().getId().equals(operatorCompanyId)) {
                 throw new UnauthorizedOperationException(
-                        "You don't have permission to update this product. It belongs to a different company."
+                        "You don't have permission to update this product."
                 );
             }
-
             if (request.getCompanyId() != null && !request.getCompanyId().equals(operatorCompanyId)) {
                 throw new UnauthorizedOperationException(
                         "Supplier operators cannot change the company of a product"
@@ -154,7 +143,6 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-        productMapper.updateEntityFromRequest(request, product);
 
         if (request.getCompanyId() != null && !request.getCompanyId().equals(product.getCompany().getId())) {
             Company company = companyRepository.findById(request.getCompanyId())
@@ -167,12 +155,18 @@ public class ProductServiceImpl implements ProductService {
                     .orElseThrow(() -> new NotFoundException("Category not found with ID: " + request.getCategoryId()));
             product.setCategory(category);
         }
-        if (request.getName() != null && !request.getName().equals(product.getName())) {
-            productRepository.findByNameAndCompanyId(request.getName(), product.getCompany().getId())
-                    .ifPresent(existing -> {
-                        throw new AlreadyExistsException("Product already exists with name: " + request.getName() + " for this company");
-                    });
+
+        if (request.getSizeId() != null && !request.getSizeId().equals(product.getSize().getId())) {
+            ProductSize size = productSizeRepository.findById(request.getSizeId())
+                    .orElseThrow(() -> new NotFoundException("Size not found with ID: " + request.getSizeId()));
+            product.setSize(size);
         }
+
+        if (request.getSellPrice() != null) {
+            product.setSellPrice(request.getSellPrice());
+        }
+
+        productMapper.updateEntityFromRequest(request, product);
 
         if (image != null && !image.isEmpty()) {
             if (product.getImageUrl() != null) {
@@ -182,36 +176,12 @@ public class ProductServiceImpl implements ProductService {
                     log.warn("Failed to delete old image, continuing with update", e);
                 }
             }
-
-            String newImageUrl = imageUploadService.uploadImageForProduct(image);
-            product.setImageUrl(newImageUrl);
+            product.setImageUrl(imageUploadService.uploadImageForProduct(image));
         }
 
         Product updatedProduct = productRepository.save(product);
-
-        if (request.getBuyPrice() != null || request.getSellPrice() != null) {
-            try {
-                PriceResponse existingPrice = priceService.getPriceByProductId(updatedProduct.getId());
-                UpdatePriceRequest priceRequest = new UpdatePriceRequest();
-                priceRequest.setBuyPrice(request.getBuyPrice());
-                priceRequest.setSellPrice(request.getSellPrice());
-                priceService.updatePrice(existingPrice.getId(), priceRequest);
-            } catch (Exception e) {
-                CreatePriceRequest priceRequest = new CreatePriceRequest();
-                priceRequest.setProductId(updatedProduct.getId());
-                priceRequest.setCategoryId(updatedProduct.getCategory().getId());
-                priceRequest.setCompanyId(updatedProduct.getCompany().getId());
-                priceRequest.setSellPrice(request.getSellPrice());
-                priceRequest.setBuyPrice(request.getBuyPrice());
-                priceService.createPrice(priceRequest);
-            }
-        }
-
-        ProductResponse response = productMapper.toResponse(updatedProduct);
-        enrichWithPriceData(response, id);
-
-        log.info("Product updated successfully with ID: {} and price", updatedProduct.getId());
-        return response;
+        log.info("Product updated successfully with ID: {}", updatedProduct.getId());
+        return productMapper.toResponse(updatedProduct);
     }
 
     @Override
@@ -244,49 +214,18 @@ public class ProductServiceImpl implements ProductService {
         log.info("Getting all products with page: {}", pageable);
 
         Page<Product> productPage;
-
-        if (OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             Long companyId = OperatorContext.getCurrentCompanyId();
-            log.info("Supplier operator requesting products - filtering by company ID: {}", companyId);
             productPage = productRepository.findByCompanyId(companyId, pageable);
         } else {
-            log.info("System operator requesting products - returning all products");
             productPage = productRepository.findAll(pageable);
         }
 
-        List<Product> products = productPage.getContent();
-
-        List<Long> productIds = products
-                .stream()
-                .map(Product::getId)
-                .toList();
-
-
-        Map<Long, PriceResponse> priceMap = priceService.getPricesByProductIds(productIds);
-        List<ProductResponse> responses = products.stream()
-                .map(product -> {
-                    ProductResponse response = productMapper.toResponse(product);
-
-                    PriceResponse price = priceMap.get(product.getId());
-                    if (price != null) {
-                        response.setSellPrice(price.getSellPrice());
-                        response.setBuyPrice(price.getBuyPrice());
-                    }
-                    return response;
-                })
+        List<ProductResponse> responses = productPage.getContent().stream()
+                .map(productMapper::toResponse)
                 .toList();
 
         return PageResponse.of(responses, productPage);
-    }
-
-    private void enrichWithPriceData(ProductResponse productResponse, Long productId) {
-        try {
-            PriceResponse priceResponse = priceService.getPriceByProductId(productId);
-            productResponse.setSellPrice(priceResponse.getSellPrice());
-            productResponse.setBuyPrice(priceResponse.getBuyPrice());
-        } catch (NotFoundException ex) {
-            log.warn("Product not found with ID: {}", productId);
-        }
     }
 
     private <T> T defaultValue(T value, T defaultValue) {

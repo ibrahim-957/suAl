@@ -38,8 +38,8 @@ public class Price {
     @Column(name = "buy_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal buyPrice;
 
-    @Column(name = "sell_price", nullable = false, precision = 10, scale = 2)
-    private BigDecimal sellPrice;
+    @Column(name = "source_reference")
+    private String sourceReference;
 
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;

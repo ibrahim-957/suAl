@@ -26,7 +26,6 @@ public interface PriceMapper {
     @Mapping(target = "productId", expression = "java(getProductId(price))")
     @Mapping(target = "productName", expression = "java(getProductName(price))")
     @Mapping(target = "companyName", expression = "java(getCompanyName(price))")
-    @Mapping(target = "categoryType", expression = "java(getCategoryType(price))")
     @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     PriceResponse toResponse(Price price);
@@ -34,31 +33,17 @@ public interface PriceMapper {
     List<PriceResponse> toResponseList(List<Price> prices);
 
     default Long getProductId(Price price) {
-        if (price.getProduct() == null) {
-            return null;
-        }
+        if (price.getProduct() == null) return null;
         return price.getProduct().getId();
     }
 
     default String getProductName(Price price) {
-        if (price.getProduct() == null) {
-            return null;
-        }
+        if (price.getProduct() == null) return null;
         return price.getProduct().getName();
     }
 
     default String getCompanyName(Price price) {
-        if (price.getProduct() == null || price.getProduct().getCompany() == null) {
-            return null;
-        }
+        if (price.getProduct() == null || price.getProduct().getCompany() == null) return null;
         return price.getProduct().getCompany().getName();
     }
-
-    default com.delivery.SuAl.model.enums.CategoryType getCategoryType(Price price) {
-        if (price.getProduct() == null || price.getProduct().getCategory() == null) {
-            return null;
-        }
-        return price.getProduct().getCategory().getCategoryType();
-    }
-
 }

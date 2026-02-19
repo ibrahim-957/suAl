@@ -16,7 +16,7 @@ public class OrderDetailResponse {
     private Long id;
     private String productName;
     private String companyName;
-    private CategoryType categoryType;
+    private String categoryName;
     private String size;
     private Integer quantity;
     private BigDecimal pricePerUnit;

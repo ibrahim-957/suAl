@@ -12,7 +12,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 @Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CategoryMapper {
-    @Mapping(target = "categoryType", source = "categoryType")
+    @Mapping(target = "name", source = "name")
     Category toEntity(CreateCategoryRequest createCategoryRequest);
 
     @Mapping(target = "id", ignore = true)

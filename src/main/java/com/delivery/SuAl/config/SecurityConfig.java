@@ -4,6 +4,7 @@ import com.delivery.SuAl.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -51,12 +52,16 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/promos/validate").permitAll()
                         .requestMatchers("/v1/api/customers/**").permitAll()
                         .requestMatchers("/v1/api/payment/callback").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/product-sizes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/product-sizes/**").permitAll()
 
                         .requestMatchers("/v1/api/affordable-packages/active").permitAll()
 
                         .requestMatchers("/v1/api/admins/**").hasRole("ADMIN")
                         .requestMatchers("/v1/api/operators/**").hasRole("ADMIN")
                         .requestMatchers("/v1/api/warehouses/**").hasRole("ADMIN")
+
+                        .requestMatchers("/v1/api/product-sizes/**").hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers("/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
 
