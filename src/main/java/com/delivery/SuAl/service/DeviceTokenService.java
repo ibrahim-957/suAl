@@ -1,17 +1,17 @@
 package com.delivery.SuAl.service;
 
-import com.delivery.SuAl.model.enums.ReceiverType;
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.model.request.notification.DeviceTokenRequest;
 import com.delivery.SuAl.model.response.notification.DeviceTokenResponse;
 
 import java.util.List;
 
 public interface DeviceTokenService {
-    DeviceTokenResponse registerDeviceToken(DeviceTokenRequest request);
+    DeviceTokenResponse registerDeviceToken(User user, DeviceTokenRequest request);
 
-    List<DeviceTokenResponse> getActiveTokensByReceiver(ReceiverType receiverType, Long receiverId);
+    List<DeviceTokenResponse> getActiveTokensByReceiver(User user);
 
-    void deactivateToken(String fcmToken);
+    void deactivateToken(User user, String fcmToken);
 
-    void deleteToken(String fcmToken);
+    void deleteToken(User user, String fcmToken);
 }
