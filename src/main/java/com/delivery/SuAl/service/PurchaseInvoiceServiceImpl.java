@@ -33,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -96,6 +97,7 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
     }
 
     @Override
+    @Transactional
     public PurchaseInvoiceResponse updateInvoice(Long id, UpdatePurchaseInvoiceRequest request) {
         log.info("Updating purchase invoice ID: {}", id);
 
@@ -124,6 +126,7 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
     }
 
     @Override
+    @Transactional
     public PurchaseInvoiceResponse approveInvoice(Long id, User approvedBy) {
         log.info("Approving purchase invoice ID: {} by: {}", id, approvedBy);
 
@@ -200,6 +203,7 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
     }
 
     @Override
+    @Transactional
     public PurchaseInvoiceResponse cancelInvoice(Long id) {
         log.info("Cancelling purchase invoice ID: {}", id);
 
