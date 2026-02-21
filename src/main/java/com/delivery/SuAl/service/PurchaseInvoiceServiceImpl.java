@@ -35,6 +35,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,6 +72,7 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
         invoice.setWarehouse(warehouse);
         invoice.setCompany(supplier);
         invoice.setCreatedBy(createdBy);
+        invoice.setInvoiceDate(LocalDate.now());
         invoice.setStatus(InvoiceStatus.DRAFT);
 
         List<PurchaseInvoiceItem> items = buildItems(request.getItems(), invoice);
