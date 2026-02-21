@@ -24,6 +24,12 @@ public class CreateProductPriceRequest {
     @Digits(integer = 4, fraction = 2)
     private BigDecimal sellPrice;
 
+    @NotNull(message = "Buy price is required")
+    @DecimalMin(value = "0.01", message = "Buy price must be greater than 0")
+    @DecimalMax(value = "9999.99")
+    @Digits(integer = 4, fraction = 2)
+    private BigDecimal buyPrice;
+
     @DecimalMin(value = "0.00")
     @DecimalMax(value = "100.00")
     @Digits(integer = 3, fraction = 2)

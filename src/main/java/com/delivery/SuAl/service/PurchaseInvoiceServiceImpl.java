@@ -70,11 +70,13 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
         PurchaseInvoice invoice = purchaseInvoiceMapper.toEntity(request);
         invoice.setWarehouse(warehouse);
         invoice.setCompany(supplier);
+        invoice.setCreatedBy(createdBy);
         invoice.setStatus(InvoiceStatus.DRAFT);
 
         List<PurchaseInvoiceItem> items = buildItems(request.getItems(), invoice);
         invoice.setItems(items);
         invoice.setTotalAmount(calculateTotal(items));
+        invoice.setTotalDepositAmount(calculateTotalDeposit(items));
 
         PurchaseInvoice saved = purchaseInvoiceRepository.save(invoice);
         log.info("Purchase invoice created with ID: {} status: DRAFT", saved.getId());
@@ -111,6 +113,7 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
             List<PurchaseInvoiceItem> newItems = buildItems(request.getItems(), invoice);
             invoice.setItems(newItems);
             invoice.setTotalAmount(calculateTotal(newItems));
+            invoice.setTotalDepositAmount(calculateTotalDeposit(newItems));
         }
 
         PurchaseInvoice updated = purchaseInvoiceRepository.save(invoice);
@@ -157,7 +160,6 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
             batch.setInitialQuantity(item.getQuantity());
             batch.setRemainingQuantity(item.getQuantity());
             batch.setPurchasePrice(item.getPurchasePrice());
-            batch.setPurchasePrice(item.getSalePrice());
             batches.add(batch);
 
             WarehouseStock stock = stockMap.get(productId);
@@ -255,6 +257,14 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
     private BigDecimal calculateTotal(List<PurchaseInvoiceItem> items) {
         return items.stream()
                 .map(PurchaseInvoiceItem::getLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateTotalDeposit(List<PurchaseInvoiceItem> items) {
+        return items.stream()
+                .filter(i -> i.getDepositUnitAmount() != null)
+                .map(i -> i.getDepositUnitAmount()
+                        .multiply(BigDecimal.valueOf(i.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
