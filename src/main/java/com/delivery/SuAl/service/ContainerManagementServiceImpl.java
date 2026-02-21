@@ -221,11 +221,13 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
         List<ContainerReservation> reservations = new ArrayList<>();
 
         for (ProductDepositInfo info : depositSummary.getProductDepositInfos()) {
+            Product product = productRepository.findById(info.getProductId())
+                    .orElseThrow(() -> new NotFoundException("Product with id " + info.getProductId() + " not found"));
             if (info.getContainersUsed() > 0) {
                 ContainerReservation reservation = new ContainerReservation();
                 reservation.setCustomer(order.getCustomer());
                 reservation.setOrder(order);
-                reservation.setProductId(info.getProductId());
+                reservation.setProduct(product);
                 reservation.setQuantityReserved(info.getContainersUsed());
                 reservation.setReservedAt(LocalDateTime.now(ZoneOffset.UTC));
                 reservation.setExpiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));

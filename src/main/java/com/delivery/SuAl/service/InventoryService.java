@@ -1,10 +1,14 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.StockMovement;
 import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.exception.InsufficientStockException;
 import com.delivery.SuAl.exception.NotFoundException;
+import com.delivery.SuAl.model.enums.MovementType;
+import com.delivery.SuAl.model.enums.ReferenceType;
 import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.repository.StockMovementRepository;
 import com.delivery.SuAl.repository.WarehouseStockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +26,7 @@ import java.util.stream.Collectors;
 public class InventoryService {
     private final WarehouseStockRepository warehouseStockRepository;
     private final ProductRepository productRepository;
+    private final StockMovementRepository stockMovementRepository;
 
     @Transactional
     public void validateAndReserveStock(Long productId, int quantity) {
@@ -52,34 +57,30 @@ public class InventoryService {
 
     @Transactional
     public void validateAndReserveStockBatch(Map<Long, Integer> productQuantities) {
-        if (productQuantities == null || productQuantities.isEmpty()) {
-            log.debug("No products to reserve");
-            return;
-        }
+        validateAndReserveStockBatch(productQuantities, null, null);
+    }
 
+    @Transactional
+    public void validateAndReserveStockBatch(Map<Long, Integer> productQuantities,
+                                             Long orderId,
+                                             Long warehouseId) {
+        if (productQuantities == null || productQuantities.isEmpty()) return;
         log.info("Batch reserving stock for {} products", productQuantities.size());
 
         productQuantities.forEach((productId, quantity) -> {
-            if (quantity <= 0) {
-                throw new IllegalArgumentException(
-                        String.format("Invalid quantity %d for product %d", quantity, productId));
-            }
+            if (quantity <= 0) throw new IllegalArgumentException(
+                    String.format("Invalid quantity %d for product %d", quantity, productId));
         });
 
         List<Long> productIds = new ArrayList<>(productQuantities.keySet());
-
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
         Map<Long, WarehouseStock> stockMap = stocks.stream()
                 .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
-
         Map<Long, Product> productMap = productRepository.findAllById(productIds)
-                .stream()
-                .collect(Collectors.toMap(Product::getId, p -> p));
+                .stream().collect(Collectors.toMap(Product::getId, p -> p));
 
         List<Long> missingProducts = productIds.stream()
-                .filter(id -> !productMap.containsKey(id))
-                .toList();
-
+                .filter(id -> !productMap.containsKey(id)).toList();
         if (!missingProducts.isEmpty()) {
             throw new NotFoundException("Products not found: " + missingProducts);
         }
@@ -88,26 +89,22 @@ public class InventoryService {
         for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
             Long productId = entry.getKey();
             Integer quantity = entry.getValue();
-
             WarehouseStock stock = stockMap.get(productId);
             if (stock == null) {
-                Product product = productMap.get(productId);
                 errors.add(String.format("Product '%s' not available in warehouse",
-                        product.getName()));
+                        productMap.get(productId).getName()));
                 continue;
             }
-
             if (stock.getFullCount() < quantity) {
-                Product product = productMap.get(productId);
                 errors.add(String.format("Insufficient stock for '%s'. Available: %d, Requested: %d",
-                        product.getName(), stock.getFullCount(), quantity));
+                        productMap.get(productId).getName(), stock.getFullCount(), quantity));
             }
         }
-
         if (!errors.isEmpty()) {
             throw new InsufficientStockException("Stock validation failed: " + String.join("; ", errors));
         }
 
+        List<StockMovement> movements = new ArrayList<>();
         for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
             Long productId = entry.getKey();
             Integer quantity = entry.getValue();
@@ -115,12 +112,27 @@ public class InventoryService {
             WarehouseStock stock = stockMap.get(productId);
             stock.setFullCount(stock.getFullCount() - quantity);
 
-            Product product = productMap.get(productId);
-            log.debug("Reserved {} units of {} ({}). Remaining: {}",
-                    quantity, productId, product.getName(), stock.getFullCount());
+            if (orderId != null && warehouseId != null) {
+                StockMovement movement = new StockMovement();
+                movement.setProduct(productMap.get(productId));
+                movement.setWarehouse(stock.getWarehouse());
+                movement.setMovementType(MovementType.SALE);
+                movement.setReferenceType(ReferenceType.ORDER);
+                movement.setReferenceId(orderId);
+                movement.setQuantity(quantity);
+                movement.setNotes("Stock reserved for order ID: " + orderId);
+                movements.add(movement);
+            }
+
+            log.debug("Reserved {} of {} ({}). Remaining: {}",
+                    quantity, productId, productMap.get(productId).getName(), stock.getFullCount());
         }
 
         warehouseStockRepository.saveAll(stocks);
+        if (!movements.isEmpty()) {
+            stockMovementRepository.saveAll(movements);
+        }
+
         log.info("Successfully reserved stock for {} products", productQuantities.size());
     }
 
@@ -165,31 +177,31 @@ public class InventoryService {
 
     @Transactional
     public void releaseStockBatch(Map<Long, Integer> productQuantities) {
-        if (productQuantities == null || productQuantities.isEmpty()) {
-            log.debug("No products to release");
-            return;
-        }
+        releaseStockBatch(productQuantities, null, null);
+    }
 
+    @Transactional
+    public void releaseStockBatch(Map<Long, Integer> productQuantities,
+                                  Long orderId,
+                                  Long warehouseId) {
+        if (productQuantities == null || productQuantities.isEmpty()) return;
         log.info("Batch releasing stock for {} products", productQuantities.size());
 
         productQuantities.forEach((productId, quantity) -> {
-            if (quantity <= 0) {
-                throw new IllegalArgumentException(
-                        String.format("Invalid quantity %d for product %d", quantity, productId));
-            }
+            if (quantity <= 0) throw new IllegalArgumentException(
+                    String.format("Invalid quantity %d for product %d", quantity, productId));
         });
 
         List<Long> productIds = new ArrayList<>(productQuantities.keySet());
-
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
         Map<Long, WarehouseStock> stockMap = stocks.stream()
                 .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
-
         Map<Long, Product> productMap = productRepository.findAllById(productIds)
-                .stream()
-                .collect(Collectors.toMap(Product::getId, p -> p));
+                .stream().collect(Collectors.toMap(Product::getId, p -> p));
 
         List<Long> missingStocks = new ArrayList<>();
+        List<StockMovement> movements = new ArrayList<>();
+
         for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
             Long productId = entry.getKey();
             Integer quantity = entry.getValue();
@@ -203,9 +215,21 @@ public class InventoryService {
 
             stock.setFullCount(stock.getFullCount() + quantity);
 
-            Product product = productMap.get(productId);
-            log.debug("Released {} units of {} ({}). New count: {}",
-                    quantity, productId, product != null ? product.getName() : "Unknown",
+            if (orderId != null) {
+                StockMovement movement = new StockMovement();
+                movement.setProduct(productMap.get(productId));
+                movement.setWarehouse(stock.getWarehouse());
+                movement.setMovementType(MovementType.RETURN_FROM_CUSTOMER);
+                movement.setReferenceType(ReferenceType.ORDER);
+                movement.setReferenceId(orderId);
+                movement.setQuantity(quantity);
+                movement.setNotes("Stock released from cancelled order ID: " + orderId);
+                movements.add(movement);
+            }
+
+            log.debug("Released {} of {} ({}). New count: {}",
+                    quantity, productId,
+                    productMap.get(productId) != null ? productMap.get(productId).getName() : "Unknown",
                     stock.getFullCount());
         }
 
@@ -214,6 +238,10 @@ public class InventoryService {
         }
 
         warehouseStockRepository.saveAll(stocks);
+        if (!movements.isEmpty()) {
+            stockMovementRepository.saveAll(movements);
+        }
+
         log.info("Successfully released stock for {} products", productQuantities.size());
     }
 
@@ -233,53 +261,67 @@ public class InventoryService {
 
     @Transactional
     public void addEmptyBottlesBatch(Map<Long, Integer> emptyBottlesByProduct) {
-        if (emptyBottlesByProduct == null || emptyBottlesByProduct.isEmpty()) {
-            log.debug("No empty bottles to add");
-            return;
-        }
+        addEmptyBottlesBatch(emptyBottlesByProduct, null, null);
+    }
 
+    @Transactional
+    public void addEmptyBottlesBatch(Map<Long, Integer> emptyBottlesByProduct,
+                                     Long orderId,
+                                     Long warehouseId) {
+        if (emptyBottlesByProduct == null || emptyBottlesByProduct.isEmpty()) return;
         log.info("Batch adding empty bottles for {} products", emptyBottlesByProduct.size());
 
         List<Long> productIds = new ArrayList<>(emptyBottlesByProduct.keySet());
-
         List<WarehouseStock> stocks = warehouseStockRepository.findByProductIdsWithLock(productIds);
         Map<Long, WarehouseStock> stockMap = stocks.stream()
                 .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
+        Map<Long, Product> productMap = productRepository.findAllById(productIds)
+                .stream().collect(Collectors.toMap(Product::getId, p -> p));
 
+        List<StockMovement> movements = new ArrayList<>();
         int totalBottlesAdded = 0;
+
         for (Map.Entry<Long, Integer> entry : emptyBottlesByProduct.entrySet()) {
             Long productId = entry.getKey();
             Integer bottleCount = entry.getValue();
 
-            if (bottleCount <= 0) {
-                log.debug("Skipping product {} - non-positive bottle count: {}", productId, bottleCount);
-                continue;
-            }
+            if (bottleCount <= 0) continue;
 
             WarehouseStock stock = stockMap.get(productId);
             if (stock != null) {
-                int previousEmpty = stock.getEmptyCount();
-
-                long newCount = (long) previousEmpty + bottleCount;
+                long newCount = (long) stock.getEmptyCount() + bottleCount;
                 if (newCount > Integer.MAX_VALUE) {
-                    log.error("Empty bottle count overflow for product {}: {} + {} > Integer.MAX_VALUE",
-                            productId, previousEmpty, bottleCount);
                     throw new IllegalStateException(
-                            String.format("Empty bottle count overflow for product %d", productId));
+                            "Empty bottle count overflow for product: " + productId);
                 }
-
                 stock.setEmptyCount((int) newCount);
                 totalBottlesAdded += bottleCount;
 
-                log.debug("Added {} empty bottles for product {}. Previous: {}, New: {}",
-                        bottleCount, productId, previousEmpty, stock.getEmptyCount());
+                if (orderId != null) {
+                    StockMovement movement = new StockMovement();
+                    movement.setProduct(productMap.get(productId));
+                    movement.setWarehouse(stock.getWarehouse());
+                    movement.setMovementType(MovementType.RETURN_FROM_CUSTOMER);
+                    movement.setReferenceType(ReferenceType.ORDER);
+                    movement.setReferenceId(orderId);
+                    movement.setQuantity(bottleCount);
+                    movement.setNotes("Empty containers collected from order ID: " + orderId);
+                    movements.add(movement);
+                }
+
+                log.debug("Added {} empty bottles for product {}. New empty count: {}",
+                        bottleCount, productId, stock.getEmptyCount());
             } else {
-                log.warn("Cannot add empty bottles - product {} not found in warehouse", productId);
+                log.warn("Cannot add empty bottles — product {} not found in warehouse", productId);
             }
         }
 
         warehouseStockRepository.saveAll(stocks);
-        log.info("Successfully added {} total empty bottles across {} products",
+        if (!movements.isEmpty()) {
+            stockMovementRepository.saveAll(movements);
+        }
+
+        log.info("Added {} total empty bottles across {} products",
                 totalBottlesAdded, emptyBottlesByProduct.size());
     }
 

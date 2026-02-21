@@ -64,8 +64,7 @@ public class CustomerServiceImpl implements CustomerService {
                 null,
                 createCustomerRequest.getPhoneNumber(),
                 null,
-                UserRole.CUSTOMER,
-                null
+                UserRole.CUSTOMER
         );
 
         User user = userRepository.findByPhoneNumber(createCustomerRequest.getPhoneNumber())
@@ -74,7 +73,6 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setUser(user);
         Customer savedCustomer = customerRepository.save(customer);
 
-        user.setTargetId(savedCustomer.getId());
         userRepository.save(user);
 
         log.info("Customer created successfully with ID: {}", savedCustomer.getId());
@@ -172,8 +170,7 @@ public class CustomerServiceImpl implements CustomerService {
                     null,
                     request.getPhoneNumber(),
                     null,
-                    UserRole.CUSTOMER,
-                    null
+                    UserRole.CUSTOMER
             );
 
             User user = userRepository.findByPhoneNumber(request.getPhoneNumber())
@@ -182,7 +179,6 @@ public class CustomerServiceImpl implements CustomerService {
             customer.setUser(user);
             customerRepository.save(customer);
 
-            user.setTargetId(customer.getId());
             userRepository.save(user);
         } else {
             customerRepository.save(customer);

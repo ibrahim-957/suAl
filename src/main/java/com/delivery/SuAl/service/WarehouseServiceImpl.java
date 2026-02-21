@@ -148,9 +148,6 @@ public class WarehouseServiceImpl implements WarehouseService {
                 .orElseThrow(() -> new NotFoundException(
                         "Stock not found for warehouse ID: " + warehouseId + " and product ID: " + productId));
 
-        if (updateStockRequest.getFullCount() != null) {
-            stock.setFullCount(updateStockRequest.getFullCount());
-        }
         if (updateStockRequest.getEmptyCount() != null) {
             stock.setEmptyCount(updateStockRequest.getEmptyCount());
         }

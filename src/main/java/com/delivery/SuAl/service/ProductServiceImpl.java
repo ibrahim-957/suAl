@@ -3,6 +3,7 @@ package com.delivery.SuAl.service;
 import com.delivery.SuAl.entity.Category;
 import com.delivery.SuAl.entity.Company;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.ProductPrice;
 import com.delivery.SuAl.entity.ProductSize;
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
@@ -16,6 +17,7 @@ import com.delivery.SuAl.model.response.product.ProductResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.CategoryRepository;
 import com.delivery.SuAl.repository.CompanyRepository;
+import com.delivery.SuAl.repository.ProductPriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import com.delivery.SuAl.repository.ProductSizeRepository;
 import com.delivery.SuAl.repository.WarehouseRepository;
@@ -29,7 +31,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Service
@@ -43,38 +46,37 @@ public class ProductServiceImpl implements ProductService {
     private final ProductSizeRepository productSizeRepository;
     private final WarehouseStockRepository warehouseStockRepository;
     private final WarehouseRepository warehouseRepository;
+    private final ProductPriceRepository productPriceRepository;
     private final ProductMapper productMapper;
     private final ImageUploadService imageUploadService;
 
     @Override
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request, MultipartFile image) {
-        log.info("Creating new product with name: {}", request.getName());
+        log.info("Creating new product: {}", request.getName());
 
         if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
             if (!operatorCompanyId.equals(request.getCompanyId())) {
                 throw new UnauthorizedOperationException(
-                        "Supplier operators can only create products for their own company (ID: " + operatorCompanyId + ")"
-                );
+                        "Supplier operators can only create products for their own company (ID: "
+                                + operatorCompanyId + ")");
             }
         }
 
         Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
-                .orElseThrow(() -> new NotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
-
+                .orElseThrow(() -> new NotFoundException("Warehouse not found: " + request.getWarehouseId()));
         Company company = companyRepository.findById(request.getCompanyId())
-                .orElseThrow(() -> new NotFoundException("Company not found with id: " + request.getCompanyId()));
-
+                .orElseThrow(() -> new NotFoundException("Company not found: " + request.getCompanyId()));
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new NotFoundException("Category not found with id: " + request.getCategoryId()));
-
-        ProductSize size = productSizeRepository.findById(request.getSizeId())  // NEW
-                .orElseThrow(() -> new NotFoundException("Size not found with id: " + request.getSizeId()));
+                .orElseThrow(() -> new NotFoundException("Category not found: " + request.getCategoryId()));
+        ProductSize size = productSizeRepository.findById(request.getSizeId())
+                .orElseThrow(() -> new NotFoundException("Size not found: " + request.getSizeId()));
 
         if (productRepository.existsByCompanyIdAndNameAndSizeId(
                 request.getCompanyId(), request.getName(), request.getSizeId())) {
-            throw new AlreadyExistsException("Product already exists with this name and size for this company");
+            throw new AlreadyExistsException(
+                    "Product already exists with this name and size for this company");
         }
 
         String imageUrl = imageUploadService.uploadImageForProduct(image);
@@ -84,22 +86,21 @@ public class ProductServiceImpl implements ProductService {
         product.setCompany(company);
         product.setSize(size);
         product.setImageUrl(imageUrl);
-        product.setSellPrice(request.getSellPrice());
 
         Product savedProduct = productRepository.save(product);
 
         WarehouseStock warehouseStock = new WarehouseStock();
         warehouseStock.setWarehouse(warehouse);
         warehouseStock.setProduct(savedProduct);
-        warehouseStock.setFullCount(request.getInitialFullCount());
-        warehouseStock.setEmptyCount(defaultValue(request.getInitialEmptyCount(), 0));
-        warehouseStock.setDamagedCount(defaultValue(request.getInitialDamagedCount(), 0));
-        warehouseStock.setMinimumStockAlert(defaultValue(request.getMinimumStockAlert(), 10));
-        warehouseStock.setLastRestocked(LocalDateTime.now());
+        warehouseStock.setFullCount(0);
+        warehouseStock.setEmptyCount(0);
+        warehouseStock.setDamagedCount(0);
+        warehouseStock.setMinimumStockAlert(
+                request.getMinimumStockAlert() != null ? request.getMinimumStockAlert() : 10);
         warehouseStockRepository.save(warehouseStock);
 
-        log.info("Product created successfully with ID: {}", savedProduct.getId());
-        return productMapper.toResponse(savedProduct);  // no more enrichWithPriceData
+        log.info("Product created with ID: {}", savedProduct.getId());
+        return enrichWithPriceData(productMapper.toResponse(savedProduct), savedProduct.getId());
     }
 
     @Override
@@ -118,7 +119,7 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-        return productMapper.toResponse(product);
+        return enrichWithPriceData(productMapper.toResponse(product), id);
     }
 
     @Override
@@ -162,10 +163,6 @@ public class ProductServiceImpl implements ProductService {
             product.setSize(size);
         }
 
-        if (request.getSellPrice() != null) {
-            product.setSellPrice(request.getSellPrice());
-        }
-
         productMapper.updateEntityFromRequest(request, product);
 
         if (image != null && !image.isEmpty()) {
@@ -189,7 +186,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
 
-        if (OperatorContext.isSupplierOperator()){
+        if (OperatorContext.isSupplierOperator()) {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
             if (!product.getCompany().getId().equals(operatorCompanyId)) {
                 throw new UnauthorizedOperationException(
@@ -211,24 +208,39 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResponse<ProductResponse> getAllProducts(Pageable pageable) {
-        log.info("Getting all products with page: {}", pageable);
+        log.info("Getting all products, page: {}", pageable);
 
-        Page<Product> productPage;
-        if (OperatorContext.isSupplierOperator()) {
-            Long companyId = OperatorContext.getCurrentCompanyId();
-            productPage = productRepository.findByCompanyId(companyId, pageable);
-        } else {
-            productPage = productRepository.findAll(pageable);
-        }
+        Page<Product> productPage = OperatorContext.isSupplierOperator()
+                ? productRepository.findByCompanyId(OperatorContext.getCurrentCompanyId(), pageable)
+                : productRepository.findAll(pageable);
 
         List<ProductResponse> responses = productPage.getContent().stream()
-                .map(productMapper::toResponse)
+                .map(p -> enrichWithPriceData(productMapper.toResponse(p), p.getId()))
                 .toList();
 
         return PageResponse.of(responses, productPage);
     }
 
-    private <T> T defaultValue(T value, T defaultValue) {
-        return value != null ? value : defaultValue;
+    private ProductResponse enrichWithPriceData(ProductResponse response, Long productId) {
+        productPriceRepository.findActiveByProductId(productId).ifPresent(activePrice -> {
+            response.setSellPrice(activePrice.getSellPrice());
+            response.setDiscountPercent(activePrice.getDiscountPercent());
+            response.setEffectivePrice(calculateEffectivePrice(activePrice));
+        });
+        return response;
+    }
+
+    private BigDecimal calculateEffectivePrice(ProductPrice price) {
+        if (price.getSellPrice() == null) return null;
+        if (price.getDiscountPercent() == null
+                || price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0) {
+            return price.getSellPrice();
+        }
+        BigDecimal multiplier = BigDecimal.ONE
+                .subtract(price.getDiscountPercent()
+                        .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return price.getSellPrice()
+                .multiply(multiplier)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

@@ -64,8 +64,7 @@ public class DriverServiceImpl implements DriverService {
                 createDriverRequest.getEmail(),
                 createDriverRequest.getPhoneNumber(),
                 createDriverRequest.getPassword(),
-                UserRole.DRIVER,
-                null
+                UserRole.DRIVER
         );
 
         User user = userRepository.findByEmail(createDriverRequest.getEmail())
@@ -75,7 +74,6 @@ public class DriverServiceImpl implements DriverService {
 
         Driver savedDriver = driverRepository.save(driver);
 
-        user.setTargetId(savedDriver.getId());
         userRepository.save(user);
 
         response = AuthenticationResponse.builder()
@@ -85,7 +83,7 @@ public class DriverServiceImpl implements DriverService {
                 .expiresIn(response.getExpiresIn())
                 .userId(response.getUserId())
                 .role(response.getRole())
-                .targetId(savedDriver.getId())
+                .roleEntityId(savedDriver.getId())
                 .build();
         log.info("Driver created successfully with ID: {} and linked to User", savedDriver.getId());
 

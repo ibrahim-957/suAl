@@ -34,21 +34,18 @@ public class AddressController {
     private final AddressService addressService;
 
     @PostMapping("/customer")
-    public ResponseEntity<AddressResponse> createAddressByCustomer(
+    public ResponseEntity<ApiResponse<AddressResponse>> createAddressByCustomer(
             @AuthenticationPrincipal User user,
             @Valid @RequestBody CreateAddressByCustomerRequest request) {
-        log.info("POST /v1/api/addresses/customer - Customer with phone {} creating address", user.getPhoneNumber());
-
         AddressResponse response = addressService.createAddressByCustomer(user.getPhoneNumber(), request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(response);
+                .body(ApiResponse.success("Address created successfully", response));
     }
 
-    @PostMapping("/operator/{customerId}")
+    @PostMapping("/operator")
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
-            @Valid @RequestBody CreateAddressByOperatorRequest createAddressByOperatorRequest
-    ) {
+            @Valid @RequestBody CreateAddressByOperatorRequest createAddressByOperatorRequest) {
         log.info("POST /api/customers/{}/addresses - Creating address", createAddressByOperatorRequest.getCustomerId());
         AddressResponse addressResponse = addressService.createAddress(createAddressByOperatorRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(addressResponse));
@@ -75,12 +72,9 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.success("Address updated successfully", addressResponse));
     }
 
-    @DeleteMapping("/{customerId}/{addressId}")
+    @DeleteMapping("/{addressId}")
     public ResponseEntity<Void> deleteAddress(
-            @PathVariable Long customerId,
-            @PathVariable Long addressId
-    ) {
-        log.info("DELETE /api/customers/{}/addresses/{} - Deleting address", customerId, addressId);
+            @PathVariable Long addressId) {
         addressService.deleteAddress(addressId);
         return ResponseEntity.noContent().build();
     }

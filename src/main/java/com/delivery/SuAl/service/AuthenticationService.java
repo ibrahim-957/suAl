@@ -9,8 +9,7 @@ import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 
 public interface AuthenticationService {
 
-    AuthenticationResponse createUser(String email, String phoneNumber, String password,
-                                      UserRole role, Long targetId);
+    AuthenticationResponse createUser(String email, String phoneNumber, String password, UserRole role);
 
     AuthenticationResponse authenticate(AuthenticationRequest request);
 
@@ -20,5 +19,5 @@ public interface AuthenticationService {
 
     ApiResponse<String> changePassword(ChangePasswordRequest request, Long userId);
 
-    void deleteUser(Long targetId, UserRole role);
+    void deleteUser(Long userId, UserRole role);
 }

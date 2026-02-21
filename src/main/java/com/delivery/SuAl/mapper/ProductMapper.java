@@ -11,7 +11,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class, ProductSizeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface ProductMapper {
 
@@ -33,7 +33,9 @@ public interface ProductMapper {
     @Mapping(target = "companyName", expression = "java(getCompanyName(product))")
     @Mapping(target = "categoryName", expression = "java(getCategoryName(product))")
     @Mapping(target = "size", source = "size")
-    @Mapping(target = "sellPrice", source = "sellPrice")
+    @Mapping(target = "sellPrice", ignore = true)
+    @Mapping(target = "discountPercent", ignore = true)
+    @Mapping(target = "effectivePrice", ignore = true)
     @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     ProductResponse toResponse(Product product);
@@ -45,9 +47,8 @@ public interface ProductMapper {
         return product.getCompany().getName();
     }
 
-    default String getCategoryName(Product product) {  // was: getCategoryType returning CategoryType
+    default String getCategoryName(Product product) {
         if (product.getCategory() == null) return null;
         return product.getCategory().getName();
     }
-
 }

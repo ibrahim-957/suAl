@@ -49,8 +49,7 @@ public class AdminServiceImpl implements AdminService {
                 request.getEmail(),
                 request.getPhoneNumber(),
                 request.getPassword(),
-                UserRole.ADMIN,
-                null
+                UserRole.ADMIN
         );
 
         User user = userRepository.findByEmail(request.getEmail())
@@ -61,7 +60,6 @@ public class AdminServiceImpl implements AdminService {
         Admin savedAdmin = adminRepository.save(admin);
         log.info("Admin entity created with ID: {}", savedAdmin.getId());
 
-        user.setTargetId(savedAdmin.getId());
         userRepository.save(user);
 
         response = AuthenticationResponse.builder()
@@ -71,7 +69,7 @@ public class AdminServiceImpl implements AdminService {
                 .expiresIn(response.getExpiresIn())
                 .userId(response.getUserId())
                 .role(response.getRole())
-                .targetId(savedAdmin.getId())
+                .roleEntityId(savedAdmin.getId())
                 .build();
 
 

@@ -91,8 +91,7 @@ public class OperatorServiceImpl implements OperatorService {
                 createOperatorRequest.getEmail(),
                 createOperatorRequest.getPhoneNumber(),
                 createOperatorRequest.getPassword(),
-                UserRole.OPERATOR,
-                null
+                UserRole.OPERATOR
         );
 
         User user = userRepository.findByEmail(createOperatorRequest.getEmail())
@@ -103,7 +102,6 @@ public class OperatorServiceImpl implements OperatorService {
         Operator savedOperator = operatorRepository.save(operator);
         log.info("Operator entity created with ID: {}", savedOperator.getId());
 
-        user.setTargetId(savedOperator.getId());
         userRepository.save(user);
 
         response = AuthenticationResponse.builder()
@@ -113,7 +111,7 @@ public class OperatorServiceImpl implements OperatorService {
                 .expiresIn(response.getExpiresIn())
                 .userId(response.getUserId())
                 .role(response.getRole())
-                .targetId(savedOperator.getId())
+                .roleEntityId(savedOperator.getId())
                 .build();
 
         log.info("Operator created successfully with ID: {} and linked to User", savedOperator.getId());
@@ -261,8 +259,7 @@ public class OperatorServiceImpl implements OperatorService {
                 request.getEmail(),
                 request.getPhoneNumber(),
                 request.getPassword(),
-                UserRole.OPERATOR,
-                null
+                UserRole.OPERATOR
         );
 
         User user = userRepository.findByEmail(request.getEmail())
@@ -271,7 +268,6 @@ public class OperatorServiceImpl implements OperatorService {
         operator.setUser(user);
         operatorRepository.save(operator);
 
-        user.setTargetId(operator.getId());
         userRepository.save(user);
 
         response = AuthenticationResponse.builder()
@@ -281,7 +277,7 @@ public class OperatorServiceImpl implements OperatorService {
                 .expiresIn(response.getExpiresIn())
                 .userId(response.getUserId())
                 .role(response.getRole())
-                .targetId(operator.getId())
+                .roleEntityId(operator.getId())
                 .build();
         log.info("Operator reactivated successfully with ID: {}", operator.getId());
 

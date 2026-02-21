@@ -164,8 +164,8 @@ public class WarehouseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "collectionDateTime") String sortBy,
-            @RequestParam(defaultValue = "DESC") String direction
-    ) {
+            @RequestParam(defaultValue = "DESC") String direction) {
+
         log.info("GET /v1/api/warehouses/{}/collections - Fetching collections", warehouseId);
 
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
@@ -174,14 +174,7 @@ public class WarehouseController {
         Page<ContainerCollectionResponse> collections = containerCollectionService
                 .getCollectionsByWarehouse(warehouseId, pageable);
 
-        PageResponse<ContainerCollectionResponse> pageResponse = PageResponse.<ContainerCollectionResponse>builder()
-                .content(collections.getContent())
-                .totalPages(collections.getTotalPages())
-                .totalElements(collections.getTotalElements())
-                .pageSize(collections.getSize())
-                .build();
-
-        return ResponseEntity.ok(ApiResponse.success(pageResponse));
+        return ResponseEntity.ok(ApiResponse.success(PageResponse.of(collections.getContent(), collections)));
     }
 
     @GetMapping("/collections/date-range")

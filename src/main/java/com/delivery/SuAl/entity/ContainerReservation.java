@@ -42,8 +42,9 @@ public class ContainerReservation {
     @JoinColumn(name = "order_id")
     private Order order;
 
-    @Column(name = "product_id", nullable = false)
-    private Long productId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
     @Column(name = "quantity_reserved", nullable = false)
     private Integer quantityReserved;

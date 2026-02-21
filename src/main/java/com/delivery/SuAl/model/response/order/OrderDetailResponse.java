@@ -1,6 +1,5 @@
 package com.delivery.SuAl.model.response.order;
 
-import com.delivery.SuAl.model.enums.CategoryType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

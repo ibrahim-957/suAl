@@ -44,7 +44,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final PackageDeliveryDistributionRepository distributionRepository;
-    private final PriceRepository priceRepository;
+    private final ProductPriceRepository priceRepository;
     private final PackageDepositCalculationService depositCalculationService;
     private final OrderNumberGenerator orderNumberGenerator;
     private final CustomerPackageOrderMapper packageOrderMapper;
@@ -876,7 +876,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
                 .map(DeliveryProductRequest::getProductId)
                 .toList();
 
-        Map<Long, Price> priceMap = priceRepository.findAllByProductIdIn(productIds).stream()
+        Map<Long, ProductPrice> priceMap = priceRepository.findActiveByProductIdIn(productIds).stream()
                 .collect(Collectors.toMap(
                         price -> price.getProduct().getId(),
                         p -> p,
@@ -885,7 +885,20 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
 
         for (DeliveryProductRequest prodReq : products) {
             Product product = productRepository.findById(prodReq.getProductId())
-                    .orElseThrow(() -> new NotFoundException("Product not found with id: " + prodReq.getProductId()));
+                    .orElseThrow(() -> new NotFoundException(
+                            "Product not found with id: " + prodReq.getProductId()));
+
+            ProductPrice activePrice = priceMap.get(product.getId());
+
+            // FIX 1: was product.getSellPrice() — field removed from Product
+            BigDecimal pricePerUnit = activePrice != null
+                    ? calculateEffectivePrice(activePrice)
+                    : BigDecimal.ZERO;
+
+            // FIX 2: was Price::getBuyPrice — Price entity deleted, use ProductPrice.getBuyPrice()
+            BigDecimal buyPrice = activePrice != null
+                    ? Optional.ofNullable(activePrice.getBuyPrice()).orElse(BigDecimal.ZERO)
+                    : BigDecimal.ZERO;
 
             OrderDetail detail = new OrderDetail();
             detail.setOrder(order);
@@ -893,21 +906,12 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             detail.setCompany(product.getCompany());
             detail.setCategory(product.getCategory());
             detail.setCount(prodReq.getQuantity());
-
-            BigDecimal pricePerUnit = product.getSellPrice() != null
-                    ? product.getSellPrice()
-                    : BigDecimal.ZERO;
             detail.setPricePerUnit(pricePerUnit);
-
-            BigDecimal buyPrice = Optional.ofNullable(priceMap.get(product.getId()))
-                    .map(Price::getBuyPrice)
-                    .orElse(BigDecimal.ZERO);
             detail.setBuyPrice(buyPrice);
 
             BigDecimal subtotal = pricePerUnit
                     .multiply(BigDecimal.valueOf(prodReq.getQuantity()))
                     .setScale(2, RoundingMode.HALF_UP);
-
             detail.setSubtotal(subtotal);
 
             detail.setDepositPerUnit(product.getDepositAmount());
@@ -915,14 +919,11 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
             BigDecimal depositCharged = product.getDepositAmount()
                     .multiply(BigDecimal.valueOf(prodReq.getQuantity()))
                     .setScale(2, RoundingMode.HALF_UP);
-
             detail.setDepositCharged(depositCharged);
-
 
             BigDecimal lineTotal = subtotal
                     .add(depositCharged)
                     .setScale(2, RoundingMode.HALF_UP);
-
             detail.setLineTotal(lineTotal);
 
             detail.setContainersReturned(0);
@@ -937,5 +938,19 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
 
     private CustomerPackageOrderResponse mapToResponse(CustomerPackageOrder packageOrder) {
         return packageOrderMapper.toResponse(packageOrder);
+    }
+
+    private BigDecimal calculateEffectivePrice(ProductPrice price){
+        if (price.getSellPrice() == null) return BigDecimal.ZERO;
+        if (price.getDiscountPercent() == null
+                || price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0) {
+            return price.getSellPrice();
+        }
+        BigDecimal multiplier = BigDecimal.ONE
+                .subtract(price.getDiscountPercent()
+                        .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return price.getSellPrice()
+                .multiply(multiplier)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

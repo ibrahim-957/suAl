@@ -55,9 +55,6 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private String phoneNumber;
 
-    @Column(name = "target_id")
-    private Long targetId;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;

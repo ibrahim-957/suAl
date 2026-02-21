@@ -1,5 +1,6 @@
 package com.delivery.SuAl.model.response.statisticsAnddashborad;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,9 +20,16 @@ public class RevenueReportResponse {
     private Long totalOrders;
     private Long completedOrders;
     private BigDecimal totalRevenue;
-    private BigDecimal totalCost;
-    private BigDecimal totalProfit;
-    private BigDecimal profitMargin;
     private BigDecimal averageOrderValue;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BigDecimal totalCost;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BigDecimal totalProfit;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BigDecimal profitMargin;
+
     private List<DailyRevenueResponse> dailyBreakdown;
 }

@@ -49,4 +49,5 @@ public interface OperatorRepository extends JpaRepository<Operator, Long> {
     @Query("SELECT o FROM Operator o WHERE o.user.phoneNumber = :phoneNumber")
     Optional<Operator> findByPhoneNumberIncludingInactive(@Param("phoneNumber") String phoneNumber);
 
+    Optional<Operator> findByUserId(Long userId);
 }

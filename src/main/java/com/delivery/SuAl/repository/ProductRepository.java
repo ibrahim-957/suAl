@@ -43,4 +43,5 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             @Param("companyId") Long companyId,
             Pageable pageable
     );
+
 }

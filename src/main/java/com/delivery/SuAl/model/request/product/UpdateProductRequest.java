@@ -4,6 +4,7 @@ import com.delivery.SuAl.model.enums.ProductStatus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,8 +24,6 @@ public class UpdateProductRequest {
     private Long categoryId;
     private Long sizeId;
 
-    private BigDecimal sellPrice;
-
     @Size(max = 2000)
     private String description;
 
@@ -34,4 +33,7 @@ public class UpdateProductRequest {
     private BigDecimal depositAmount;
 
     private ProductStatus productStatus;
+
+    @Min(value = 1)
+    private Integer minimumStockAlert;
 }

@@ -69,9 +69,6 @@ public class Product {
     @Enumerated(EnumType.STRING)
     private ProductStatus productStatus = ProductStatus.ACTIVE;
 
-    @Column(name = "sell_price", precision = 10, scale = 2)
-    private BigDecimal sellPrice;
-
     @ElementCollection
     @CollectionTable(
             name = "product_mineral_composition",
@@ -101,7 +98,7 @@ public class Product {
         updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
-    public boolean getHasDeposit() {
-        return depositAmount != null && depositAmount.compareTo(BigDecimal.ZERO) != 0;
+    public boolean hasDeposit() {
+        return depositAmount != null && depositAmount.compareTo(BigDecimal.ZERO) > 0;
     }
 }

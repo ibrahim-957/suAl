@@ -1,7 +1,6 @@
 package com.delivery.SuAl.model.request.marketing;
 
 import com.delivery.SuAl.model.enums.CampaignStatus;
-import com.delivery.SuAl.model.enums.CampaignType;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;

@@ -55,7 +55,9 @@ public class GlobalExceptionHandler {
             InsufficientStockException.class,
             InsufficientContainerException.class,
             InvalidRequestException.class,
-            NotValidException.class
+            NotValidException.class,
+            TransferSameWarehouseException.class,
+            ActivePriceAlreadyExistsException.class
     })
     public ResponseEntity<ErrorResponse> handleBadRequest(
             RuntimeException ex,
@@ -156,7 +158,10 @@ public class GlobalExceptionHandler {
             CampaignUsageLimitExceededException.class,
             AlreadyPaidException.class,
             InvalidPaymentStateException.class,
-            OrderDeletionException.class
+            OrderDeletionException.class,
+            InvoiceNotEditableException.class,
+            InvoiceAlreadyApprovedException.class,
+            TransferNotEditableException.class
     })
     public ResponseEntity<ErrorResponse> handleConflict(
             RuntimeException ex,

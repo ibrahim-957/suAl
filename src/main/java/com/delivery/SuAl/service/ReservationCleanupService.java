@@ -44,7 +44,7 @@ public class ReservationCleanupService {
 
             log.debug("Released expired container reservation: orderId={}, productId={}, quantity={}",
                     reservation.getOrder() != null ? reservation.getOrder().getId() : "null",
-                    reservation.getProductId(),
+                    reservation.getProduct().getId(),
                     reservation.getQuantityReserved());
         }
 

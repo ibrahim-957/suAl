@@ -15,7 +15,7 @@ public interface ContainerReservationRepository extends JpaRepository<ContainerR
 
     @Query("SELECT cr FROM ContainerReservation cr " +
             "WHERE cr.customer.id = :customerId " +
-            "AND cr.productId = :productId " +
+            "AND cr.product.id = :productId " +
             "AND cr.released = false " +
             "AND (cr.expiresAt IS NULL OR cr.expiresAt > :now)")
     List<ContainerReservation> findActiveReservations(
@@ -27,7 +27,7 @@ public interface ContainerReservationRepository extends JpaRepository<ContainerR
     @Query("SELECT COALESCE(SUM(cr.quantityReserved), 0) " +
             "FROM ContainerReservation cr " +
             "WHERE cr.customer.id = :customerId " +
-            "AND cr.productId = :productId " +
+            "AND cr.product.id = :productId " +
             "AND cr.released = false " +
             "AND (cr.expiresAt IS NULL OR cr.expiresAt > :now)")
     Integer sumReservedQuantity(

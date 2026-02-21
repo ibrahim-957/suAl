@@ -1,6 +1,7 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Customer;
+import com.delivery.SuAl.entity.Operator;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -28,4 +29,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
             "JOIN FETCH c.user u " +
             "WHERE u.phoneNumber = :phoneNumber")
     Optional<Customer> findByPhoneNumberWithUser(@Param("phoneNumber") String phoneNumber);
+
+    Optional<Customer> findByUserId(Long userId);
 }

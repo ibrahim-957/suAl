@@ -106,15 +106,11 @@ public class PromoController {
     }
 
     @PostMapping("/validate")
-    public ResponseEntity<ApiResponse<PromoResponse>> validatePromo(
-        @Valid @RequestBody ValidatePromoRequest request
-    ){
+    public ResponseEntity<ApiResponse<ValidatePromoResponse>> validatePromo(
+            @Valid @RequestBody ValidatePromoRequest request) {
         ValidatePromoResponse response = promoService.validatePromo(request);
 
-        if (response.getIsValid()) {
-            return ResponseEntity.ok(ApiResponse.success("Promo is valid", response.getPromoResponse()));
-        } else {
-            return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response.getPromoResponse()));
-        }
+        String message = response.getIsValid() ? "Promo is valid" : response.getMessage();
+        return ResponseEntity.ok(ApiResponse.success(message, response));
     }
 }

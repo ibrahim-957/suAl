@@ -1,6 +1,7 @@
 package com.delivery.SuAl.model.response.product;
 
 import com.delivery.SuAl.model.enums.ProductStatus;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,7 +27,16 @@ public class ProductResponse {
     private BigDecimal depositAmount;
     private boolean hasDeposit;
     private ProductStatus productStatus;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private BigDecimal sellPrice;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BigDecimal discountPercent;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private BigDecimal effectivePrice;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

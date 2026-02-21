@@ -6,6 +6,7 @@ import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.ProductPrice;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.CampaignUsageLimitExceededException;
 import com.delivery.SuAl.exception.NotFoundException;
@@ -26,6 +27,7 @@ import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.CampaignUsageRepository;
+import com.delivery.SuAl.repository.ProductPriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -51,6 +54,7 @@ public class CampaignServiceImpl implements CampaignService {
     private final CampaignRepository campaignRepository;
     private final CampaignUsageRepository campaignUsageRepository;
     private final ProductRepository productRepository;
+    private final ProductPriceRepository productPriceRepository;
     private final CampaignMapper campaignMapper;
     private final CustomerService customerService;
     private final OrderQueryService orderQueryService;
@@ -506,7 +510,7 @@ public class CampaignServiceImpl implements CampaignService {
         BigDecimal freeProductPrice = getFreeProductPrice(campaign.getFreeProduct());
         BigDecimal bonusValue = freeProductPrice.multiply(BigDecimal.valueOf(eligibleFreeQuantity));
 
-        boolean hasDeposit = campaign.getFreeProduct().getHasDeposit();
+        boolean hasDeposit = campaign.getFreeProduct().hasDeposit();
         BigDecimal depositPerUnit = hasDeposit ? campaign.getFreeProduct().getDepositAmount() : BigDecimal.ZERO;
         BigDecimal totalDeposit = depositPerUnit.multiply(BigDecimal.valueOf(eligibleFreeQuantity));
 
@@ -679,19 +683,26 @@ public class CampaignServiceImpl implements CampaignService {
 
     private BigDecimal calculateBonusValue(Campaign campaign) {
         Product freeProduct = campaign.getFreeProduct();
-        if (freeProduct == null || freeProduct.getSellPrice() == null) {
+        if (freeProduct == null) {
             log.warn("Campaign {} has free product with no price", campaign.getCampaignCode());
             return BigDecimal.ZERO;
         }
-        return freeProduct.getSellPrice()
-                .multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
+        return productPriceRepository.findActiveByProductId(freeProduct.getId())
+                .map(price -> {
+                    BigDecimal effectivePrice = calculateEffectivePrice(price);
+                    return effectivePrice.multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
+                })
+                .orElseGet(() -> {
+                    log.warn("Campaign {} free product has no active price", campaign.getCampaignCode());
+                    return BigDecimal.ZERO;
+                });
     }
 
     private BigDecimal getFreeProductPrice(Product product) {
-        if (product == null || product.getSellPrice() == null) {
-            return BigDecimal.ZERO;
-        }
-        return product.getSellPrice();
+        if (product == null) return BigDecimal.ZERO;
+        return productPriceRepository.findActiveByProductId(product.getId())
+                .map(this::calculateEffectivePrice)
+                .orElse(BigDecimal.ZERO);
     }
 
     private int calculateEligibleFreeQuantity(int basketQuantity, int buyQuantity, int freeQuantity) {
@@ -703,5 +714,19 @@ public class CampaignServiceImpl implements CampaignService {
                 .filter(detail -> detail.getProduct().getId().equals(productId))
                 .mapToInt(OrderDetail::getCount)
                 .sum();
+    }
+
+    private BigDecimal calculateEffectivePrice(ProductPrice price) {
+        if (price.getSellPrice() == null) return BigDecimal.ZERO;
+        if (price.getDiscountPercent() == null
+                || price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0) {
+            return price.getSellPrice();
+        }
+        BigDecimal multiplier = BigDecimal.ONE
+                .subtract(price.getDiscountPercent()
+                        .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return price.getSellPrice()
+                .multiply(multiplier)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

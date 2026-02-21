@@ -17,7 +17,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByPhoneNumberAndRole(String phoneNumber, UserRole role);
 
-    void deleteByTargetIdAndRole(Long targetId, UserRole role);
+    void deleteByIdAndRole(Long Id, UserRole role);
 
     Optional<User> findFirstByEmailAndRoleNot(String email, UserRole excludedRole);
 
