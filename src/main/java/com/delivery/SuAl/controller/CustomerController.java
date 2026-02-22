@@ -1,5 +1,6 @@
 package com.delivery.SuAl.controller;
 
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.model.request.customer.CreateCustomerRequest;
 import com.delivery.SuAl.model.request.customer.UpdateCustomerRequest;
 import com.delivery.SuAl.model.response.customer.CustomerResponse;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -57,6 +59,13 @@ public class CustomerController {
     ) {
         log.info("GET api/customers - Getting customer");
         CustomerResponse response = customerService.getCustomerById(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<CustomerResponse>> getMyProfile(
+            @AuthenticationPrincipal User user) {
+        CustomerResponse response = customerService.getCustomerByUserId(user.getId());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

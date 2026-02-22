@@ -126,7 +126,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
 
-                        .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.GET, "/v1/api/customers/me").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR", "CUSTOMER")
 
                         .requestMatchers("/v1/api/package-orders/my-package-orders").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/package-orders/*/cancel").hasAnyRole("ADMIN", "CUSTOMER")

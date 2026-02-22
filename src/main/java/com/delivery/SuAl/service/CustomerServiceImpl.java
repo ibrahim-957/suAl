@@ -120,6 +120,15 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public CustomerResponse getCustomerByUserId(Long userId) {
+        log.info("Getting customer by userId {}", userId);
+        Customer customer = customerRepository.findByUserId(userId)
+                .orElseThrow(() -> new NotFoundException("Customer not found for user id " + userId));
+        return customerMapper.toResponse(customer);
+    }
+
+    @Override
     @Transactional
     public void deleteCustomer(Long id) {
         log.info("Deleting customer with id {}", id);

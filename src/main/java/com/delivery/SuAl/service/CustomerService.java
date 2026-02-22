@@ -20,4 +20,6 @@ public interface CustomerService {
     PageResponse<CustomerResponse> getAllCustomers(Pageable pageable);
 
     Customer getCustomerEntityById(Long id);
+
+    CustomerResponse getCustomerByUserId(Long id);
 }
