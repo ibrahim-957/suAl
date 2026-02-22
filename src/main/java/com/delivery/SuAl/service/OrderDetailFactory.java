@@ -96,7 +96,8 @@ public class OrderDetailFactory {
     private BigDecimal calculateEffectivePrice(ProductPrice price){
         if (price.getSellPrice() == null) return BigDecimal.ZERO;
         if (price.getDiscountPercent() == null ||
-        price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
+        price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0)
+            return price.getSellPrice();
 
         BigDecimal multiplier = BigDecimal.ONE
                 .subtract(price.getDiscountPercent()

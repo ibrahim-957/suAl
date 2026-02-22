@@ -17,6 +17,7 @@ import com.delivery.SuAl.model.request.marketing.ValidatePromoRequest;
 import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
 import com.delivery.SuAl.model.response.marketing.PromoResponse;
 import com.delivery.SuAl.model.response.marketing.ValidatePromoResponse;
+import com.delivery.SuAl.repository.CustomerRepository;
 import com.delivery.SuAl.repository.PromoRepository;
 import com.delivery.SuAl.repository.PromoUsageRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +38,7 @@ import java.util.List;
 public class PromoServiceImpl implements PromoService {
     private final PromoRepository promoRepository;
     private final PromoUsageRepository promoUsageRepository;
+    private final CustomerRepository customerRepository;
     private final PromoMapper promoMapper;
 
     @Override
@@ -197,8 +198,7 @@ public class PromoServiceImpl implements PromoService {
 
         PromoUsage promoUsage = new PromoUsage();
 
-        Customer customer = new Customer();
-        customer.setId(request.getCustomerId());
+        Customer customer = customerRepository.getReferenceById(request.getCustomerId());
         promoUsage.setCustomer(customer);
 
         if (request.getOrderId() != null) {
@@ -286,10 +286,8 @@ public class PromoServiceImpl implements PromoService {
 
         LocalDate now = LocalDate.now();
 
-        List<Promo> promosToExpire = promoRepository.findAll().stream()
-                .filter(promo -> promo.getPromoStatus() == PromoStatus.ACTIVE)
-                .filter(promo -> now.isAfter(promo.getValidTo()))
-                .toList();
+        List<Promo> promosToExpire = promoRepository
+                .findByPromoStatusAndValidToBefore(PromoStatus.ACTIVE, LocalDate.now());
 
         if (promosToExpire.isEmpty()) {
             log.info("No promos to expire");

@@ -17,6 +17,7 @@ public class ProductPriceResponse {
     private Long productId;
     private String productName;
     private BigDecimal sellPrice;
+    private BigDecimal buyPrice;
     private BigDecimal discountPercent;
     private BigDecimal effectivePrice;
     private LocalDateTime validFrom;

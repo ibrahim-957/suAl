@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
@@ -80,8 +81,7 @@ public class ProductPrice {
             return sellPrice;
         }
         BigDecimal multiplier = BigDecimal.ONE.subtract(
-                discountPercent.divide(BigDecimal.valueOf(100)));
-
-        return sellPrice.multiply(multiplier);
+                discountPercent.divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return sellPrice.multiply(multiplier).setScale(2, RoundingMode.HALF_UP);
     }
 }

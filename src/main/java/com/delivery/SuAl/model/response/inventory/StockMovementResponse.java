@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -23,6 +24,7 @@ public class StockMovementResponse {
     private ReferenceType referenceType;
     private Long referenceId;
     private Integer quantity;
+    private BigDecimal unitPrice;
     private String notes;
     private LocalDateTime createdAt;
 }

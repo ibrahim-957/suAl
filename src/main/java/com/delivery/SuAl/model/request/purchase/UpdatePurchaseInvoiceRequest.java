@@ -12,9 +12,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UpdatePurchaseInvoiceRequest {
-    @Size(max = 100)
-    private String invoiceNumber;
-
     private Long companyId;
 
     @Size(max = 1000)

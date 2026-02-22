@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -17,15 +18,18 @@ import java.util.List;
 public class PurchaseInvoiceResponse {
     private Long id;
     private String invoiceNumber;
-    private Long supplierId;
-    private String supplierName;
+    private Long CompanyId;
+    private String CompanyName;
     private Long warehouseId;
     private String warehouseName;
     private InvoiceStatus status;
     private BigDecimal totalAmount;
     private String notes;
     private LocalDateTime approvedAt;
+    private String createdBy;
     private String approvedBy;
+    private LocalDate invoiceDate;
+    private BigDecimal totalDepositAmount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<PurchaseInvoiceItemResponse> items;

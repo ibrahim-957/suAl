@@ -58,6 +58,8 @@ public class DeviceTokenServiceImpl implements DeviceTokenService {
 
         DeviceToken deviceToken = deviceTokenMapper.toEntity(request);
         deviceToken.setIsActive(true);
+        deviceToken.setReceiverId(receiverId);
+        deviceToken.setReceiverType(receiverType);
         DeviceToken saved = deviceTokenRepository.save(deviceToken);
         return deviceTokenMapper.toResponse(saved);
     }

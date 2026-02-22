@@ -86,11 +86,16 @@ public class OrderCalculationService {
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal totalAmount = order.getSubtotal().add(order.getNetDeposit());
-
         BigDecimal amount = order.getSubtotal()
                 .subtract(promoDiscount)
-                .add(order.getNetDeposit());
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal totalAmount = amount
+                .add(order.getNetDeposit())
+                .setScale(2, RoundingMode.HALF_UP);
+
+        order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
 
         order.setTotalAmount(totalAmount);
         order.setAmount(amount);

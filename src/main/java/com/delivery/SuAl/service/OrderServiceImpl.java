@@ -11,6 +11,7 @@ import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderCampaignBonus;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.PaymentRefundException;
@@ -57,6 +58,7 @@ import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
 import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.ProductRepository;
+import com.delivery.SuAl.repository.UserRepository;
 import com.delivery.SuAl.security.OperatorContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -106,6 +108,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderDetailFactory orderDetailFactory;
     private final OrderMapper orderMapper;
     private final OrderCompletionService orderCompletionService;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -361,12 +364,15 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
+        User user = userRepository.findByEmail(operatorEmail)
+                .orElseThrow(() -> new NotFoundException("User " + operatorEmail + " not found"));
+
         if (order.getStockReservationType() == StockReservationType.SOFT) {
-            inventoryService.convertSoftToHardReservation(productQuantities);
+            inventoryService.convertSoftToHardReservation(productQuantities, user);
             order.setStockReservationType(StockReservationType.HARD);
             order.setStockReservationExpiresAt(null);
         } else {
-            inventoryService.validateAndReserveStockBatch(productQuantities);
+            inventoryService.validateAndReserveStockBatch(productQuantities, user);
             order.setStockReservationType(StockReservationType.HARD);
         }
 
@@ -984,7 +990,7 @@ public class OrderServiceImpl implements OrderService {
                 ApplyCampaignRequest applyCampaignRequest = ApplyCampaignRequest.builder()
                         .campaignCode(campaignInfo.getCampaignCode())
                         .customerId(customer.getId())
-                        .order(order)
+                        .orderId(order.getId())
                         .build();
 
                 ApplyCampaignResponse campaignResponse =
@@ -1260,8 +1266,7 @@ public class OrderServiceImpl implements OrderService {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
 
             boolean hasCompanyProducts = order.getOrderDetails().stream()
-                    .anyMatch(detail -> detail.getProduct().getId().equals(operatorCompanyId));
-
+                    .anyMatch(detail -> detail.getProduct().getCompany().getId().equals(operatorCompanyId));
             if (!hasCompanyProducts) {
                 throw new UnauthorizedOperationException(
                         "You don't have permission to access this order. It doesn't contain products from your company."

@@ -2,6 +2,7 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.StockMovement;
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.exception.InsufficientStockException;
 import com.delivery.SuAl.exception.NotFoundException;
@@ -56,14 +57,15 @@ public class InventoryService {
     }
 
     @Transactional
-    public void validateAndReserveStockBatch(Map<Long, Integer> productQuantities) {
-        validateAndReserveStockBatch(productQuantities, null, null);
+    public void validateAndReserveStockBatch(Map<Long, Integer> productQuantities, User user) {
+        validateAndReserveStockBatch(productQuantities, null, null, user);
     }
 
     @Transactional
     public void validateAndReserveStockBatch(Map<Long, Integer> productQuantities,
                                              Long orderId,
-                                             Long warehouseId) {
+                                             Long warehouseId,
+                                             User user) {
         if (productQuantities == null || productQuantities.isEmpty()) return;
         log.info("Batch reserving stock for {} products", productQuantities.size());
 
@@ -121,6 +123,7 @@ public class InventoryService {
                 movement.setReferenceId(orderId);
                 movement.setQuantity(quantity);
                 movement.setNotes("Stock reserved for order ID: " + orderId);
+                movement.setCreatedBy(user);
                 movements.add(movement);
             }
 
@@ -144,10 +147,10 @@ public class InventoryService {
     }
 
     @Transactional
-    public void convertSoftToHardReservation(Map<Long, Integer> productQuantities) {
+    public void convertSoftToHardReservation(Map<Long, Integer> productQuantities, User user) {
         log.info("Converting SOFT to HARD reservation for {} products", productQuantities.size());
 
-        validateAndReserveStockBatch(productQuantities);
+        validateAndReserveStockBatch(productQuantities, user);
     }
 
     @Transactional
@@ -325,7 +328,7 @@ public class InventoryService {
                 totalBottlesAdded, emptyBottlesByProduct.size());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public void validateStockAvailability(Map<Long, Integer> productQuantities){
         if (productQuantities == null || productQuantities.isEmpty()) {
             return;

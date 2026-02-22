@@ -18,5 +18,5 @@ public class ApplyCampaignRequest {
     @NotNull
     private Long customerId;
 
-    private Order order;
+    private Long orderId;
 }

@@ -62,6 +62,7 @@ public class PackageDepositCalculationService {
 
             if (quantity <= 0){
                 log.warn("Skipping product {} with non-positive quantity: {}", productId, quantity);
+                continue;
             }
 
             totalContainers += quantity;

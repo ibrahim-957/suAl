@@ -52,7 +52,7 @@ public class CreateCampaignRequest {
     private Boolean firstOrderOnly;
 
     @Min(0)
-    private Integer minDatsSinceRegistration;
+    private Integer minDaysSinceRegistration;
 
     private Boolean requiresPromoAbsence;
 

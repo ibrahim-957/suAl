@@ -1,6 +1,7 @@
 package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.entity.WarehouseStock;
 import com.delivery.SuAl.entity.WarehouseTransfer;
@@ -29,8 +30,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +53,7 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
     private final StockMovementService stockMovementService;
 
     @Override
+    @Transactional
     public WarehouseTransferResponse createTransfer(CreateWarehouseTransferRequest request) {
         log.info("Creating warehouse transfer: {} -> {}",
                 request.getFromWarehouseId(), request.getToWarehouseId());
@@ -93,13 +97,14 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
     }
 
     @Override
+    @Transactional
     public WarehouseTransferResponse updateTransfer(Long id, UpdateWarehouseTransferRequest request) {
         log.info("Updating warehouse transfer ID: {}", id);
 
         WarehouseTransfer transfer = transferRepository.findByIdWithItems(id)
                 .orElseThrow(() -> new NotFoundException("Transfer not found with id: " + id));
 
-        if (transfer.getStatus() == TransferStatus.PENDING) {
+        if (transfer.getStatus() != TransferStatus.PENDING) {
             throw new TransferNotEditableException(
                     "Transfer ID " + id + " cannot be edited - status is: "
                     + transfer.getStatus());
@@ -119,8 +124,9 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
     }
 
     @Override
-    public WarehouseTransferResponse completeTransfer(Long id) {
-        log.info("Completing warehouse transfer ID: {}", id);
+    @Transactional
+    public WarehouseTransferResponse completeTransfer(Long id, User user) {
+        log.info("Completing warehouse transfer ID: {} by user: {}", id, user.getId());
 
         WarehouseTransfer transfer = transferRepository.findByIdWithItems(id)
                 .orElseThrow(() -> new NotFoundException("Transfer not found: " + id));
@@ -138,10 +144,15 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
                 .map(item -> item.getProduct().getId())
                 .toList();
 
-        Map<Long, WarehouseStock> fromStockMap = warehouseStockRepository
-                .findByProductIdsWithLock(productIds)
-                .stream()
+        List<WarehouseStock> allStocks = warehouseStockRepository
+                .findByProductIdsWithLock(productIds);
+
+        Map<Long, WarehouseStock> fromStockMap = allStocks.stream()
                 .filter(s -> s.getWarehouse().getId().equals(fromWarehouse.getId()))
+                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
+
+        Map<Long, WarehouseStock> toStockMap = allStocks.stream()
+                .filter(s -> s.getWarehouse().getId().equals(toWarehouse.getId()))
                 .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
 
         List<String> errors = new ArrayList<>();
@@ -149,8 +160,8 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
             Long productId = item.getProduct().getId();
             WarehouseStock fromStock = fromStockMap.get(productId);
             if (fromStock == null) {
-                errors.add("Product " + item.getProduct().getName()
-                        + " not found in source warehouse");
+                errors.add("Product '" + item.getProduct().getName()
+                        + "' not found in source warehouse");
                 continue;
             }
             if (fromStock.getFullCount() < item.getQuantity()) {
@@ -165,12 +176,6 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
             throw new InsufficientStockException(
                     "Transfer validation failed: " + String.join("; ", errors));
         }
-
-        Map<Long, WarehouseStock> toStockMap = warehouseStockRepository
-                .findByWarehouseIdIn(productIds)
-                .stream()
-                .filter(s -> s.getWarehouse().getId().equals(toWarehouse.getId()))
-                .collect(Collectors.toMap(s -> s.getProduct().getId(), s -> s));
 
         Map<Long, Product> productMap = productRepository.findAllById(productIds)
                 .stream().collect(Collectors.toMap(Product::getId, p -> p));
@@ -190,7 +195,7 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
                 toStock.setFullCount(toStock.getFullCount() + quantity);
                 stocksToSave.add(toStock);
             } else {
-                log.info("Creating WarehouseStock for product {} in destination warehouse {}",
+                log.info("Creating new WarehouseStock for product {} in destination warehouse {}",
                         productId, toWarehouse.getId());
                 WarehouseStock newStock = new WarehouseStock();
                 newStock.setProduct(productMap.get(productId));
@@ -199,7 +204,7 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
                 newStock.setEmptyCount(0);
                 newStock.setDamagedCount(0);
                 newStock.setMinimumStockAlert(10);
-                newStock.setLastRestocked(LocalDateTime.now());
+                newStock.setLastRestocked(LocalDateTime.now(ZoneOffset.UTC));
                 stocksToSave.add(newStock);
             }
 
@@ -209,7 +214,8 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
                     ReferenceType.TRANSFER,
                     transfer.getId(),
                     quantity,
-                    "Transfer out to warehouse: " + toWarehouse.getName()
+                    "Transfer out to warehouse: " + toWarehouse.getName(),
+                    user
             );
 
             stockMovementService.record(
@@ -218,27 +224,31 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
                     ReferenceType.TRANSFER,
                     transfer.getId(),
                     quantity,
-                    "Transfer in from warehouse: " + fromWarehouse.getName()
+                    "Transfer in from warehouse: " + fromWarehouse.getName(),
+                    user
             );
 
-            log.debug("Transfer item: product {} qty {} moved {} → {}",
+            log.debug("Transferred product {} qty {} from {} to {}",
                     productId, quantity, fromWarehouse.getName(), toWarehouse.getName());
         }
 
         warehouseStockRepository.saveAll(stocksToSave);
 
         transfer.setStatus(TransferStatus.COMPLETED);
-        transfer.setCompletedAt(LocalDateTime.now());
+        transfer.setCompletedAt(LocalDateTime.now(ZoneOffset.UTC));
+        transfer.setCompletedBy(user);
         transferRepository.save(transfer);
 
         log.info("Transfer ID: {} completed. {} products moved from {} to {}",
                 id, transfer.getItems().size(),
                 fromWarehouse.getName(), toWarehouse.getName());
 
-        return transferMapper.toResponse(transfer);
+        return transferMapper.toResponse(
+                transferRepository.findByIdWithItems(id).orElse(transfer));
     }
 
     @Override
+    @Transactional
     public WarehouseTransferResponse cancelTransfer(Long id) {
         log.info("Cancelling warehouse transfer ID: {}", id);
 
@@ -298,3 +308,4 @@ public class WarehouseTransferServiceImpl implements WarehouseTransferService{
         }).collect(Collectors.toList());
     }
 }
+

@@ -47,10 +47,10 @@ public class Payment {
     @Column(name = "reference_id", unique = true, nullable = false)
     private String referenceId;
 
-    @Column(nullable = false, precision = 10, scale = 2, name = "amount_in_coins")
+    @Column(nullable = false, name = "amount_in_coins")
     private Long amountInCoins;
 
-    @Column(precision = 10, scale = 2, name = "fee_in_coins")
+    @Column(name = "fee_in_coins")
     private Long feeInCoins;
 
     @Column(name = "currency_code", nullable = false)
@@ -116,7 +116,7 @@ public class Payment {
     @Column(name = "failure_reason")
     private String failureReason;
 
-    @Column(name = "refund_amount_in_coins", precision = 10, scale = 2)
+    @Column(name = "refund_amount_in_coins")
     private Long refundAmountInCoins;
 
     @Column(name = "refunded_at")

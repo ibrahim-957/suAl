@@ -100,14 +100,12 @@ public class ContainerCollectionServiceImpl implements ContainerCollectionServic
         Page<ContainerCollection> collections = containerCollectionRepository
                 .findByWarehouseId(warehouseId, pageable);
 
-        List<Long> userTargetIds = collections.getContent().stream()
+        List<Long> userTargetIds = collections.stream()
                 .map(c -> c.getCollectedBy().getId())
-                .filter(Objects::nonNull)
-                .distinct()
                 .toList();
 
-        Map<Long, Admin> adminMap = adminRepository.findAllById(userTargetIds).stream()
-                .collect(Collectors.toMap(Admin::getId, admin -> admin));
+        Map<Long, Admin> adminMap = adminRepository.findByUserIdIn(userTargetIds).stream()
+                .collect(Collectors.toMap(a -> a.getUser().getId(), a -> a));
 
         return collections.map(collection -> {
             Long targetId = collection.getCollectedBy().getId();

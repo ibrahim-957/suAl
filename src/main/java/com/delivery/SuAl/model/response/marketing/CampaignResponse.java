@@ -40,7 +40,7 @@ public class CampaignResponse {
     private Integer minDaysSinceRegistration;
     private Boolean requiresPromoAbsence;
 
-    private Integer maxUsesPerUser;
+    private Integer maxUsesPerCustomer;
     private Integer maxTotalUses;
     private Integer currentTotalUses;
     private Integer usageRemaining;

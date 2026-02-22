@@ -1,5 +1,6 @@
 package com.delivery.SuAl.controller;
 
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.model.request.transfer.CreateWarehouseTransferRequest;
 import com.delivery.SuAl.model.request.transfer.UpdateWarehouseTransferRequest;
 import com.delivery.SuAl.model.response.transfer.WarehouseTransferResponse;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,10 +68,11 @@ public class WarehouseTransferController {
     @PostMapping("/{id}/complete")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<WarehouseTransferResponse>> completeTransfer(
+            @AuthenticationPrincipal User user,
             @PathVariable Long id) {
         log.info("POST /v1/api/warehouse-transfers/{}/complete", id);
 
-        WarehouseTransferResponse response = warehouseTransferService.completeTransfer(id);
+        WarehouseTransferResponse response = warehouseTransferService.completeTransfer(id, user);
         return ResponseEntity.ok(ApiResponse.success("Warehouse transfer completed successfully", response));
     }
 

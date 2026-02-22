@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +171,7 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
             WarehouseStock stock = stockMap.get(productId);
             if (stock != null){
                 stock.setFullCount(stock.getFullCount() + item.getQuantity());
-                stock.setLastRestocked(LocalDateTime.now());
+                stock.setLastRestocked(LocalDateTime.now(ZoneOffset.UTC));
             } else {
                 log.warn("WarehouseStock missing for product {} in warehouse {} — creating",
                         productId, warehouse.getId());
@@ -181,14 +182,14 @@ public class PurchaseInvoiceServiceImpl implements PurchaseInvoiceService {
                 newStock.setEmptyCount(0);
                 newStock.setDamagedCount(0);
                 newStock.setMinimumStockAlert(10);
-                newStock.setLastRestocked(LocalDateTime.now());
+                newStock.setLastRestocked(LocalDateTime.now(ZoneOffset.UTC));
                 stockMap.put(productId, newStock);
             }
 
             stockMovementService.record(
                     productId, warehouse.getId(), MovementType.PURCHASE,
                     ReferenceType.PURCHASE_INVOICE, invoice.getId(), item.getQuantity(),
-                    "Stock received via invoice: " + invoice.getInvoiceNumber());
+                    "Stock received via invoice: " + invoice.getInvoiceNumber(), approvedBy);
 
             log.debug("Approved item: product {} qty {} — batch + movement + stock updated",
                     productId, item.getQuantity());

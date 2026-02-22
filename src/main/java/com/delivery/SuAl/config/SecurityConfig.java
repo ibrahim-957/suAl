@@ -25,6 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
@@ -35,8 +36,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
 
                         .requestMatchers(
-                                "/v1/api/auth/otp/send",
-                                "/v1/api/auth/otp/verify",
                                 "/v1/api/auth/**",
                                 "/health/**",
                                 "/",
@@ -46,61 +45,72 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/v1/api/campaign/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/v1/api/campaign").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/v1/api/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/payment/callback").permitAll()
+
                         .requestMatchers(HttpMethod.GET, "/v1/api/products").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/products/**").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/v1/api/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/api/categories").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/categories/**").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/v1/api/companies/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/api/companies").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/companies/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/v1/api/product-sizes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/api/product-sizes/**").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/v1/api/product-prices/product/*/active").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/campaign").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/campaign/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/api/campaign/validate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/api/campaign/eligible").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/v1/api/promos").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/promos/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/api/promos/validate").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/v1/api/affordable-packages/active").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/api/affordable-packages/company/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/affordable-packages").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/api/affordable-packages/**").permitAll()
 
                         .requestMatchers("/v1/api/cart/**").permitAll()
 
-                        .requestMatchers("/v1/api/promos/validate").permitAll()
-                        .requestMatchers("/v1/api/campaign/validate").permitAll()
-                        .requestMatchers("/v1/api/campaign/eligible").permitAll()
-
                         .requestMatchers(HttpMethod.POST, "/v1/api/customers").permitAll()
-
-                        .requestMatchers("/v1/api/payment/callback").permitAll()
 
                         .requestMatchers("/v1/api/admins/**").hasRole("ADMIN")
                         .requestMatchers("/v1/api/operators/**").hasRole("ADMIN")
-
-                        .requestMatchers("/v1/api/purchase-invoices/*/approve").hasRole("ADMIN")
-
-                        .requestMatchers("/v1/api/warehouse-transfers/*/complete").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/v1/api/purchase-invoices/*/approve").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/v1/api/warehouse-transfers/*/complete").hasRole("ADMIN")
 
                         .requestMatchers("/v1/api/warehouses/**").hasAnyRole("ADMIN", "OPERATOR")
-
                         .requestMatchers("/v1/api/purchase-invoices/**").hasAnyRole("ADMIN", "OPERATOR")
-
                         .requestMatchers("/v1/api/warehouse-transfers/**").hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers("/v1/api/stock-movements/**").hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers("/v1/api/product-prices/**").hasAnyRole("ADMIN", "OPERATOR")
 
-                        .requestMatchers("/v1/api/product-sizes/**").hasAnyRole("ADMIN", "OPERATOR")
-                        .requestMatchers("/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
-                        .requestMatchers("/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.POST,   "/v1/api/product-sizes/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.PUT,    "/v1/api/product-sizes/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.DELETE, "/v1/api/product-sizes/**").hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(HttpMethod.POST,   "/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.PUT,    "/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.DELETE, "/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.PATCH,  "/v1/api/affordable-packages/**").hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(HttpMethod.POST,   "/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.PUT,    "/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.DELETE, "/v1/api/promos/**").hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(HttpMethod.POST, "/v1/api/notifications").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers("/v1/api/notifications/**").authenticated()
 
                         .requestMatchers("/v1/api/drivers/orders").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/v1/api/drivers/**").hasAnyRole("ADMIN", "OPERATOR")
 
-                        .requestMatchers("/v1/api/orders/create-by-operator").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.POST, "/v1/api/orders/create-by-operator").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/*/approve").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/operator/*/reject").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/*/assign-driver").hasAnyRole("ADMIN", "OPERATOR")
@@ -110,11 +120,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/api/orders").hasAnyRole("ADMIN", "OPERATOR")
                         .requestMatchers("/v1/api/orders/*/complete").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/v1/api/orders/my-orders").hasAnyRole("ADMIN", "CUSTOMER")
-                        .requestMatchers("/v1/api/orders/create-by-customer").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/v1/api/orders/create-by-customer").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/customer/*/reject").hasAnyRole("ADMIN", "CUSTOMER")
-                        .requestMatchers("/v1/api/orders/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR", "DRIVER")
+                        .requestMatchers("/v1/api/orders/**").authenticated()
 
                         .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
+
                         .requestMatchers("/v1/api/customers/**").hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers("/v1/api/package-orders/my-package-orders").hasAnyRole("ADMIN", "CUSTOMER")
@@ -126,7 +137,6 @@ public class SecurityConfig {
 
                         .requestMatchers("/v1/api/payment/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")
 
-                        .requestMatchers("/v1/api/notifications/**").authenticated()
                         .requestMatchers("/v1/api/device-tokens/**").authenticated()
 
                         .anyRequest().authenticated()

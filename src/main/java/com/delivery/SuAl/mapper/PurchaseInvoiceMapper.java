@@ -41,8 +41,8 @@ public interface PurchaseInvoiceMapper {
     void updateEntityFromRequest(UpdatePurchaseInvoiceRequest request,
                                  @MappingTarget PurchaseInvoice invoice);
 
-    @Mapping(target = "supplierId", source = "company.id")
-    @Mapping(target = "supplierName", source = "company.name")
+    @Mapping(target = "CompanyId", source = "company.id")
+    @Mapping(target = "CompanyName", source = "company.name")
     @Mapping(target = "warehouseId", source = "warehouse.id")
     @Mapping(target = "warehouseName", source = "warehouse.name")
     @Mapping(target = "approvedBy", expression = "java(getUserIdentifier(invoice.getApprovedBy()))")

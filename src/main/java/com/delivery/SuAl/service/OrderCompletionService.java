@@ -7,7 +7,6 @@ import com.delivery.SuAl.exception.InvalidOrderStateException;
 import com.delivery.SuAl.model.enums.OrderStatus;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
-import com.delivery.SuAl.model.request.order.BottleCollectionItem;
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +18,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -76,8 +72,6 @@ public class OrderCompletionService {
     private void processRegularOrderCompletion(Order order, CompleteDeliveryRequest request) {
         log.info("Processing REGULAR order completion for order {}", order.getOrderNumber());
 
-        validateCollectedBottles(order, request.getBottlesCollected());
-
         containerManagementService.processOrderCompletion(
                 order.getCustomer().getId(),
                 order.getOrderDetails(),
@@ -129,7 +123,7 @@ public class OrderCompletionService {
         if (order.getPaymentMethod() == PaymentMethod.CASH &&
                 order.getPaymentStatus() == PaymentStatus.PENDING) {
             order.setPaymentStatus(PaymentStatus.SUCCESS);
-            order.setPaidAt(LocalDateTime.now());
+            order.setPaidAt(LocalDateTime.now(ZoneOffset.UTC));
             log.info("Cash payment finalized for order {}", order.getOrderNumber());
         }
 
@@ -143,52 +137,6 @@ public class OrderCompletionService {
             );
             log.info("Updated package order status for package {}",
                     order.getPackageOrder().getId());
-        }
-    }
-
-    private void validateCollectedBottles(Order order, List<BottleCollectionItem> bottlesCollected){
-        if (bottlesCollected == null || bottlesCollected.isEmpty()){
-            log.info("No bottles collected for order {}", order.getOrderNumber());
-
-            for (OrderDetail detail : order.getOrderDetails()) {
-                detail.setContainersReturned(0);
-            }
-            return;
-        }
-
-        var orderDetailMap = order.getOrderDetails().stream()
-                .collect(Collectors.toMap(
-                        detail -> detail.getProduct().getId(),
-                        detail -> detail
-                ));
-
-        List<String> errors = new ArrayList<>();
-        for (BottleCollectionItem item : bottlesCollected) {
-            OrderDetail detail = orderDetailMap.get(item.getProductId());
-
-            if (detail == null){
-                errors.add(String.format("Product %d was not in this order", item.getProductId()));
-                continue;
-            }
-
-            if (item.getQuantity() < 0){
-                errors.add(String.format("Invalid quantity %d for product %d",
-                        item.getQuantity(), item.getProductId()));
-                continue;
-            }
-
-            if (item.getQuantity() > detail.getCount()) {
-                log.warn("Order {}: Collecting {} bottles of product {} but only delivered {}. " +
-                                "Customer returned extra bottles from previous orders.",
-                        order.getOrderNumber(), item.getQuantity(),
-                        item.getProductId(), detail.getCount());
-            }
-        }
-
-        if (!errors.isEmpty()) {
-            throw new InvalidOrderStateException(
-                    "Bottle collection validation failed: " + String.join(", ", errors)
-            );
         }
     }
 

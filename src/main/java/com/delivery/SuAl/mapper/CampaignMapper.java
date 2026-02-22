@@ -29,7 +29,7 @@ public interface CampaignMapper {
     @Mapping(target = "campaignTypeDisplay", source = "campaignType")
     @Mapping(target = "usageRemaining", expression = "java(calculateUsageRemaining(campaign))")
     @Mapping(target = "isCurrentlyActive", expression = "java(campaign.isActive())")
-    @Mapping(target = "maxUsesPerUser", source = "maxUsesPerCustomer")
+    @Mapping(target = "maxUsesPerCustomer", source = "maxUsesPerCustomer")
     @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     CampaignResponse toResponse(Campaign campaign);

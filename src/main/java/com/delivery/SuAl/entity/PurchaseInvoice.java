@@ -133,9 +133,9 @@ public class PurchaseInvoice {
     }
 
     public void cancel() {
-        if (isApproved()) {
+        if (!isDraft()) {
             throw new IllegalStateException(
-                    "APPROVED invoices cannot be cancelled directly. Create a reversal invoice instead.");
+                    "Only DRAFT invoices can be cancelled. Current status: " + status);
         }
         this.status = InvoiceStatus.CANCELLED;
     }

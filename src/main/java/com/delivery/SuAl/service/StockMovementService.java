@@ -2,6 +2,7 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Product;
 import com.delivery.SuAl.entity.StockMovement;
+import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.entity.Warehouse;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.mapper.StockMovementMapper;
@@ -30,7 +31,7 @@ public class StockMovementService {
     @Transactional
     public StockMovement record(Long productId, Long warehouseId, MovementType movementType,
                                 ReferenceType referenceType, Long referenceId,
-                                Integer quantity, String notes){
+                                Integer quantity, String notes, User createdBy) {
         if (quantity == null || quantity <= 0){
             throw new IllegalArgumentException(
                     "StockMovement quantity must be positive. Got: " + quantity
@@ -51,6 +52,7 @@ public class StockMovementService {
         movement.setReferenceId(referenceId);
         movement.setQuantity(quantity);
         movement.setNotes(notes);
+        movement.setCreatedBy(createdBy);
 
         StockMovement saved =  stockMovementRepository.save(movement);
 
@@ -78,6 +80,7 @@ public class StockMovementService {
 
     @Transactional(readOnly = true)
     public Integer getNetStock(Long productId, Long warehouseId){
-        return stockMovementRepository.calculateNetStock(productId, warehouseId);
+        Integer net = stockMovementRepository.calculateNetStock(productId, warehouseId);
+        return net != null ? net : 0;
     }
 }

@@ -13,6 +13,7 @@ import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +27,7 @@ public class ProductPriceServiceImpl implements ProductPriceService {
     private final ProductPriceMapper productPriceMapper;
 
     @Override
+    @Transactional
     public ProductPriceResponse createProductPrice(CreateProductPriceRequest request, User createdBy) {
         log.info("Creating new price for product ID: {}", request.getProductId());
         Product product = productRepository.findById(request.getProductId())
@@ -66,8 +68,7 @@ public class ProductPriceServiceImpl implements ProductPriceService {
         }
         return productPriceRepository.findActiveByProductId(productId)
                 .map(productPriceMapper::toResponse)
-                .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
-    }
+                .orElseThrow(() -> new NotFoundException("No active price found for product ID: " + productId));    }
 
     @Override
     public List<ProductPriceResponse> getPriceHistory(Long productId) {

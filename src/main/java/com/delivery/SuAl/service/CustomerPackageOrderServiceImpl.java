@@ -284,10 +284,12 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
         for (Order order : packageOrder.getGeneratedOrders()) {
             if (order.getOrderStatus() == OrderStatus.PENDING ||
                     order.getOrderStatus() == OrderStatus.APPROVED) {
+                boolean wasApproved = order.getOrderStatus() == OrderStatus.APPROVED;
+
                 order.setOrderStatus(OrderStatus.REJECTED);
                 order.setRejectionReason("Package cancelled by customer before first delivery");
 
-                if (order.getOrderStatus() == OrderStatus.APPROVED) {
+                if (wasApproved) {
                     log.info("Releasing stock for approved order {} in cancelled package",
                             order.getOrderNumber());
 

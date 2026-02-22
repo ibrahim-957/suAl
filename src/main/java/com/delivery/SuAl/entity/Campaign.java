@@ -119,7 +119,7 @@ public class Campaign {
     }
 
     public boolean isActive() {
-        LocalDate now = LocalDate.now();
+        LocalDate now = LocalDate.now(ZoneOffset.UTC);
         return campaignStatus == CampaignStatus.ACTIVE
                 && !now.isAfter(validTo)
                 && !now.isBefore(validFrom);

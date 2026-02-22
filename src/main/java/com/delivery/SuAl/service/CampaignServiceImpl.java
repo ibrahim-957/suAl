@@ -27,6 +27,7 @@ import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.CampaignUsageRepository;
+import com.delivery.SuAl.repository.OrderRepository;
 import com.delivery.SuAl.repository.ProductPriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,7 @@ public class CampaignServiceImpl implements CampaignService {
     private final CampaignUsageRepository campaignUsageRepository;
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
+    private final OrderRepository orderRepository;
     private final CampaignMapper campaignMapper;
     private final CustomerService customerService;
     private final OrderQueryService orderQueryService;
@@ -154,7 +156,7 @@ public class CampaignServiceImpl implements CampaignService {
     @Transactional
     public ApplyCampaignResponse applyCampaign(ApplyCampaignRequest request) {
         log.info("Applying campaign: {} for customer: {} on order: {}",
-                request.getCampaignCode(), request.getCustomerId(), request.getOrder());
+                request.getCampaignCode(), request.getCustomerId(), request.getOrderId());
 
         Campaign campaign = campaignRepository.findByCampaignCodeWithLock(request.getCampaignCode())
                 .orElseThrow(() -> new NotFoundException("Campaign not found: " + request.getCampaignCode()));
@@ -170,12 +172,12 @@ public class CampaignServiceImpl implements CampaignService {
             return validationFailure;
         }
 
-        int buyQuantity = getProductQuantityFromOrder(request.getOrder(), campaign.getBuyProduct().getId());
+        int buyQuantity = getProductQuantityFromOrder(request.getOrderId(), campaign.getBuyProduct().getId());
         if (buyQuantity < campaign.getBuyQuantity()) {
             return buildFailureResponse("Order does not meet quantity requirements");
         }
 
-        return processCampaignApplication(campaign, customer, request.getOrder(), buyQuantity);
+        return processCampaignApplication(campaign, customer, request.getOrderId(), buyQuantity);
     }
 
     private ApplyCampaignResponse validateCampaignForApplication(Campaign campaign, Customer customer) {
@@ -203,7 +205,10 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private ApplyCampaignResponse processCampaignApplication(
-            Campaign campaign, Customer customer, Order order, int buyQuantity) {
+            Campaign campaign, Customer customer, Long orderId, int buyQuantity) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found: " + orderId));
 
         int freeQuantity = calculateEligibleFreeQuantity(
                 buyQuantity, campaign.getBuyQuantity(), campaign.getFreeQuantity());
@@ -709,7 +714,9 @@ public class CampaignServiceImpl implements CampaignService {
         return (basketQuantity / buyQuantity) * freeQuantity;
     }
 
-    private int getProductQuantityFromOrder(Order order, Long productId) {
+    private int getProductQuantityFromOrder(Long orderId, Long productId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
         return order.getOrderDetails().stream()
                 .filter(detail -> detail.getProduct().getId().equals(productId))
                 .mapToInt(OrderDetail::getCount)

@@ -144,7 +144,6 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-
         if (request.getCompanyId() != null && !request.getCompanyId().equals(product.getCompany().getId())) {
             Company company = companyRepository.findById(request.getCompanyId())
                     .orElseThrow(() -> new NotFoundException("Company not found with ID: " + request.getCompanyId()));
@@ -178,7 +177,7 @@ public class ProductServiceImpl implements ProductService {
 
         Product updatedProduct = productRepository.save(product);
         log.info("Product updated successfully with ID: {}", updatedProduct.getId());
-        return productMapper.toResponse(updatedProduct);
+        return enrichWithPriceData(productMapper.toResponse(updatedProduct), updatedProduct.getId());
     }
 
     @Override
