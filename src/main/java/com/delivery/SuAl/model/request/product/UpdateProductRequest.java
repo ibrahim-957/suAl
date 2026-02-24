@@ -34,6 +34,8 @@ public class UpdateProductRequest {
 
     private ProductStatus productStatus;
 
+    private Boolean returnable;
+
     @Min(value = 1)
     private Integer minimumStockAlert;
 }

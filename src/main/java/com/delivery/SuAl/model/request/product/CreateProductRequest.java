@@ -44,6 +44,9 @@ public class CreateProductRequest {
     @NotNull(message = "Mineral composition is required")
     private Map<String, String> mineralComposition;
 
+    @Schema(description = "Whether the container must be returned")
+    private boolean returnable;
+
     @Min(value = 1)
     private Integer minimumStockAlert;
 }

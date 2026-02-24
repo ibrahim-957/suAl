@@ -27,6 +27,8 @@ public class ProductResponse {
     private BigDecimal depositAmount;
     private boolean hasDeposit;
     private ProductStatus productStatus;
+    private boolean returnable;
+    private boolean hasDepositAndReturnable;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private BigDecimal sellPrice;
