@@ -31,6 +31,8 @@ public interface OrderService {
 
     OrderResponse rejectOrderByOperator(String operatorEmail, Long orderId, String reason);
 
+    OrderResponse rejectOrderByAdmin(String adminEmail, Long orderId, String reason);
+
     OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest);
 
     Long countTodayOrders();

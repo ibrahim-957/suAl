@@ -1,15 +1,18 @@
 package com.delivery.SuAl.exception;
 
+import com.delivery.SuAl.model.response.wrapper.ApiResponse;
 import com.delivery.SuAl.model.response.wrapper.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -243,6 +246,19 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ex) {
+        String supported = ex.getSupportedMediaTypes().stream()
+                .map(MediaType::toString)
+                .collect(Collectors.joining(", "));
+        return ResponseEntity
+                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.error(
+                        "Unsupported Content-Type '" + ex.getContentType() +
+                                "'. Supported: [" + supported + "]"));
     }
 
 

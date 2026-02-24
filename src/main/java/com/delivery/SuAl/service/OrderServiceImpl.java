@@ -50,9 +50,9 @@ import com.delivery.SuAl.model.response.order.OrderResponse;
 import com.delivery.SuAl.model.response.order.ProductDeliverItem;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AddressRepository;
+import com.delivery.SuAl.repository.AdminRepository;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.CustomerContainerRepository;
-import com.delivery.SuAl.repository.CustomerPackageOrderRepository;
 import com.delivery.SuAl.repository.CustomerRepository;
 import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
@@ -92,7 +92,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final CampaignRepository campaignRepository;
     private final CustomerContainerRepository customerContainerRepository;
-    private final CustomerPackageOrderRepository customerPackageOrderRepository;
+    private final AdminRepository adminRepository;
 
     private final OrderCalculationService orderCalculationService;
     private final CartPriceCalculationService cartPriceCalculationService;
@@ -202,7 +202,7 @@ public class OrderServiceImpl implements OrderService {
         if (order.getPaymentStatus() == PaymentStatus.SUCCESS) {
             throw new InvalidOrderStateException(
                     "Cannot modify order after payment is completed. " +
-                    "Please cancel this order and create a new one, or contact support."
+                            "Please cancel this order and create a new one, or contact support."
             );
         }
 
@@ -210,7 +210,7 @@ public class OrderServiceImpl implements OrderService {
                 order.getPaymentStatus() == PaymentStatus.AUTHORIZED) {
             throw new InvalidOrderStateException(
                     "Cannot modify order while payment is being processed. " +
-                    "Please wait for payment to complete or cancel."
+                            "Please wait for payment to complete or cancel."
             );
         }
 
@@ -473,56 +473,34 @@ public class OrderServiceImpl implements OrderService {
         Order order = findOrderById(orderId);
         validateOrderAccess(order);
 
-        if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
-            throw new InvalidOrderStateException("Order must be PENDING or APPROVED to reject");
-        }
-
-        promoService.releasePromoUsageByOrder(orderId);
-        campaignService.releaseCampaignUsageByOrder(orderId);
-
-
-        refundPayment(order);
-
-        if (order.getOrderStatus() == OrderStatus.APPROVED) {
-            log.info("Order was APPROVED, releasing warehouse stock");
-
-            Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
-                    .collect(Collectors.toMap(
-                            detail -> detail.getProduct().getId(),
-                            OrderDetail::getCount,
-                            Integer::sum
-                    ));
-
-            if (!order.getCampaignBonuses().isEmpty()) {
-                for (OrderCampaignBonus bonus : order.getCampaignBonuses()) {
-                    productQuantities.merge(
-                            bonus.getProduct().getId(),
-                            bonus.getQuantity(),
-                            Integer::sum
-                    );
-                }
-            }
-
-            for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
-                inventoryService.releaseStock(entry.getKey(), entry.getValue());
-                log.debug("Released {} units of product {} back to warehouse",
-                        entry.getValue(), entry.getKey());
-            }
-
-            for (OrderDetail detail : order.getOrderDetails()) {
-                Product product = detail.getProduct();
-                product.setOrderCount(Math.max(0, product.getOrderCount() - detail.getCount()));
-                productRepository.save(product);
-            }
-        }
-
-        order.setOrderStatus(OrderStatus.REJECTED);
-        order.setRejectionReason(reason);
-        order.setOperator(operator);
-        Order savedOrder = orderRepository.save(order);
-
+        OrderResponse response = executeOrderRejection(order, operator, reason);
         log.info("Order {} rejected by operator {}", orderId, operatorEmail);
-        return orderMapper.toResponse(savedOrder);
+        return response;
+    }
+
+    @Override
+    @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Sifariş Rədd Edildi",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' rədd edildi'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customerId",
+            referenceIdExpression = "#result.id"
+    )
+    public OrderResponse rejectOrderByAdmin(String adminEmail, Long orderId, String reason) {
+        log.info("Admin {} rejecting order ID: {} with reason: {}", adminEmail, orderId, reason);
+
+        adminRepository.findByEmail(adminEmail)
+                .orElseThrow(() -> new NotFoundException("Admin " + adminEmail + " not found"));
+
+        Order order = findOrderById(orderId);
+
+        // Admins can reject any order regardless of assigned operator/branch
+        OrderResponse response = executeOrderRejection(order, null, reason);
+        log.info("Order {} rejected by admin {}", orderId, adminEmail);
+        return response;
     }
 
     @Override
@@ -1298,5 +1276,58 @@ public class OrderServiceImpl implements OrderService {
                 orderId, companyIds.size(), operators.size());
 
         return operators;
+    }
+
+    private OrderResponse executeOrderRejection(Order order, Operator operator, String reason) {
+
+        if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.APPROVED) {
+            throw new InvalidOrderStateException("Order must be PENDING or APPROVED to reject");
+        }
+
+        promoService.releasePromoUsageByOrder(order.getId());
+        campaignService.releaseCampaignUsageByOrder(order.getId());
+        refundPayment(order);
+
+        if (order.getOrderStatus() == OrderStatus.APPROVED) {
+            log.info("Order was APPROVED, releasing warehouse stock for order ID: {}", order.getId());
+
+            Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
+                    .collect(Collectors.toMap(
+                            detail -> detail.getProduct().getId(),
+                            OrderDetail::getCount,
+                            Integer::sum
+                    ));
+
+            if (!order.getCampaignBonuses().isEmpty()) {
+                for (OrderCampaignBonus bonus : order.getCampaignBonuses()) {
+                    productQuantities.merge(
+                            bonus.getProduct().getId(),
+                            bonus.getQuantity(),
+                            Integer::sum
+                    );
+                }
+            }
+
+            for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
+                inventoryService.releaseStock(entry.getKey(), entry.getValue());
+                log.debug("Released {} units of product {} back to warehouse", entry.getValue(), entry.getKey());
+            }
+
+            for (OrderDetail detail : order.getOrderDetails()) {
+                Product product = detail.getProduct();
+                product.setOrderCount(Math.max(0, product.getOrderCount() - detail.getCount()));
+                productRepository.save(product);
+            }
+        }
+
+        order.setOrderStatus(OrderStatus.REJECTED);
+        order.setRejectionReason(reason);
+
+        if (operator != null) {
+            order.setOperator(operator);
+        }
+
+        Order savedOrder = orderRepository.save(order);
+        return orderMapper.toResponse(savedOrder);
     }
 }

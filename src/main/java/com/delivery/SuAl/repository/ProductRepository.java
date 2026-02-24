@@ -44,4 +44,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             Pageable pageable
     );
 
+    @Query("SELECT p FROM Product p " +
+            "WHERE p.company.id = :companyId " +
+            "AND p.name = :name AND p.size.id = :sizeId AND p.productStatus = 'DEACTIVATE'")
+    Optional<Product> findDeletedByCompanyIdAndNameAndSizeId(
+            @Param("companyId") Long companyId,
+            @Param("name") String name,
+            @Param("sizeId") Long sizeId);
+
 }

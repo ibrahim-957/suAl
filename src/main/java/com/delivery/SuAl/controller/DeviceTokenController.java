@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -50,20 +49,16 @@ public class DeviceTokenController {
 
     @PatchMapping("/deactivate")
     public ResponseEntity<ApiResponse<Void>> deactivateDeviceToken(
-            @AuthenticationPrincipal User user,
-            @RequestParam String fcmToken
-    ) {
-        deviceTokenService.deactivateToken(user, fcmToken);
+            @AuthenticationPrincipal User user) {
+        deviceTokenService.deactivateToken(user);
         return ResponseEntity
                 .ok(ApiResponse.success(null));
     }
 
     @DeleteMapping
     public ResponseEntity<ApiResponse<Void>> deleteToken(
-            @AuthenticationPrincipal User user,
-            @RequestParam String fcmToken
-    ) {
-        deviceTokenService.deleteToken(user, fcmToken);
+            @AuthenticationPrincipal User user) {
+        deviceTokenService.deleteToken(user);
         return ResponseEntity
                 .ok(ApiResponse.success("Device token deleted successfully", null));
     }

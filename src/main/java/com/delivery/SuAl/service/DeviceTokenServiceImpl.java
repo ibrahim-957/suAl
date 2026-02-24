@@ -18,6 +18,7 @@ import com.delivery.SuAl.repository.DriverRepository;
 import com.delivery.SuAl.repository.OperatorRepository;
 import com.delivery.SuAl.util.ReceiverTypeResolver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceTokenServiceImpl implements DeviceTokenService {
     private final DeviceTokenRepository deviceTokenRepository;
     private final DeviceTokenMapper deviceTokenMapper;
@@ -77,25 +79,41 @@ public class DeviceTokenServiceImpl implements DeviceTokenService {
 
     @Override
     @Transactional
-    public void deactivateToken(User user, String fcmToken) {
-        DeviceToken token = deviceTokenRepository.findByFcmToken(fcmToken)
-                .orElseThrow(() -> new NotFoundException("Device token not found"));
+    public void deactivateToken(User user) {
+        Long receiverId = resolveRoleEntityId(user);
+        ReceiverType receiverType = ReceiverTypeResolver.resolve(user.getRole());
 
-        verifyOwnership(user, token);
+        List<DeviceToken> tokens = deviceTokenRepository
+                .findAllByReceiverIdAndReceiverType(receiverId, receiverType);
 
-        token.setIsActive(false);
-        deviceTokenRepository.save(token);
+        if (tokens.isEmpty()) {
+            throw new NotFoundException("No active device tokens found for user: " + user.getId());
+        }
+
+        tokens.forEach(token -> token.setIsActive(false));
+        deviceTokenRepository.saveAll(tokens);
+
+        log.info("Deactivated {} device token(s) for user ID: {}", tokens.size(), user.getId());
+
     }
 
     @Override
     @Transactional
-    public void deleteToken(User user, String fcmToken) {
-        DeviceToken token = deviceTokenRepository.findByFcmToken(fcmToken)
-                .orElseThrow(() -> new NotFoundException("Device token not found"));
+    public void deleteToken(User user) {
+        Long receiverId = resolveRoleEntityId(user);
+        ReceiverType receiverType = ReceiverTypeResolver.resolve(user.getRole());
 
-        verifyOwnership(user, token);
+        List<DeviceToken> tokens = deviceTokenRepository
+                .findAllByReceiverIdAndReceiverType(receiverId, receiverType);
 
-        deviceTokenRepository.delete(token);
+        if (tokens.isEmpty()) {
+            throw new NotFoundException("No device tokens found for user: " + user.getId());
+        }
+
+        deviceTokenRepository.deleteAll(tokens);
+
+        log.info("Deleted {} device token(s) for user ID: {}", tokens.size(), user.getId());
+
     }
 
     private void verifyOwnership(User user, DeviceToken token) {

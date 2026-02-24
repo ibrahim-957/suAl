@@ -10,7 +10,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,7 +19,7 @@ public interface WarehouseStockRepository extends JpaRepository<WarehouseStock, 
 
     Optional<WarehouseStock> findByWarehouseIdAndProductId(Long warehouseId, Long productId);
 
-    List<WarehouseStock> findByProductId(Long productId);
+    Optional<WarehouseStock> findByProductId(Long productId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id = :productId")

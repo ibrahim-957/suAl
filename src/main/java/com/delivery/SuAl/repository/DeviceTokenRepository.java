@@ -24,4 +24,7 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     );
 
     void deleteByFcmToken(String fcmToken);
+
+    List<DeviceToken> findAllByReceiverIdAndReceiverType(Long receiverId, ReceiverType receiverType);
+
 }

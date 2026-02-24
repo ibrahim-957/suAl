@@ -11,6 +11,7 @@ import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.UnauthorizedOperationException;
 import com.delivery.SuAl.mapper.ProductMapper;
+import com.delivery.SuAl.model.enums.ProductStatus;
 import com.delivery.SuAl.model.request.product.CreateProductRequest;
 import com.delivery.SuAl.model.request.product.UpdateProductRequest;
 import com.delivery.SuAl.model.response.product.ProductResponse;
@@ -34,6 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -73,6 +75,13 @@ public class ProductServiceImpl implements ProductService {
         ProductSize size = productSizeRepository.findById(request.getSizeId())
                 .orElseThrow(() -> new NotFoundException("Size not found: " + request.getSizeId()));
 
+        Optional<Product> deletedProduct = productRepository.findDeletedByCompanyIdAndNameAndSizeId(
+                request.getCompanyId(), request.getName(), request.getSizeId());
+
+        if (deletedProduct.isPresent()) {
+            return restoreProduct(deletedProduct.get(), request, category, size, warehouse, image);
+        }
+
         if (productRepository.existsByCompanyIdAndNameAndSizeId(
                 request.getCompanyId(), request.getName(), request.getSizeId())) {
             throw new AlreadyExistsException(
@@ -89,15 +98,7 @@ public class ProductServiceImpl implements ProductService {
 
         Product savedProduct = productRepository.save(product);
 
-        WarehouseStock warehouseStock = new WarehouseStock();
-        warehouseStock.setWarehouse(warehouse);
-        warehouseStock.setProduct(savedProduct);
-        warehouseStock.setFullCount(0);
-        warehouseStock.setEmptyCount(0);
-        warehouseStock.setDamagedCount(0);
-        warehouseStock.setMinimumStockAlert(
-                request.getMinimumStockAlert() != null ? request.getMinimumStockAlert() : 10);
-        warehouseStockRepository.save(warehouseStock);
+        createWarehouseStock(savedProduct, warehouse, request.getMinimumStockAlert());
 
         log.info("Product created with ID: {}", savedProduct.getId());
         return enrichWithPriceData(productMapper.toResponse(savedProduct), savedProduct.getId());
@@ -181,6 +182,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void deleteProductByID(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + id));
@@ -189,8 +191,7 @@ public class ProductServiceImpl implements ProductService {
             Long operatorCompanyId = OperatorContext.getCurrentCompanyId();
             if (!product.getCompany().getId().equals(operatorCompanyId)) {
                 throw new UnauthorizedOperationException(
-                        "You don't have permission to delete this product. It belongs to a different company."
-                );
+                        "You don't have permission to delete this product.");
             }
         }
 
@@ -201,8 +202,10 @@ public class ProductServiceImpl implements ProductService {
                 log.warn("Failed to delete product image from Cloudinary", e);
             }
         }
-        productRepository.deleteById(id);
-        log.info("Product deleted successfully with ID: {}", id);
+
+        product.setProductStatus(ProductStatus.DEACTIVATE);
+        productRepository.save(product);
+        log.info("Product soft-deleted with ID: {}", id);
     }
 
     @Override
@@ -241,5 +244,62 @@ public class ProductServiceImpl implements ProductService {
         return price.getSellPrice()
                 .multiply(multiplier)
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private ProductResponse restoreProduct(Product product, CreateProductRequest request,
+                                           Category category, ProductSize size,
+                                           Warehouse warehouse, MultipartFile image) {
+        log.info("Restoring previously deleted product ID: {}", product.getId());
+
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setDepositAmount(request.getDepositAmount());
+        product.setMineralComposition(request.getMineralComposition());
+        product.setCategory(category);
+        product.setSize(size);
+        product.setProductStatus(ProductStatus.ACTIVE);
+        product.setOrderCount(0L);
+
+        if (image != null && !image.isEmpty()) {
+            if (product.getImageUrl() != null) {
+                try {
+                    imageUploadService.deleteImage(product.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete old image during product restore", e);
+                }
+            }
+            product.setImageUrl(imageUploadService.uploadImageForProduct(image));
+        }
+
+        Product restored = productRepository.save(product);
+
+        WarehouseStock stock = warehouseStockRepository.findByProductId(product.getId())
+                .orElseGet(() -> {
+                    WarehouseStock newStock = new WarehouseStock();
+                    newStock.setProduct(restored);
+                    return newStock;
+                });
+
+        stock.setWarehouse(warehouse);
+        stock.setFullCount(0);
+        stock.setEmptyCount(0);
+        stock.setDamagedCount(0);
+        stock.setMinimumStockAlert(
+                request.getMinimumStockAlert() != null ? request.getMinimumStockAlert() : 10);
+        warehouseStockRepository.save(stock);
+
+        log.info("Product restored successfully with ID: {}", restored.getId());
+        return enrichWithPriceData(productMapper.toResponse(restored), restored.getId());
+    }
+
+    private void createWarehouseStock(Product product, Warehouse warehouse, Integer minimumStockAlert) {
+        WarehouseStock warehouseStock = new WarehouseStock();
+        warehouseStock.setWarehouse(warehouse);
+        warehouseStock.setProduct(product);
+        warehouseStock.setFullCount(0);
+        warehouseStock.setEmptyCount(0);
+        warehouseStock.setDamagedCount(0);
+        warehouseStock.setMinimumStockAlert(minimumStockAlert != null ? minimumStockAlert : 10);
+        warehouseStockRepository.save(warehouseStock);
     }
 }

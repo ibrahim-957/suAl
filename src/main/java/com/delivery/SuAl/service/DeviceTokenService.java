@@ -11,7 +11,7 @@ public interface DeviceTokenService {
 
     List<DeviceTokenResponse> getActiveTokensByReceiver(User user);
 
-    void deactivateToken(User user, String fcmToken);
+    void deactivateToken(User user);
 
-    void deleteToken(User user, String fcmToken);
+    void deleteToken(User user);
 }
