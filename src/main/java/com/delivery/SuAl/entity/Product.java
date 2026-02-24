@@ -81,6 +81,9 @@ public class Product {
     @Column(name = "order_count", nullable = false)
     private Long orderCount = 0L;
 
+    @Column(nullable = false)
+    private boolean returnable = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -101,4 +104,9 @@ public class Product {
     public boolean hasDeposit() {
         return depositAmount != null && depositAmount.compareTo(BigDecimal.ZERO) > 0;
     }
+
+    public boolean hasDepositAndReturnable(){
+        return returnable && hasDeposit();
+    }
+
 }

@@ -31,11 +31,11 @@ public class PackageDepositCalculationService {
             Long customerId,
             Map<Long, Integer> packageProducts) {
 
-        if (customerId == null || customerId <= 0){
+        if (customerId == null || customerId <= 0) {
             throw new IllegalArgumentException("Invalid customer ID");
         }
 
-        if (packageProducts == null || packageProducts.isEmpty()){
+        if (packageProducts == null || packageProducts.isEmpty()) {
             throw new IllegalArgumentException("Package products cannot be empty");
         }
 
@@ -60,7 +60,7 @@ public class PackageDepositCalculationService {
             Long productId = entry.getKey();
             Integer quantity = entry.getValue();
 
-            if (quantity <= 0){
+            if (quantity <= 0) {
                 log.warn("Skipping product {} with non-positive quantity: {}", productId, quantity);
                 continue;
             }
@@ -69,6 +69,12 @@ public class PackageDepositCalculationService {
 
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new NotFoundException("Product not found with id: " + productId));
+
+            if (!product.isReturnable()) {
+                log.debug("Skipping non-returnable product {} in deposit calculation", productId);
+                totalContainers += quantity;
+                continue;
+            }
 
             BigDecimal depositPerUnit = product.getDepositAmount();
 
@@ -114,7 +120,7 @@ public class PackageDepositCalculationService {
     public List<OrderDepositInfo> distributeDepositsAcrossOrders(
             PackageDepositSummary packageSummary,
             List<DeliveryDistributionRequest> distributions) {
-        if (distributions == null || distributions.isEmpty()){
+        if (distributions == null || distributions.isEmpty()) {
             throw new IllegalArgumentException("Distributions cannot be empty");
         }
 

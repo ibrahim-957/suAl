@@ -61,13 +61,19 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
             Long productId = entry.getKey();
             Integer orderQuantity = entry.getValue();
 
+            Product product = findProductById(productId);
+
+            if (!product.isReturnable()) {
+                productDepositInfos.add(new ProductDepositInfo(
+                        productId, orderQuantity, 0, 0,
+                        BigDecimal.ZERO, BigDecimal.ZERO));
+                continue;
+            }
+
             int totalBalance = getCustomerContainerBalance(customerId, productId);
-
-            Integer alreadyReserved = getReservedContainerCount(customerId, productId);
-
+            int alreadyReserved = getReservedContainerCount(customerId, productId);
             int availableContainers = Math.max(0, totalBalance - alreadyReserved);
 
-            Product product = findProductById(productId);
             BigDecimal depositPerUnit = product.getDepositAmount();
 
             int containersToUse = Math.min(availableContainers, orderQuantity);
@@ -77,20 +83,11 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
                     .setScale(2, RoundingMode.HALF_UP);
 
             productDepositInfos.add(new ProductDepositInfo(
-                    productId,
-                    orderQuantity,
-                    availableContainers,
-                    containersToUse,
-                    depositPerUnit,
-                    refundForProduct
-            ));
+                    productId, orderQuantity, availableContainers,
+                    containersToUse, depositPerUnit, refundForProduct));
 
             totalContainersUsed += containersToUse;
             totalDepositRefunded = totalDepositRefunded.add(refundForProduct);
-
-            log.debug("Product {}: ordered={}, totalBalance={}, reserved={}, available={}, using={}",
-                    productId, orderQuantity, totalBalance, alreadyReserved,
-                    availableContainers, containersToUse);
         }
 
         log.info("Total containers to use: {}, Total refund: {}",
@@ -223,17 +220,18 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
         for (ProductDepositInfo info : depositSummary.getProductDepositInfos()) {
             Product product = productRepository.findById(info.getProductId())
                     .orElseThrow(() -> new NotFoundException("Product with id " + info.getProductId() + " not found"));
-            if (info.getContainersUsed() > 0) {
-                ContainerReservation reservation = new ContainerReservation();
-                reservation.setCustomer(order.getCustomer());
-                reservation.setOrder(order);
-                reservation.setProduct(product);
-                reservation.setQuantityReserved(info.getContainersUsed());
-                reservation.setReservedAt(LocalDateTime.now(ZoneOffset.UTC));
-                reservation.setExpiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));
-
-                reservations.add(reservation);
+            if (!product.isReturnable() || info.getContainersUsed() <= 0) {
+                continue;
             }
+            ContainerReservation reservation = new ContainerReservation();
+            reservation.setCustomer(order.getCustomer());
+            reservation.setOrder(order);
+            reservation.setProduct(product);
+            reservation.setQuantityReserved(info.getContainersUsed());
+            reservation.setReservedAt(LocalDateTime.now(ZoneOffset.UTC));
+            reservation.setExpiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));
+
+            reservations.add(reservation);
         }
 
         containerReservationRepository.saveAll(reservations);
@@ -258,26 +256,18 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
 
     private void addDeliveredContainersToCustomer(Long customerId, List<OrderDetail> orderDetails) {
-        log.debug("Adding delivered containers to customer {}", customerId);
-
         Customer customer = findCustomerById(customerId);
-        int totalDelivered = 0;
 
         for (OrderDetail detail : orderDetails) {
-            int quantity = detail.getCount();
-
-            if (quantity > 0) {
-                addContainersToCustomer(customer, detail.getProduct(), quantity);
-                totalDelivered += quantity;
-
-                log.debug("Customer {}: Added {} containers of product {} ({})",
-                        customerId, quantity, detail.getProduct().getId(),
-                        detail.getProduct().getName());
+            if (!detail.getProduct().isReturnable()) {
+                log.debug("Skipping non-returnable product {}", detail.getProduct().getId());
+                continue;
+            }
+            if (detail.getCount() > 0) {
+                addContainersToCustomer(customer, detail.getProduct(), detail.getCount());
             }
         }
-
         customerRepository.save(customer);
-        log.info("Added {} total containers to customer {}", totalDelivered, customerId);
     }
 
     private void removeCollectedContainersFromCustomer(
@@ -310,11 +300,8 @@ public class ContainerManagementServiceImpl implements ContainerManagementServic
 
             detail.setContainersReturned(actualCollected);
 
-            if (actualCollected > 0) {
+            if (actualCollected > 0 && detail.getProduct().isReturnable()) {
                 removeContainersFromCustomer(customer, detail.getProduct(), actualCollected);
-
-                log.debug("Customer {}: Removed {} containers of product {}",
-                        customerId, actualCollected, productId);
             }
         }
 
