@@ -147,6 +147,39 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order rejected successfully", order));
     }
 
+    @PatchMapping("/admin/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<OrderResponse>> approveOrderByAdmin(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id
+    ) {
+        log.info("PATCH /v1/api/orders/admin/{}/approve - Admin approving order", id);
+        OrderResponse order = orderService.approveOrderByAdmin(user.getEmail(), id);
+        return ResponseEntity.ok(ApiResponse.success("Order approved by admin successfully", order));
+    }
+
+    @PutMapping("/admin/{orderId}/assign-driver")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<OrderResponse>> assignDriverByAdmin(
+            @PathVariable Long orderId,
+            @Valid @RequestBody AssignDriverRequest assignDriverRequest
+    ) {
+        log.info("PUT /v1/api/orders/admin/{}/assign-driver - Admin assigning driver: {}", orderId, assignDriverRequest.getDriverId());
+        OrderResponse order = orderService.assignDriverByAdmin(orderId, assignDriverRequest.getDriverId());
+        return ResponseEntity.ok(ApiResponse.success("Driver assigned by admin successfully", order));
+    }
+
+    @PutMapping("/admin/{id}/complete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<OrderResponse>> completeOrderByAdmin(
+            @PathVariable Long id,
+            @Valid @RequestBody CompleteDeliveryRequest completeDeliveryRequest
+    ) {
+        log.info("PUT /v1/api/orders/admin/{}/complete - Admin completing order", id);
+        OrderResponse order = orderService.completeOrderByAdmin(id, completeDeliveryRequest);
+        return ResponseEntity.ok(ApiResponse.success("Order completed by admin successfully", order));
+    }
+
     @PutMapping("/{id}/complete")
     public ResponseEntity<ApiResponse<OrderResponse>> completeOrder(
             @PathVariable Long id,

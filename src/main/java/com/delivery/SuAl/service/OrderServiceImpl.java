@@ -102,7 +102,6 @@ public class OrderServiceImpl implements OrderService {
     private final ContainerManagementService containerManagementService;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
-    private final CustomerPackageOrderService customerPackageOrderService;
 
     private final OrderNumberGenerator orderNumberGenerator;
     private final OrderDetailFactory orderDetailFactory;
@@ -501,6 +500,129 @@ public class OrderServiceImpl implements OrderService {
         OrderResponse response = executeOrderRejection(order, null, reason);
         log.info("Order {} rejected by admin {}", orderId, adminEmail);
         return response;
+    }
+
+    @Override
+    @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Sifariş Təsdiqləndi",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' təsdiqləndi və tezliklə çatdırılacaq'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customerId",
+            referenceIdExpression = "#result.id"
+    )
+    public OrderResponse approveOrderByAdmin(String adminEmail, Long orderId) {
+        log.info("Admin {} approving order ID: {}", adminEmail, orderId);
+
+        adminRepository.findByEmail(adminEmail)
+                .orElseThrow(() -> new NotFoundException("Admin not found with email: " + adminEmail));
+
+        Order order = findOrderById(orderId);
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new InvalidOrderStateException("Order must be PENDING before approving. Current: " + order.getOrderStatus());
+        }
+
+        Map<Long, Integer> productQuantities = order.getOrderDetails().stream()
+                .collect(Collectors.toMap(
+                        detail -> detail.getProduct().getId(),
+                        OrderDetail::getCount,
+                        Integer::sum
+                ));
+
+        if (!order.getCampaignBonuses().isEmpty()) {
+            for (OrderCampaignBonus bonus : order.getCampaignBonuses()) {
+                productQuantities.merge(
+                        bonus.getProduct().getId(),
+                        bonus.getQuantity(),
+                        Integer::sum
+                );
+            }
+        }
+
+        User user = userRepository.findByEmail(adminEmail)
+                .orElseThrow(() -> new NotFoundException("User not found with email: " + adminEmail));
+
+        if (order.getStockReservationType() == StockReservationType.SOFT) {
+            inventoryService.convertSoftToHardReservation(productQuantities, user);
+            order.setStockReservationType(StockReservationType.HARD);
+            order.setStockReservationExpiresAt(null);
+        } else {
+            inventoryService.validateAndReserveStockBatch(productQuantities, user);
+            order.setStockReservationType(StockReservationType.HARD);
+        }
+
+        for (OrderDetail detail : order.getOrderDetails()) {
+            Product product = detail.getProduct();
+            product.setOrderCount(product.getOrderCount() + detail.getCount());
+            productRepository.save(product);
+        }
+
+        order.setOrderStatus(OrderStatus.APPROVED);
+        Order savedOrder = orderRepository.save(order);
+
+        log.info("Order {} approved by admin {}", orderId, adminEmail);
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.DRIVER,
+            notificationType = NotificationType.ORDER,
+            title = "Yeni Çatdırılma Tapşırığı",
+            message = "'Sizə ' + #result.orderNumber + ' nömrəli sifariş təyin edildi'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.driverId",
+            referenceIdExpression = "#result.id"
+    )
+    public OrderResponse assignDriverByAdmin(Long orderId, Long driverId) {
+        log.info("Admin assigning driver {} to order {}", driverId, orderId);
+
+        Order order = findOrderById(orderId);
+        Driver driver = findDriverById(driverId);
+
+        if (order.getOrderStatus() != OrderStatus.APPROVED) {
+            throw new InvalidOrderStateException("Order must be APPROVED before assigning a driver");
+        }
+
+        order.setDriver(driver);
+        orderRepository.save(order);
+
+        log.info("Driver {} assigned to order {} by admin", driverId, orderId);
+        return orderMapper.toResponse(order);
+    }
+
+    @Override
+    @Transactional
+    @SendNotification(
+            receiverType = ReceiverType.CUSTOMER,
+            notificationType = NotificationType.ORDER,
+            title = "Sifariş Çatdırıldı",
+            message = "'Sifarişiniz #' + #result.orderNumber + ' çatdırıldı. Təşəkkür edirik!'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.customerId",
+            referenceIdExpression = "#result.id"
+    )
+    @SendNotification(
+            receiverType = ReceiverType.OPERATOR,
+            notificationType = NotificationType.ORDER,
+            title = "Sifariş Tamamlandı",
+            message = "'Sifariş #' + #result.orderNumber + ' admin tərəfindən tamamlandı'",
+            evaluateMessage = true,
+            receiverIdExpression = "#result.operatorId",
+            referenceIdExpression = "#result.id"
+    )
+    public OrderResponse completeOrderByAdmin(Long orderId, CompleteDeliveryRequest completeDeliveryRequest) {
+        log.info("Admin completing order {}", orderId);
+
+        Order order = findOrderById(orderId);
+        Order completedOrder = orderCompletionService.completeOrder(order, completeDeliveryRequest);
+
+        log.info("Order {} completed by admin", completedOrder.getOrderNumber());
+        return orderMapper.toResponse(completedOrder);
     }
 
     @Override

@@ -33,6 +33,12 @@ public interface OrderService {
 
     OrderResponse rejectOrderByAdmin(String adminEmail, Long orderId, String reason);
 
+    OrderResponse approveOrderByAdmin(String adminEmail, Long orderId);
+
+    OrderResponse assignDriverByAdmin(Long orderId, Long driverId);
+
+    OrderResponse completeOrderByAdmin(Long orderId, CompleteDeliveryRequest completeDeliveryRequest);
+
     OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest);
 
     Long countTodayOrders();

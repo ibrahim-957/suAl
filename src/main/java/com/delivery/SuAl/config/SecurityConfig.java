@@ -122,6 +122,9 @@ public class SecurityConfig {
                         .requestMatchers("/v1/api/orders/my-orders").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers(HttpMethod.POST, "/v1/api/orders/create-by-customer").hasAnyRole("ADMIN", "CUSTOMER")
                         .requestMatchers("/v1/api/orders/customer/*/reject").hasAnyRole("ADMIN", "CUSTOMER")
+                        .requestMatchers("/v1/api/orders/admin/*/approve").hasRole("ADMIN")
+                        .requestMatchers("/v1/api/orders/admin/*/assign-driver").hasRole("ADMIN")
+                        .requestMatchers("/v1/api/orders/admin/*/complete").hasRole("ADMIN")
                         .requestMatchers("/v1/api/orders/**").authenticated()
 
                         .requestMatchers("/v1/api/customers/addresses/**").hasAnyRole("ADMIN", "CUSTOMER", "OPERATOR")

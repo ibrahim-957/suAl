@@ -60,7 +60,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
         log.info("Customer {} ordering package {}", customerId, request.getPackageId());
 
         String orderMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
-        validateOnePackagePerMonth(customerId, orderMonth);
+        //validateOnePackagePerMonth(customerId, orderMonth);
 
         AffordablePackage affordablePackage = affordablePackageRepository
                 .findByIdAndNotDeleted(request.getPackageId())
@@ -892,7 +892,6 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
 
             ProductPrice activePrice = priceMap.get(product.getId());
 
-            // FIX 1: was product.getSellPrice() — field removed from Product
             BigDecimal pricePerUnit = activePrice != null
                     ? calculateEffectivePrice(activePrice)
                     : BigDecimal.ZERO;
