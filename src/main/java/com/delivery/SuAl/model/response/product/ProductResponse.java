@@ -29,7 +29,7 @@ public class ProductResponse {
     private ProductStatus productStatus;
     private boolean returnable;
     private boolean hasDepositAndReturnable;
-
+    private Long orderCount;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private BigDecimal sellPrice;
