@@ -13,7 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
+@Mapper(componentModel = "spring",
+        uses = {DateTimeMapper.class},
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface AffordablePackageMapper {
 
@@ -24,6 +25,8 @@ public interface AffordablePackageMapper {
     @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
     @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     @Mapping(target = "frequencyDescription", expression = "java(getFrequencyDescription(affordablePackage))")
+    @Mapping(target = "originalValue", ignore = true)
+    @Mapping(target = "profit", ignore = true)
     AffordablePackageResponse toResponse(AffordablePackage affordablePackage);
 
     @Mapping(target = "productId", source = "product.id")
@@ -32,6 +35,7 @@ public interface AffordablePackageMapper {
     @Mapping(target = "pricePerUnit", ignore = true)
     @Mapping(target = "depositPerUnit", source = "product.depositAmount")
     @Mapping(target = "imageUrl", source = "product.imageUrl")
+    @Mapping(target = "lineOriginalValue", ignore = true)
     PackageProductResponse toProductResponse(AffordablePackageProduct packageProduct);
 
     default List<PackageProductResponse> mapProducts(List<AffordablePackageProduct> packageProducts) {

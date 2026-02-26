@@ -18,4 +18,5 @@ public class PackageProductResponse {
     private BigDecimal pricePerUnit;
     private BigDecimal depositPerUnit;
     private String imageUrl;
+    private BigDecimal lineOriginalValue;
 }

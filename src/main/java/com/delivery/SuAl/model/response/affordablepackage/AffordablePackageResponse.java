@@ -28,4 +28,6 @@ public class AffordablePackageResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String frequencyDescription;
+    private BigDecimal originalValue;
+    private BigDecimal profit;
 }

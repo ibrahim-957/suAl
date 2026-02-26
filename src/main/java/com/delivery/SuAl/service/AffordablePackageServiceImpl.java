@@ -13,6 +13,7 @@ import com.delivery.SuAl.model.request.affordablepackage.CreateAffordablePackage
 import com.delivery.SuAl.model.request.affordablepackage.PackageProductRequest;
 import com.delivery.SuAl.model.request.affordablepackage.UpdateAffordablePackageRequest;
 import com.delivery.SuAl.model.response.affordablepackage.AffordablePackageResponse;
+import com.delivery.SuAl.model.response.affordablepackage.PackageProductResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
 import com.delivery.SuAl.repository.AffordablePackageProductRepository;
 import com.delivery.SuAl.repository.AffordablePackageRepository;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,6 +44,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
     private final CompanyRepository companyRepository;
     private final AffordablePackageMapper affordablePackageMapper;
     private final ImageUploadService imageUploadService;
+    private final PackagePriceCalculator packagePriceCalculator;
 
     @Override
     @Transactional
@@ -82,7 +85,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
 
         log.info("Package created successfully: {}", savedPackage.getId());
 
-        return affordablePackageMapper.toResponse(savedPackage);
+        return toEnrichedResponse(savedPackage);
     }
 
     @Override
@@ -141,7 +144,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         AffordablePackage updated = affordablePackageRepository.save(affordablePackage);
         log.info("Package updated successfully: {}", packageId);
 
-        return affordablePackageMapper.toResponse(updated);
+        return toEnrichedResponse(updated);
     }
 
     @Override
@@ -154,7 +157,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         validatePackageAccess(affordablePackage);
 
 
-        return affordablePackageMapper.toResponse(affordablePackage);
+        return toEnrichedResponse(affordablePackage);
     }
 
     @Override
@@ -174,7 +177,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         }
 
         List<AffordablePackageResponse> responses = packages.getContent().stream()
-                .map(affordablePackageMapper::toResponse)
+                .map(this::toEnrichedResponse)
                 .toList();
 
         return PageResponse.of(responses, packages);
@@ -197,7 +200,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         }
 
         List<AffordablePackageResponse> responses = packages.getContent().stream()
-                .map(affordablePackageMapper::toResponse)
+                .map(this::toEnrichedResponse)
                 .toList();
 
         return PageResponse.of(responses, packages);
@@ -222,7 +225,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
                 affordablePackageRepository.findByCompanyIdAndDeletedAtIsNull(companyId, pageable);
 
         List<AffordablePackageResponse> responses = packages.getContent().stream()
-                .map(affordablePackageMapper::toResponse)
+                .map(this::toEnrichedResponse)
                 .toList();
 
         return PageResponse.of(responses, packages);
@@ -240,7 +243,7 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         AffordablePackage updated = affordablePackageRepository.save(affordablePackage);
 
         log.info("Package {} status changed to: {}", packageId, isActive);
-        return affordablePackageMapper.toResponse(updated);
+        return toEnrichedResponse(updated);
     }
 
     @Override
@@ -257,7 +260,6 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
         log.info("Package {} deleted", packageId);
     }
 
-    // ==================== PRIVATE HELPER METHODS ====================
 
     private Company findCompanyById(Long companyId) {
         return companyRepository.findById(companyId)
@@ -337,5 +339,32 @@ public class AffordablePackageServiceImpl implements AffordablePackageService {
                 );
             }
         }
+    }
+
+    private AffordablePackageResponse toEnrichedResponse(AffordablePackage affordablePackage) {
+        AffordablePackageResponse response = affordablePackageMapper.toResponse(affordablePackage);
+
+        if (response.getProducts() != null) {
+            List<AffordablePackageProduct> packageProducts = affordablePackage.getPackageProducts();
+            List<PackageProductResponse> productResponses = response.getProducts();
+
+            for (int i = 0; i < productResponses.size(); i++) {
+                AffordablePackageProduct packageProduct = packageProducts.get(i);
+                PackageProductResponse productResponse = productResponses.get(i);
+
+                BigDecimal pricePerUnit = packagePriceCalculator.getActiveSellPrice(packageProduct.getProduct());
+                productResponse.setPricePerUnit(pricePerUnit);
+                productResponse.setLineOriginalValue(
+                        packagePriceCalculator.calculateLineValue(packageProduct)
+                );
+            }
+        }
+
+        response.setOriginalValue(
+                packagePriceCalculator.calculateOriginalValue(affordablePackage.getPackageProducts())
+        );
+        response.setProfit(packagePriceCalculator.calculateProfit(affordablePackage));
+
+        return response;
     }
 }
