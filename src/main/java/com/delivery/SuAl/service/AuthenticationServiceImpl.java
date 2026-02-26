@@ -127,7 +127,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     public AuthenticationResponse refreshToken(RefreshTokenRequest request) {
         final String refreshToken = request.getRefreshToken();
-        final String identifier = jwtService.extractUsername(refreshToken);
+        final String identifier = jwtService.extractUsernameIgnoreExpiry(refreshToken);
 
         log.info("Refreshing token for identifier: {}", identifier);
 

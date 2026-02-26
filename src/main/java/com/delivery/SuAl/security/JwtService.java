@@ -29,9 +29,16 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    public String extractUsernameIgnoreExpiry(String token) {
+        return extractClaimIgnoreExpiry(token, Claims::getSubject);
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+        return claimsResolver.apply(extractAllClaims(token));
+    }
+
+    public <T> T extractClaimIgnoreExpiry(String token, Function<Claims, T> claimsResolver) {
+        return claimsResolver.apply(extractAllClaims(token, true));
     }
 
     public String generateToken(UserDetails userDetails) {
@@ -46,11 +53,7 @@ public class JwtService {
         return buildToken(new HashMap<>(), userDetails, refreshExpiration);
     }
 
-    private String buildToken(
-            Map<String, Object> extraClaims,
-            UserDetails userDetails,
-            long expiration
-    ) {
+    private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration) {
         return Jwts.builder()
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
@@ -62,7 +65,7 @@ public class JwtService {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {
@@ -74,8 +77,17 @@ public class JwtService {
     }
 
     private Claims extractAllClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(getSignInKey())
+        return extractAllClaims(token, false);
+    }
+
+    private Claims extractAllClaims(String token, boolean ignoreExpiry) {
+        var parserBuilder = Jwts.parser().verifyWith(getSignInKey());
+
+        if (ignoreExpiry) {
+            parserBuilder.clockSkewSeconds(Long.MAX_VALUE / 1000);
+        }
+
+        return parserBuilder
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -85,5 +97,4 @@ public class JwtService {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
-
 }

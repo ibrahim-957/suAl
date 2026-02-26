@@ -680,7 +680,7 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
 
         Map<Long, Integer> expectedProducts = new HashMap<>();
         for (Map.Entry<Long, Integer> entry : packageProducts.entrySet()) {
-            expectedProducts.put(entry.getKey(), entry.getValue() * request.getFrequency());
+            expectedProducts.put(entry.getKey(), entry.getValue());
         }
 
         if (!distributedProducts.equals(expectedProducts)) {
@@ -714,7 +714,6 @@ public class CustomerPackageOrderServiceImpl implements CustomerPackageOrderServ
         packageOrder.setFrequency(request.getFrequency());
 
         BigDecimal totalPackagePrice = affordablePackage.getTotalPrice()
-                .multiply(BigDecimal.valueOf(request.getFrequency()))
                 .setScale(2, RoundingMode.HALF_UP);
 
         packageOrder.setPackageProductPrice(totalPackagePrice);
