@@ -3,6 +3,7 @@ package com.delivery.SuAl.entity;
 import com.delivery.SuAl.model.enums.OrderStatus;
 import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentStatus;
+import com.delivery.SuAl.model.enums.StockReservationType;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.CascadeType;
@@ -28,6 +29,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,9 +49,9 @@ public class Order {
     private String orderNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "customer_id", nullable = false)
     @JsonBackReference("orders")
-    private User user;
+    private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "operator_id")
@@ -60,14 +62,14 @@ public class Order {
     private Driver driver;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "address_id", nullable = false)
+    @JoinColumn(name = "address_id")
     private Address address;
 
     @Column(nullable = false, name = "total_items")
     private Integer totalItems;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal subtotal;
+    private BigDecimal subtotal; //product sum price
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promo_id")
@@ -92,7 +94,7 @@ public class Order {
     private BigDecimal netDeposit = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal amount; // productAmount
+    private BigDecimal amount; // subtotal - promoDiscount
 
     private LocalDate deliveryDate;
 
@@ -122,6 +124,35 @@ public class Order {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "package_order_id")
+    private CustomerPackageOrder packageOrder;
+
+    @Column(name = "is_package_order")
+    private Boolean isPackageOrder = false;
+
+    @Column(name = "delivery_number")
+    private Integer deliveryNumber;
+
+    @Column(name = "old_containers_to_collect")
+    private Integer oldContainersToCollect = 0;
+
+    @Column(name = "expected_deposit_refunded_at_creation", precision = 10, scale = 2)
+    private BigDecimal expectedDepositRefundedAtCreation = BigDecimal.ZERO;
+
+    @Column(name = "actual_deposit_refunded_at_completion", precision = 10, scale = 2)
+    private BigDecimal actualDepositRefundedAtCompletion = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_reservation_type")
+    private StockReservationType stockReservationType = StockReservationType.NONE;
+
+    @Column(name = "stock_reserved_at")
+    private LocalDateTime stockReservedAt;
+
+    @Column(name = "stock_reservation_expires_at")
+    private LocalDateTime stockReservationExpiresAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -138,17 +169,44 @@ public class Order {
     @JsonManagedReference("order-campaign-bonus")
     private List<OrderCampaignBonus> campaignBonuses = new ArrayList<>();
 
-    @OneToMany(mappedBy = "order")
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @JsonManagedReference("order-payments")
     private List<Payment> payments = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+    }
+
+    public boolean isPackageOrder(){
+        return Boolean.TRUE.equals(isPackageOrder);
+    }
+
+    public boolean isFirstPackageDelivery() {
+        return isPackageOrder() && deliveryNumber != null && deliveryNumber == 1;
+    }
+
+    public boolean isSubsequentPackageDelivery() {
+        return isPackageOrder() && deliveryNumber != null && deliveryNumber > 1;
+    }
+
+    public boolean shouldCollectOldContainers() {
+        return isFirstPackageDelivery() && oldContainersToCollect != null && oldContainersToCollect > 0;
+    }
+
+    public boolean hasStockReserved() {
+        return stockReservationType != StockReservationType.NONE;
+    }
+
+    public boolean isStockReservationExpired() {
+        return stockReservationType == StockReservationType.SOFT
+                && stockReservationExpiresAt != null
+                && LocalDateTime.now().isAfter(stockReservationExpiresAt);
     }
 }

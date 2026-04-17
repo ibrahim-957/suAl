@@ -4,7 +4,6 @@ import com.delivery.SuAl.model.request.companyAndcategory.CreateCompanyRequest;
 import com.delivery.SuAl.model.request.companyAndcategory.UpdateCompanyRequest;
 import com.delivery.SuAl.model.response.companyAndcategory.CompanyResponse;
 import com.delivery.SuAl.model.response.wrapper.PageResponse;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 public interface CompanyService {

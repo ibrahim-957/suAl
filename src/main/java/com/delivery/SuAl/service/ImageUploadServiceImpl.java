@@ -27,6 +27,11 @@ public class ImageUploadServiceImpl implements ImageUploadService {
         return generateUrl(file, "campaign");
     }
 
+    @Override
+    public String uploadImageForAffordablePackage(MultipartFile file) {
+        return generateUrl(file, "affordable package");
+    }
+
     private String generateUrl(MultipartFile file, String type) {
         try{
             validateFile(file);
@@ -57,7 +62,7 @@ public class ImageUploadServiceImpl implements ImageUploadService {
 
             String publicId = extractPublicId(imageUrl);
 
-            Map result = cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
             log.info("Image deleted successfully: {}", publicId);
 
         } catch (IOException e){
@@ -83,7 +88,7 @@ public class ImageUploadServiceImpl implements ImageUploadService {
     }
 
     private String extractPublicId(String imageUrl) {
-        try{
+        try {
             String[] parts = imageUrl.split("/upload/");
             if (parts.length < 2) {
                 throw new ImageUploadException("Invalid Cloudinary URL format");
@@ -91,14 +96,14 @@ public class ImageUploadServiceImpl implements ImageUploadService {
 
             String pathAfterUpload = parts[1];
 
-            String publicIdWithExtension = pathAfterUpload.replace("v\\d+/", "");
+            String publicIdWithExtension = pathAfterUpload.replaceAll("v\\d+/", "");
 
             int lastDotIndex = publicIdWithExtension.lastIndexOf(".");
-
             return lastDotIndex > 0
                     ? publicIdWithExtension.substring(0, lastDotIndex)
                     : publicIdWithExtension;
-        } catch (Exception e){
+
+        } catch (Exception e) {
             log.error("Failed to extract public_id from URL: {}", imageUrl, e);
             throw new ImageUploadException("Failed to extract public_id from URL", e);
         }

@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -32,11 +33,14 @@ public class CampaignResponse {
     private String freeProductName;
     private Integer freeQuantity;
 
+    private BigDecimal bonusAmount;
+    private BigDecimal bonusPercentage;
+
     private Boolean firstOrderOnly;
-    private Integer minDatsSinceRegistration;
+    private Integer minDaysSinceRegistration;
     private Boolean requiresPromoAbsence;
 
-    private Integer maxUsesPerUser;
+    private Integer maxUsesPerCustomer;
     private Integer maxTotalUses;
     private Integer currentTotalUses;
     private Integer usageRemaining;

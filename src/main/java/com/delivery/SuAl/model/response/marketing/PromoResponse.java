@@ -25,7 +25,7 @@ public class PromoResponse {
     private BigDecimal maxDiscount;
     private Integer maxUsesPerUser;
     private Integer maxTotalUses;
-    private Integer currentTotalUses;
+    private Integer maxUsesPerCustomer;
     private Integer usageRemaining;
     private PromoStatus promoStatus;
     private LocalDate validFrom;

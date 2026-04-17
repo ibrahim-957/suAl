@@ -17,6 +17,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "promo_usages")
@@ -30,8 +31,8 @@ public class PromoUsage {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id",  nullable = false)
-    private User user;
+    @JoinColumn(name = "customer_id",  nullable = false)
+    private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promo_id",  nullable = false)
@@ -54,6 +55,6 @@ public class PromoUsage {
     @PrePersist
     protected void onCreate(){
         if (usedAt == null)
-            usedAt = LocalDateTime.now();
+            usedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 }

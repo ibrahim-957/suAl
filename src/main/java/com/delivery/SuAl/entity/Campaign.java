@@ -20,8 +20,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "campaigns")
@@ -50,18 +52,24 @@ public class Campaign {
     private CampaignType campaignType = CampaignType.BUY_X_GET_Y_FREE;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buy_product_id", nullable = false)
+    @JoinColumn(name = "buy_product_id")
     private Product buyProduct;
 
-    @Column(name = "buy_quantity", nullable = false)
-    private int buyQuantity;
+    @Column(name = "buy_quantity")
+    private Integer buyQuantity;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "free_product_id", nullable = false)
+    @JoinColumn(name = "free_product_id")
     private Product freeProduct;
 
-    @Column(name = "free_quantity", nullable = false)
-    private int freeQuantity;
+    @Column(name = "free_quantity")
+    private Integer freeQuantity;
+
+    @Column(name = "bonus_amount", precision = 10, scale = 2)
+    private BigDecimal bonusAmount;
+
+    @Column(name = "bonus_percentage", precision = 15, scale = 2)
+    private BigDecimal bonusPercentage;
 
     @Column(name = "first_order_only")
     private Boolean firstOrderOnly = false;
@@ -72,8 +80,8 @@ public class Campaign {
     @Column(name = "requires_promo_absence")
     private Boolean requiresPromoAbsence = false;
 
-    @Column(name = "max_uses_per_user")
-    private Integer maxUsesPerUser;
+    @Column(name = "max_uses_per_customer")
+    private Integer maxUsesPerCustomer;
 
     @Column(name = "max_total_uses")
     private Integer maxTotalUses;
@@ -99,44 +107,107 @@ public class Campaign {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+        validateCampaignFields();
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+        validateCampaignFields();
     }
 
-    public boolean isActive(){
-        LocalDate now = LocalDate.now();
+    public boolean isActive() {
+        LocalDate now = LocalDate.now(ZoneOffset.UTC);
         return campaignStatus == CampaignStatus.ACTIVE
                 && !now.isAfter(validTo)
                 && !now.isBefore(validFrom);
     }
 
-    public boolean hasReachedTotalLimit(){
+    public boolean hasReachedTotalLimit() {
         return maxTotalUses != null && currentTotalUses >= maxTotalUses;
     }
 
-    public void incrementUses(){
+    public void incrementUses() {
         this.currentTotalUses++;
     }
 
-    private boolean meetsRegistrationRequirement(LocalDateTime userRegistrationDate){
-        if (minDaysSinceRegistration == null || minDaysSinceRegistration == 0){
-            return true;
-        }
-
-        LocalDateTime requiredDate = userRegistrationDate.plusDays(minDaysSinceRegistration);
-        return LocalDateTime.now().isAfter(requiredDate);
-    }
-
-    public boolean isFirstOrderOnly(){
+    public boolean isFirstOrderOnly() {
         return Boolean.TRUE.equals(firstOrderOnly);
     }
 
-    public boolean allowPromoCode(){
+    public boolean allowPromoCode() {
         return !Boolean.TRUE.equals(requiresPromoAbsence);
+    }
+
+    public boolean isProductBasedCampaign() {
+        return campaignType == CampaignType.BUY_X_GET_Y_FREE ||
+                campaignType == CampaignType.BUY_X_PAY_FOR_Y;
+    }
+
+    public boolean isBonusBasedCampaign() {
+        return campaignType == CampaignType.FIRST_ORDER_BONUS ||
+                campaignType == CampaignType.LOYALTY_BONUS;
+    }
+
+    private void validateCampaignFields() {
+        switch (campaignType) {
+            case BUY_X_GET_Y_FREE:
+            case BUY_X_PAY_FOR_Y:
+                if (buyProduct == null || freeProduct == null) {
+                    throw new IllegalStateException(
+                            campaignType + " requires both buyProduct and freeProduct");
+                }
+                if (buyQuantity == null || buyQuantity <= 0) {
+                    throw new IllegalStateException(
+                            campaignType + " requires valid buyQuantity");
+                }
+                if (freeQuantity == null || freeQuantity <= 0) {
+                    throw new IllegalStateException(
+                            campaignType + " requires valid freeQuantity");
+                }
+                break;
+
+            case FIRST_ORDER_BONUS:
+                if (bonusAmount == null || bonusAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalStateException(
+                            "FIRST_ORDER_BONUS requires valid bonusAmount");
+                }
+                this.firstOrderOnly = true;
+                break;
+
+            case LOYALTY_BONUS:
+                if (minDaysSinceRegistration == null || minDaysSinceRegistration <= 0) {
+                    throw new IllegalStateException(
+                            "LOYALTY_BONUS requires minDaysSinceRegistration");
+                }
+                if ((bonusAmount == null || bonusAmount.compareTo(BigDecimal.ZERO) <= 0) &&
+                        (bonusPercentage == null || bonusPercentage.compareTo(BigDecimal.ZERO) <= 0)) {
+                    throw new IllegalStateException(
+                            "LOYALTY_BONUS requires either bonusAmount or bonusPercentage");
+                }
+                break;
+        }
+    }
+
+    public boolean canBeUsed() {
+        if (maxTotalUses == null) {
+            return true;
+        }
+        return currentTotalUses < maxTotalUses;
+    }
+
+    public void decrementUses() {
+        if (this.currentTotalUses > 0) {
+            this.currentTotalUses--;
+        }
+    }
+
+    public Integer getRemainingUses() {
+        if (maxTotalUses == null) {
+            return null;
+        }
+        return Math.max(0, maxTotalUses - currentTotalUses);
     }
 }

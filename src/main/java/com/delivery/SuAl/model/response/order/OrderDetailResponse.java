@@ -1,6 +1,5 @@
 package com.delivery.SuAl.model.response.order;
 
-import com.delivery.SuAl.model.enums.CategoryType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,7 +15,7 @@ public class OrderDetailResponse {
     private Long id;
     private String productName;
     private String companyName;
-    private CategoryType categoryType;
+    private String categoryName;
     private String size;
     private Integer quantity;
     private BigDecimal pricePerUnit;

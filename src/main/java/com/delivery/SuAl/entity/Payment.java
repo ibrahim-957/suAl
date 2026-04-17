@@ -4,6 +4,7 @@ import com.delivery.SuAl.model.enums.PaymentMethod;
 import com.delivery.SuAl.model.enums.PaymentProvider;
 import com.delivery.SuAl.model.enums.PaymentStatus;
 import com.delivery.SuAl.model.enums.TransactionType;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -25,6 +26,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "payments")
@@ -38,16 +40,17 @@ public class Payment {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id",  nullable = false)
+    @JoinColumn(name = "order_id", nullable = false)
+    @JsonBackReference("order-payments")
     private Order order;
 
     @Column(name = "reference_id", unique = true, nullable = false)
     private String referenceId;
 
-    @Column(nullable = false, precision = 10, scale = 2, name = "amount_in_coins")
+    @Column(nullable = false, name = "amount_in_coins")
     private Long amountInCoins;
 
-    @Column(precision = 10, scale = 2, name = "fee_in_coins")
+    @Column(name = "fee_in_coins")
     private Long feeInCoins;
 
     @Column(name = "currency_code", nullable = false)
@@ -67,7 +70,7 @@ public class Payment {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)
-    private PaymentStatus paymentStatus =  PaymentStatus.CREATED;
+    private PaymentStatus paymentStatus = PaymentStatus.CREATED;
 
     @Column(name = "gateway_payment_url", columnDefinition = "TEXT")
     private String gatewayPaymentUrl;
@@ -113,7 +116,7 @@ public class Payment {
     @Column(name = "failure_reason")
     private String failureReason;
 
-    @Column(name = "refund_amount_in_coins", precision = 10, scale = 2)
+    @Column(name = "refund_amount_in_coins")
     private Long refundAmountInCoins;
 
     @Column(name = "refunded_at")
@@ -133,24 +136,24 @@ public class Payment {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
-    public BigDecimal getAmountAsDecimal(){
+    public BigDecimal getAmountAsDecimal() {
         return amountInCoins != null
-                ? new BigDecimal(amountInCoins).divide(new BigDecimal("100"), 2,  RoundingMode.HALF_UP)
+                ? new BigDecimal(amountInCoins).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
     }
 
-    public BigDecimal getFeeAsDecimal(){
+    public BigDecimal getFeeAsDecimal() {
         return feeInCoins != null
-                ? new BigDecimal(feeInCoins).divide(new BigDecimal("100"), 2,  RoundingMode.HALF_UP)
+                ? new BigDecimal(feeInCoins).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
     }
 

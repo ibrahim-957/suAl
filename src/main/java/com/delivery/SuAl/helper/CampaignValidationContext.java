@@ -16,7 +16,7 @@ public class CampaignValidationContext {
     private boolean meetsPromoAbsenceRequirement;
 
     private Integer basketQuantity;
-    private Integer userUsageCount;
+    private Integer customerUsageCount;
     private Integer usageRemaining;
     private Integer freeQuantity;
     private BigDecimal estimatedBonusValue;

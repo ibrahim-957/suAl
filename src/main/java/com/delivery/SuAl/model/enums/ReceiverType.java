@@ -1,7 +1,8 @@
 package com.delivery.SuAl.model.enums;
 
 public enum ReceiverType {
-    USER,
+    CUSTOMER,
     OPERATOR,
-    DRIVER
+    DRIVER,
+    ADMIN
 }

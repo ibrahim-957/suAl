@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Data
@@ -16,8 +17,10 @@ public class ValidateCampaignRequest {
     private String campaignCode;
 
     @NotNull
-    private Long userId;
+    private Long customerId;
 
     @NotNull
     private Map<Long, Integer> productQuantities;
+
+    private BigDecimal orderTotal;
 }

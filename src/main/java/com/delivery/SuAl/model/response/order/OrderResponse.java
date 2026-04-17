@@ -21,6 +21,7 @@ import java.util.List;
 public class OrderResponse {
     private Long id;
     private String orderNumber;
+    private Long customerId;
     private String customerName;
     private String phoneNumber;
     private Long operatorId;

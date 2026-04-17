@@ -7,16 +7,23 @@ import com.delivery.SuAl.model.response.companyAndcategory.CompanyResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {DateTimeMapper.class},
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface CompanyMapper {
     Company toEntity(CreateCompanyRequest createCompanyRequest);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     void updateEntityFromRequest(UpdateCompanyRequest updateCompanyRequest,
                                  @MappingTarget Company company);
 
+    @Mapping(target = "createdAt", qualifiedByName = "utcToBaku")
+    @Mapping(target = "updatedAt", qualifiedByName = "utcToBaku")
     CompanyResponse toResponse(Company company);
 
     List<CompanyResponse> toResponseList(List<Company> companyList);

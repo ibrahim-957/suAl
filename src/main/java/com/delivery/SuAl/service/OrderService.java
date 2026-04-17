@@ -2,7 +2,7 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.model.request.order.CompleteDeliveryRequest;
 import com.delivery.SuAl.model.request.order.CreateOrderByOperatorRequest;
-import com.delivery.SuAl.model.request.order.CreateOrderByUserRequest;
+import com.delivery.SuAl.model.request.order.CreateOrderByCustomerRequest;
 import com.delivery.SuAl.model.request.order.UpdateOrderRequest;
 import com.delivery.SuAl.model.response.order.DriverCollectionInfoResponse;
 import com.delivery.SuAl.model.response.order.OrderResponse;
@@ -13,11 +13,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface OrderService {
-    OrderResponse createOrderByUser(String phoneNumber, CreateOrderByUserRequest request);
+    OrderResponse createOrderByCustomer(String phoneNumber, CreateOrderByCustomerRequest request);
 
     OrderResponse createOrderByOperator(String operatorEmail, CreateOrderByOperatorRequest request);
 
     OrderResponse updateOrder(Long orderId, UpdateOrderRequest request);
+
+    String getOrderModificationGuidance(Long orderId);
 
     OrderResponse getOrderById(Long id);
 
@@ -25,9 +27,17 @@ public interface OrderService {
 
     OrderResponse approveOrder(String operatorEmail, Long orderId);
 
-    OrderResponse rejectOrderByUser(String phoneNumber, Long orderId, String reason);
+    OrderResponse rejectOrderByCustomer(String phoneNumber, Long orderId, String reason);
 
     OrderResponse rejectOrderByOperator(String operatorEmail, Long orderId, String reason);
+
+    OrderResponse rejectOrderByAdmin(String adminEmail, Long orderId, String reason);
+
+    OrderResponse approveOrderByAdmin(String adminEmail, Long orderId);
+
+    OrderResponse assignDriverByAdmin(Long orderId, Long driverId);
+
+    OrderResponse completeOrderByAdmin(Long orderId, CompleteDeliveryRequest completeDeliveryRequest);
 
     OrderResponse completeOrder(Long orderId, CompleteDeliveryRequest completeDeliveryRequest);
 
@@ -39,7 +49,8 @@ public interface OrderService {
 
     PageResponse<OrderResponse> getAllOrdersForManagement(Pageable pageable);
 
-    PageResponse<OrderResponse> getAllOrdersByUser(Pageable pageable, String phoneNumber);
+    PageResponse<OrderResponse> getAllOrdersByCustomer(Pageable pageable, String phoneNumber);
 
     DriverCollectionInfoResponse getDriverCollectionInfo(Long orderId);
+
 }

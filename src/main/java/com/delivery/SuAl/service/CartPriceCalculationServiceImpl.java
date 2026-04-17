@@ -1,7 +1,7 @@
 package com.delivery.SuAl.service;
 
-import com.delivery.SuAl.entity.Price;
 import com.delivery.SuAl.entity.Product;
+import com.delivery.SuAl.entity.ProductPrice;
 import com.delivery.SuAl.exception.InvalidRequestException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.ContainerDepositSummary;
@@ -15,16 +15,18 @@ import com.delivery.SuAl.model.response.cart.CartCalculationResponse;
 import com.delivery.SuAl.model.response.cart.CartItemResponse;
 import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidatePromoResponse;
-import com.delivery.SuAl.repository.PriceRepository;
+import com.delivery.SuAl.repository.ProductPriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,84 +34,105 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CartPriceCalculationServiceImpl implements CartPriceCalculationService {
     private final ProductRepository productRepository;
-    private final PriceRepository priceRepository;
+    private final ProductPriceRepository priceRepository;
     private final ContainerManagementService containerManagementService;
     private final PromoService promoService;
     private final CampaignService campaignService;
 
     @Override
+    @Transactional(readOnly = true)
     public CartCalculationResponse calculatePrice(CalculatePriceRequest request) {
-        log.info("Calculating price for userId: {}, {} items",
-                request.getUserId(), request.getItems().size());
+        log.info("Calculating price for customerId: {}, {} items",
+                request.getCustomerId(), request.getItems().size());
 
         if (request.getItems().isEmpty()) {
             return createEmptyResponse();
         }
 
         List<CartItemResponse> itemResponses = request.getItems().stream()
-                .map(item -> mapCartItemToResponse(request.getUserId(), item))
+                .map(item -> mapCartItemToResponse(request.getCustomerId(), item))
                 .toList();
 
         BigDecimal subtotal = itemResponses.stream()
                 .map(CartItemResponse::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal totalDepositCharged = itemResponses.stream()
-                .map(item -> item.getDepositPerUnit()
-                        .multiply(new BigDecimal(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(item -> Optional.ofNullable(item.getDepositPerUnit())
+                        .orElse(BigDecimal.ZERO)
+                        .multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal totalDepositRefunded = itemResponses.stream()
                 .map(item -> item.getDepositPerUnit()
                         .multiply(new BigDecimal(item.getAvailableContainers())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal netDeposit = totalDepositCharged.subtract(totalDepositRefunded);
+        BigDecimal netDeposit = totalDepositCharged
+                .subtract(totalDepositRefunded)
+                .setScale(2, RoundingMode.HALF_UP);
 
         Map<Long, Integer> productQuantities = request.getItems().stream()
                 .collect(Collectors.toMap(
                         CartItem::getProductId,
-                        CartItem::getQuantity
+                        CartItem::getQuantity,
+                        Integer::sum
                 ));
 
-        boolean willUsePromo = (request.getPromoCode() != null && !request.getPromoCode().isBlank());
+        boolean willUsePromo = (request.getPromoCode() != null
+                && !request.getPromoCode().isBlank());
 
         GetEligibleCampaignsRequest campaignsRequest = GetEligibleCampaignsRequest.builder()
-                .userId(request.getUserId())
+                .customerId(request.getCustomerId())
                 .productQuantities(productQuantities)
                 .willUsePromoCode(willUsePromo)
+                .orderTotal(subtotal)
                 .build();
 
-        EligibleCampaignsResponse eligibleCampaigns = campaignService.getEligibleCampaigns(campaignsRequest);
-        BigDecimal campaignDiscount = eligibleCampaigns.getTotalCampaignDiscount();
+        EligibleCampaignsResponse eligibleCampaigns =
+                campaignService.getEligibleCampaigns(campaignsRequest);
+        BigDecimal campaignDiscount = eligibleCampaigns.getTotalCampaignDiscount() != null
+                ? eligibleCampaigns.getTotalCampaignDiscount()
+                : BigDecimal.ZERO;
 
         BigDecimal amount = subtotal;
-        BigDecimal totalAmount = amount.add(netDeposit);
+        BigDecimal totalAmount = amount.add(netDeposit).setScale(2, RoundingMode.HALF_UP);
 
-        CartCalculationResponse.CartCalculationResponseBuilder responseBuilder = CartCalculationResponse.builder()
-                .subtotal(subtotal)
-                .totalDepositCharged(totalDepositCharged)
-                .totalDepositRefunded(totalDepositRefunded)
-                .netDeposit(netDeposit)
-                .campaignDiscount(campaignDiscount)
-                .eligibleCampaigns(eligibleCampaigns)
-                .totalItems(request.getItems().size())
-                .items(itemResponses);
+        CartCalculationResponse.CartCalculationResponseBuilder responseBuilder =
+                CartCalculationResponse.builder()
+                        .subtotal(subtotal)
+                        .totalDepositCharged(totalDepositCharged)
+                        .totalDepositRefunded(totalDepositRefunded)
+                        .netDeposit(netDeposit)
+                        .campaignDiscount(campaignDiscount)
+                        .eligibleCampaigns(eligibleCampaigns)
+                        .totalItems(request.getItems().size())
+                        .items(itemResponses);
 
         if (willUsePromo) {
-            log.info("Validating promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
+            log.info("Validating promo code: {} for customer: {}",
+                    request.getPromoCode(), request.getCustomerId());
 
             ValidatePromoRequest validateRequest = new ValidatePromoRequest();
             validateRequest.setPromoCode(request.getPromoCode());
-            validateRequest.setUserId(request.getUserId());
+            validateRequest.setCustomerId(request.getCustomerId());
             validateRequest.setOrderAmount(subtotal);
 
             ValidatePromoResponse promoValidation = promoService.validatePromo(validateRequest);
 
-            if (Boolean.TRUE.equals(promoValidation.getIsValid()) && Boolean.TRUE.equals(promoValidation.getUserCanUse())) {
+            if (Boolean.TRUE.equals(promoValidation.getIsValid())
+                    && Boolean.TRUE.equals(promoValidation.getCustomerCanUse())) {
+
                 BigDecimal promoDiscount = promoValidation.getEstimatedDiscount();
-                BigDecimal newAmount = subtotal.subtract(promoDiscount);
-                BigDecimal newTotalAmount = newAmount.add(netDeposit);
+                BigDecimal newAmount = subtotal
+                        .subtract(promoDiscount)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal newTotalAmount = newAmount
+                        .add(netDeposit)
+                        .setScale(2, RoundingMode.HALF_UP);
 
                 responseBuilder
                         .promoCode(request.getPromoCode())
@@ -119,29 +142,35 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                         .amount(newAmount)
                         .totalAmount(newTotalAmount);
 
-                log.info("Promo applied - discount: {}, newTotal: {}", promoDiscount, newTotalAmount);
+                log.info("Promo applied - discount: {}, newTotal: {}",
+                        promoDiscount, newTotalAmount);
             } else {
                 responseBuilder
                         .promoCode(request.getPromoCode())
                         .promoDiscount(BigDecimal.ZERO)
                         .promoValid(false)
+                        .promoMessage(promoValidation.getMessage())
                         .amount(amount)
                         .totalAmount(totalAmount);
 
-                log.warn("Promo code invalid: {} - message: {}", request.getPromoCode(), promoValidation.getMessage());
+                log.warn("Promo invalid: {} - {}",
+                        request.getPromoCode(), promoValidation.getMessage());
             }
-
         } else {
             responseBuilder
-                    .promoCode(request.getPromoCode())
+                    .promoCode(null)
                     .promoDiscount(BigDecimal.ZERO)
+                    .promoValid(false)
+                    .promoMessage(null)
                     .amount(amount)
                     .totalAmount(totalAmount);
         }
+
         return responseBuilder.build();
     }
 
-    private CartItemResponse mapCartItemToResponse(Long userId, CartItem cartItem) {
+    private CartItemResponse mapCartItemToResponse(Long customerId, CartItem cartItem) {
+
         Product product = productRepository.findById(cartItem.getProductId())
                 .orElseThrow(() -> new NotFoundException("Product not found with id: " + cartItem.getProductId()));
 
@@ -149,13 +178,17 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
             throw new InvalidRequestException("Product is not active: " + cartItem.getProductId());
         }
 
-        Price currentPrice = priceRepository.findFirstByProduct_IdOrderByCreatedAtDesc(product.getId())
-                .orElseThrow(() -> new NotFoundException("Price not found for product with id: " + product.getId()));
+        ProductPrice activePrice = priceRepository.findActiveByProductId(product.getId())
+                .orElseThrow(() -> new NotFoundException(
+                        "No active price found for product: " + product.getName()
+                        +". Please contact support."));
+
+        BigDecimal sellPrice = calculateEffectivePrice(activePrice);
 
         Map<Long, Integer> productQuantities = Map.of(product.getId(), cartItem.getQuantity());
 
-        ContainerDepositSummary containerSummary =
-                containerManagementService.calculateAvailableContainerRefunds(userId, productQuantities);
+        ContainerDepositSummary containerSummary = containerManagementService
+                .calculateAvailableContainerRefunds(customerId, productQuantities);
 
         Integer availableContainers = containerSummary.getProductDepositInfos().stream()
                 .filter(info -> info.getProductId().equals(product.getId()))
@@ -165,7 +198,7 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
 
         Integer containersTOReturn = Math.min(cartItem.getQuantity(), availableContainers);
 
-        BigDecimal subtotal = currentPrice.getSellPrice()
+        BigDecimal subtotal = sellPrice
                 .multiply(new BigDecimal(cartItem.getQuantity()))
                 .setScale(2, RoundingMode.HALF_UP);
 
@@ -173,12 +206,26 @@ public class CartPriceCalculationServiceImpl implements CartPriceCalculationServ
                 .productId(product.getId())
                 .productName(product.getName())
                 .quantity(cartItem.getQuantity())
-                .pricePerUnit(currentPrice.getSellPrice())
+                .pricePerUnit(sellPrice)
                 .subtotal(subtotal)
                 .depositPerUnit(product.getDepositAmount())
                 .availableContainers(availableContainers)
                 .containersToReturn(containersTOReturn)
                 .build();
+    }
+
+    private BigDecimal calculateEffectivePrice(ProductPrice price){
+        if (price.getSellPrice() == null) return BigDecimal.ZERO;
+        if (price.getDiscountPercent() == null
+                || price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0) {
+            return price.getSellPrice();
+        }
+        BigDecimal multiplier = BigDecimal.ONE
+                .subtract(price.getDiscountPercent()
+                        .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return price.getSellPrice()
+                .multiply(multiplier)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private CartCalculationResponse createEmptyResponse() {

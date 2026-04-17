@@ -1,7 +1,8 @@
 package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.model.enums.ProductStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,37 +12,44 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product,Long> {
+public interface ProductRepository extends JpaRepository<Product, Long> {
+    boolean existsByCompanyIdAndNameAndSizeId(Long companyId, String name, Long sizeId);
 
-    List<Product> findByProductStatus(ProductStatus productStatus);
+    Optional<Product> findByIdAndCompanyId(Long productId, Long companyId);
 
-    List<Product> findByCompanyId(Long companyId);
+    Page<Product> findByCompanyId(Long companyId, Pageable pageable);
 
-    List<Product> findByCompanyIdAndProductStatus(Long companyId, ProductStatus productStatus);
-
-    List<Product> findByCategoryId(Long categoryId);
-
-    List<Product> findByCategoryIdAndProductStatus(Long categoryId, ProductStatus productStatus);
-
-    List<Product> findBySize(String size);
-
-    @Query("SELECT p FROM Product p " +
-            "WHERE p.productStatus = 'ACTIVE' " +
-            "ORDER BY p.company.name, p.name")
-    List<Product> findAllActive();
-
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.prices " +
-            "WHERE p.id = :id")
-    Optional<Product> findByIdWithPrices(@Param("id") Long id);
-
-    Optional<Product> findByNameAndCompanyId(String name, Long companyId);
-
-    @Query("SELECT COUNT(p) FROM Product p " +
-            "WHERE p.company.id = :companyId")
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.company.id = :companyId")
     Long countByCompanyId(@Param("companyId") Long companyId);
 
-    @Query("SELECT COUNT(p) FROM Product p " +
-            "WHERE p.category.id = :categoryId")
-    Long countByCategoryId(@Param("categoryId")  Long categoryId);
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.category.id = :categoryId")
+    Long countByCategoryId(@Param("categoryId") Long categoryId);
+
+    @Query("SELECT p.company.id, COUNT(p) FROM Product p " +
+            "WHERE p.company.id IN :companyIds GROUP BY p.company.id")
+    List<Object[]> countByCompanyIdGrouped(@Param("companyIds") List<Long> companyIds);
+
+    @Query("SELECT p.category.id, COUNT(p) FROM Product p " +
+            "WHERE p.category.id IN :categoryIds GROUP BY p.category.id")
+    List<Object[]> countByCategoryIdGrouped(@Param("categoryIds") List<Long> categoryIds);
+
+    @Query("SELECT p FROM Product p WHERE p.productStatus = 'ACTIVE' " +
+            "AND (:categoryId IS NULL OR p.category.id = :categoryId) " +
+            "AND (:sizeId IS NULL OR p.size.id = :sizeId) " +
+            "AND (:companyId IS NULL OR p.company.id = :companyId)")
+    Page<Product> findAllWithFilters(
+            @Param("categoryId") Long categoryId,
+            @Param("sizeId") Long sizeId,
+            @Param("companyId") Long companyId,
+            Pageable pageable
+    );
+
+    @Query("SELECT p FROM Product p " +
+            "WHERE p.company.id = :companyId " +
+            "AND p.name = :name AND p.size.id = :sizeId AND p.productStatus = 'DEACTIVATE'")
+    Optional<Product> findDeletedByCompanyIdAndNameAndSizeId(
+            @Param("companyId") Long companyId,
+            @Param("name") String name,
+            @Param("sizeId") Long sizeId);
 
 }

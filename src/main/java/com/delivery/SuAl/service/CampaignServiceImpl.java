@@ -2,11 +2,13 @@ package com.delivery.SuAl.service;
 
 import com.delivery.SuAl.entity.Campaign;
 import com.delivery.SuAl.entity.CampaignUsage;
+import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.entity.Product;
-import com.delivery.SuAl.entity.User;
+import com.delivery.SuAl.entity.ProductPrice;
 import com.delivery.SuAl.exception.AlreadyExistsException;
+import com.delivery.SuAl.exception.CampaignUsageLimitExceededException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.helper.CampaignValidationContext;
 import com.delivery.SuAl.helper.EligibleCampaignInfo;
@@ -25,6 +27,8 @@ import com.delivery.SuAl.model.response.marketing.EligibleCampaignsResponse;
 import com.delivery.SuAl.model.response.marketing.ValidateCampaignResponse;
 import com.delivery.SuAl.repository.CampaignRepository;
 import com.delivery.SuAl.repository.CampaignUsageRepository;
+import com.delivery.SuAl.repository.OrderRepository;
+import com.delivery.SuAl.repository.ProductPriceRepository;
 import com.delivery.SuAl.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -45,14 +50,15 @@ import java.util.Map;
 
 @Service
 @Slf4j
-@Transactional
 @RequiredArgsConstructor
 public class CampaignServiceImpl implements CampaignService {
     private final CampaignRepository campaignRepository;
     private final CampaignUsageRepository campaignUsageRepository;
     private final ProductRepository productRepository;
+    private final ProductPriceRepository productPriceRepository;
+    private final OrderRepository orderRepository;
     private final CampaignMapper campaignMapper;
-    private final UserService userService;
+    private final CustomerService customerService;
     private final OrderQueryService orderQueryService;
     private final ImageUploadService imageUploadService;
 
@@ -135,44 +141,138 @@ public class CampaignServiceImpl implements CampaignService {
 
     @Override
     public ValidateCampaignResponse validateCampaign(ValidateCampaignRequest request) {
-        log.info("Validating campaign: {} for user: {}", request.getCampaignCode(), request.getUserId());
+        log.info("Validating campaign: {} for customer: {}", request.getCampaignCode(), request.getCustomerId());
 
         Campaign campaign = findCampaignByCode(request.getCampaignCode());
-        User user = userService.getUserEntityById(request.getUserId());
+        Customer customer = customerService.getCustomerEntityById(request.getCustomerId());
 
         CampaignValidationContext context = new CampaignValidationContext();
 
-        validateCampaignRules(campaign, user, request, context);
+        validateCampaignRules(campaign, customer, request, context);
         return buildValidateCampaignResponse(campaign, context);
     }
 
     @Override
+    @Transactional
     public ApplyCampaignResponse applyCampaign(ApplyCampaignRequest request) {
-        log.info("Applying campaign: {} for user: {} on order: {}",
-                request.getCampaignCode(), request.getUserId(), request.getOrder());
+        log.info("Applying campaign: {} for customer: {} on order: {}",
+                request.getCampaignCode(), request.getCustomerId(), request.getOrderId());
 
-        Campaign campaign = findCampaignByCode(request.getCampaignCode());
-        User user = userService.getUserEntityById(request.getUserId());
+        Campaign campaign = campaignRepository.findByCampaignCodeWithLock(request.getCampaignCode())
+                .orElseThrow(() -> new NotFoundException("Campaign not found: " + request.getCampaignCode()));
 
-        ApplyCampaignResponse validationFailure = validateCampaignForApplication(campaign, user);
+        if (!campaign.canBeUsed()) {
+            throw new CampaignUsageLimitExceededException("Campaign usage limit exceeded");
+        }
 
+        Customer customer = customerService.getCustomerEntityById(request.getCustomerId());
+
+        ApplyCampaignResponse validationFailure = validateCampaignForApplication(campaign, customer);
         if (validationFailure != null) {
             return validationFailure;
         }
 
-        int buyQuantity = getProductQuantityFromOrder(request.getOrder(), campaign.getBuyProduct().getId());
+        int buyQuantity = getProductQuantityFromOrder(request.getOrderId(), campaign.getBuyProduct().getId());
         if (buyQuantity < campaign.getBuyQuantity()) {
             return buildFailureResponse("Order does not meet quantity requirements");
         }
 
-        return processCampaignApplication(campaign, user, request.getOrder(), buyQuantity);
+        return processCampaignApplication(campaign, customer, request.getOrderId(), buyQuantity);
+    }
+
+    private ApplyCampaignResponse validateCampaignForApplication(Campaign campaign, Customer customer) {
+        if (!campaign.isActive()) {
+            log.warn("Campaign {} is not active", campaign.getCampaignCode());
+            return buildFailureResponse("Campaign is not active or has expired");
+        }
+
+        if (!campaign.canBeUsed()) {
+            log.warn("Campaign {} has reached total usage limit: {}/{}",
+                    campaign.getCampaignCode(), campaign.getCurrentTotalUses(), campaign.getMaxTotalUses());
+            return buildFailureResponse("Campaign has reached the total usage limit");
+        }
+
+        if (campaign.getMaxUsesPerCustomer() != null) {
+            int customerUsageCount = getCustomerCampaignUsageCount(customer.getId(), campaign.getCampaignCode());
+            if (customerUsageCount >= campaign.getMaxUsesPerCustomer()) {
+                log.warn("Customer {} has reached usage limit for campaign {}",
+                        customer.getId(), campaign.getCampaignCode());
+                return buildFailureResponse("You have reached the maximum usage limit for this campaign");
+            }
+        }
+
+        return null;
+    }
+
+    private ApplyCampaignResponse processCampaignApplication(
+            Campaign campaign, Customer customer, Long orderId, int buyQuantity) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found: " + orderId));
+
+        int freeQuantity = calculateEligibleFreeQuantity(
+                buyQuantity, campaign.getBuyQuantity(), campaign.getFreeQuantity());
+
+        BigDecimal bonusValue = calculateBonusValue(campaign)
+                .multiply(BigDecimal.valueOf(freeQuantity / campaign.getFreeQuantity()));
+
+        CampaignUsage campaignUsage = createCampaignUsage(
+                campaign, customer, order, buyQuantity, freeQuantity, bonusValue);
+        campaignUsageRepository.save(campaignUsage);
+
+        campaign.incrementUses();
+        campaignRepository.save(campaign);
+
+        log.info("Campaign {} applied successfully. Total uses: {}/{}, Free quantity: {}, Bonus value: {}",
+                campaign.getCampaignCode(),
+                campaign.getCurrentTotalUses(),
+                campaign.getMaxTotalUses(),
+                freeQuantity,
+                bonusValue);
+
+        return buildSuccessResponse(campaign, campaignUsage, freeQuantity, bonusValue);
     }
 
     @Override
-    public EligibleCampaignsResponse getEligibleCampaigns(GetEligibleCampaignsRequest request) {
-        log.info("Getting eligible campaigns for user: {}", request.getUserId());
+    @Transactional
+    public void releaseCampaignUsage(Long campaignId) {
+        log.info("Releasing campaign usage for campaign ID: {}", campaignId);
 
-        User user = userService.getUserEntityById(request.getUserId());
+        campaignRepository.findByIdWithLock(campaignId)
+                .ifPresentOrElse(
+                        campaign -> {
+                            campaign.decrementUses();
+                            campaignRepository.save(campaign);
+                            log.info("Released campaign {} usage. Current uses: {}/{}",
+                                    campaignId, campaign.getCurrentTotalUses(), campaign.getMaxTotalUses());
+                        },
+                        () -> log.warn("Cannot release campaign {} - not found", campaignId)
+                );
+    }
+
+    @Override
+    @Transactional
+    public void releaseCampaignUsageByOrder(Long orderId) {
+        log.info("Releasing campaign usages for order ID: {}", orderId);
+
+        List<CampaignUsage> usages = campaignUsageRepository.findAll().stream()
+                .filter(usage -> usage.getOrder().getId().equals(orderId))
+                .toList();
+
+        for (CampaignUsage usage : usages) {
+            releaseCampaignUsage(usage.getCampaign().getId());
+        }
+
+        int deletedCount = campaignUsageRepository.deleteByOrderId(orderId);
+        log.info("Deleted {} campaign usage records for order {}", deletedCount, orderId);
+    }
+
+
+    @Override
+    public EligibleCampaignsResponse getEligibleCampaigns(GetEligibleCampaignsRequest request) {
+        log.info("Getting eligible campaigns for customer: {}", request.getCustomerId());
+
+        Customer customer = customerService.getCustomerEntityById(request.getCustomerId());
         List<Campaign> activeCampaigns = campaignRepository.findByCampaignStatus(CampaignStatus.ACTIVE);
 
         List<EligibleCampaignInfo> eligibleCampaignInfos = new ArrayList<>();
@@ -180,7 +280,7 @@ public class CampaignServiceImpl implements CampaignService {
         Map<Long, FreeProductSummary> freeProductMap = new HashMap<>();
 
         for (Campaign campaign : activeCampaigns) {
-            EligibleCampaignResult result = evaluateCampaignEligibility(campaign, user, request);
+            EligibleCampaignResult result = evaluateCampaignEligibility(campaign, customer, request);
 
             if (result.shouldSkip()) {
                 continue;
@@ -201,19 +301,20 @@ public class CampaignServiceImpl implements CampaignService {
                 .build();
     }
 
+
     private void validateCampaignDoesNotExist(String campaignCode) {
         if (campaignRepository.existsByCampaignCode(campaignCode)) {
             throw new AlreadyExistsException("Campaign already exists with campaign code: " + campaignCode);
         }
     }
 
-    private void validateCampaignRules(Campaign campaign, User user, ValidateCampaignRequest request,
+    private void validateCampaignRules(Campaign campaign, Customer customer, ValidateCampaignRequest request,
                                        CampaignValidationContext context) {
         validateDateRequirement(campaign, context);
         validateTotalUsageLimit(campaign, context);
         validateQuantityRequirement(campaign, request, context);
-        validateFirstOrderRequirement(campaign, user, context);
-        validateUsageLimitRequirement(campaign, user, context);
+        validateFirstOrderRequirement(campaign, customer, context);
+        validateUsageLimitRequirement(campaign, customer, context);
 
         context.setMeetsPromoAbsenceRequirement(true);
 
@@ -252,9 +353,9 @@ public class CampaignServiceImpl implements CampaignService {
         }
     }
 
-    private void validateFirstOrderRequirement(Campaign campaign, User user, CampaignValidationContext context) {
+    private void validateFirstOrderRequirement(Campaign campaign, Customer customer, CampaignValidationContext context) {
         if (campaign.isFirstOrderOnly()) {
-            boolean meetsFirstOrderRequirement = isFirstOrder(user.getId());
+            boolean meetsFirstOrderRequirement = isFirstOrder(customer.getId());
             context.setMeetsFirstOrderRequirement(meetsFirstOrderRequirement);
 
             if (!meetsFirstOrderRequirement) {
@@ -265,21 +366,21 @@ public class CampaignServiceImpl implements CampaignService {
         }
     }
 
-    private void validateUsageLimitRequirement(Campaign campaign, User user, CampaignValidationContext context) {
-        int userUsageCount = getUserCampaignUsageCount(user.getId(), campaign.getCampaignCode());
+    private void validateUsageLimitRequirement(Campaign campaign, Customer customer, CampaignValidationContext context) {
+        int customerUsageCount = getCustomerCampaignUsageCount(customer.getId(), campaign.getCampaignCode());
 
-        if (campaign.getMaxUsesPerUser() != null) {
-            boolean meetsUsageLimitRequirement = userUsageCount < campaign.getMaxUsesPerUser();
+        if (campaign.getMaxUsesPerCustomer() != null) {
+            boolean meetsUsageLimitRequirement = customerUsageCount < campaign.getMaxUsesPerCustomer();
             context.setMeetsUsageLimitRequirement(meetsUsageLimitRequirement);
-            context.setUserUsageCount(userUsageCount);
-            context.setUsageRemaining(campaign.getMaxUsesPerUser() - userUsageCount);
+            context.setCustomerUsageCount(customerUsageCount);
+            context.setUsageRemaining(campaign.getMaxUsesPerCustomer() - customerUsageCount);
 
             if (!meetsUsageLimitRequirement) {
-                context.markInvalid("User has reached the maximum usage limit for this campaign. ");
+                context.markInvalid("Customer has reached the maximum usage limit for this campaign. ");
             }
         } else {
             context.setMeetsUsageLimitRequirement(true);
-            context.setUserUsageCount(userUsageCount);
+            context.setCustomerUsageCount(customerUsageCount);
         }
     }
 
@@ -297,50 +398,12 @@ public class CampaignServiceImpl implements CampaignService {
         context.setEstimatedBonusValue(estimatedBonusValue);
     }
 
-    private ApplyCampaignResponse validateCampaignForApplication(Campaign campaign, User user) {
-        if (!campaign.isActive()) {
-            return buildFailureResponse("Campaign is not active or has expired");
-        }
-
-        if (campaign.hasReachedTotalLimit()) {
-            return buildFailureResponse("Campaign has reached the total limit");
-        }
-
-        if (campaign.getMaxUsesPerUser() != null) {
-            int userUsageCount = getUserCampaignUsageCount(user.getId(), campaign.getCampaignCode());
-            if (userUsageCount >= campaign.getMaxUsesPerUser()) {
-                return buildFailureResponse("Campaign has reached the maximum usage limit");
-            }
-        }
-
-        return null;
-    }
-
-    private ApplyCampaignResponse processCampaignApplication(
-            Campaign campaign, User user, Order order, int buyQuantity) {
-        int freeQuantity = calculateEligibleFreeQuantity(
-                buyQuantity, campaign.getBuyQuantity(), campaign.getFreeQuantity());
-
-        BigDecimal bonusValue = calculateBonusValue(campaign)
-                .multiply(BigDecimal.valueOf(freeQuantity / campaign.getFreeQuantity()));
-
-        CampaignUsage campaignUsage = createCampaignUsage(campaign, user, order, buyQuantity, freeQuantity, bonusValue);
-        campaignUsageRepository.save(campaignUsage);
-
-        campaign.incrementUses();
-        campaignRepository.save(campaign);
-
-        log.info("Campaign applied successfully: {} - Free quantity: {}, Bonus value: {}",
-                campaign.getCampaignCode(), freeQuantity, bonusValue);
-
-        return buildSuccessResponse(campaign, campaignUsage, freeQuantity, bonusValue);
-    }
 
     private CampaignUsage createCampaignUsage(
-            Campaign campaign, User user, Order order, int buyQuantity,
+            Campaign campaign, Customer customer, Order order, int buyQuantity,
             int freeQuantity, BigDecimal bonusValue) {
         CampaignUsage campaignUsage = new CampaignUsage();
-        campaignUsage.setUser(user);
+        campaignUsage.setCustomer(customer);
         campaignUsage.setOrder(order);
         campaignUsage.setCampaign(campaign);
         campaignUsage.setBuyProduct(campaign.getBuyProduct());
@@ -352,7 +415,7 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private EligibleCampaignResult evaluateCampaignEligibility(
-            Campaign campaign, User user, GetEligibleCampaignsRequest request) {
+            Campaign campaign, Customer customer, GetEligibleCampaignsRequest request) {
         if (!campaign.isActive() || campaign.hasReachedTotalLimit()) {
             return EligibleCampaignResult.skip();
         }
@@ -371,12 +434,11 @@ public class CampaignServiceImpl implements CampaignService {
             return EligibleCampaignResult.skip();
         }
 
-        return evaluateCampaignRequirements(campaign, user, request, basketQuantity);
+        return evaluateCampaignRequirements(campaign, customer, basketQuantity);
     }
 
     private EligibleCampaignResult evaluateCampaignRequirements(
-            Campaign campaign, User user,
-            GetEligibleCampaignsRequest request, Integer basketQuantity) {
+            Campaign campaign, Customer customer, Integer basketQuantity) {
         EligibleCampaignInfo.EligibleCampaignInfoBuilder infoBuilder = buildBasicCampaignInfo(campaign, basketQuantity);
 
         if (basketQuantity < campaign.getBuyQuantity()) {
@@ -389,7 +451,7 @@ public class CampaignServiceImpl implements CampaignService {
             );
         }
 
-        if (campaign.isFirstOrderOnly() && !isFirstOrder(user.getId())) {
+        if (campaign.isFirstOrderOnly() && !isFirstOrder(customer.getId())) {
             return EligibleCampaignResult.withInfo(
                     infoBuilder
                             .willBeApplied(false)
@@ -398,11 +460,11 @@ public class CampaignServiceImpl implements CampaignService {
             );
         }
 
-        if (!meetsUsageLimitRequirement(campaign, user, infoBuilder)) {
+        if (!meetsUsageLimitRequirement(campaign, customer, infoBuilder)) {
             return EligibleCampaignResult.withInfo(infoBuilder.build());
         }
 
-        if (!meetsRegistrationDatsRequirement(campaign, user, infoBuilder)) {
+        if (!meetsRegistrationDatsRequirement(campaign, customer, infoBuilder)) {
             return EligibleCampaignResult.withInfo(infoBuilder.build());
         }
 
@@ -411,10 +473,10 @@ public class CampaignServiceImpl implements CampaignService {
 
     private boolean meetsRegistrationDatsRequirement(
             Campaign campaign,
-            User user,
+            Customer customer,
             EligibleCampaignInfo.EligibleCampaignInfoBuilder infoBuilder) {
         if (campaign.getMinDaysSinceRegistration() != null && campaign.getMinDaysSinceRegistration() > 0) {
-            int daysSinceRegistration = getDaysSinceRegistration(user);
+            int daysSinceRegistration = getDaysSinceRegistration(customer);
             if (daysSinceRegistration < campaign.getMinDaysSinceRegistration()) {
                 infoBuilder.willBeApplied(false)
                         .notAppliedReason(String.format("Must be registered for %d more days",
@@ -427,11 +489,11 @@ public class CampaignServiceImpl implements CampaignService {
 
     private boolean meetsUsageLimitRequirement(
             Campaign campaign,
-            User user,
+            Customer customer,
             EligibleCampaignInfo.EligibleCampaignInfoBuilder infoBuilder) {
-        if (campaign.getMaxUsesPerUser() != null) {
-            int userUsageCount = getUserCampaignUsageCount(user.getId(), campaign.getCampaignCode());
-            if (userUsageCount >= campaign.getMaxUsesPerUser()) {
+        if (campaign.getMaxUsesPerCustomer() != null) {
+            int customerUsageCount = getCustomerCampaignUsageCount(customer.getId(), campaign.getCampaignCode());
+            if (customerUsageCount >= campaign.getMaxUsesPerCustomer()) {
                 infoBuilder.willBeApplied(false)
                         .notAppliedReason("You have reached the maximum usage limit for this campaign");
                 return false;
@@ -453,7 +515,7 @@ public class CampaignServiceImpl implements CampaignService {
         BigDecimal freeProductPrice = getFreeProductPrice(campaign.getFreeProduct());
         BigDecimal bonusValue = freeProductPrice.multiply(BigDecimal.valueOf(eligibleFreeQuantity));
 
-        boolean hasDeposit = Boolean.TRUE.equals(campaign.getFreeProduct().getHasDeposit());
+        boolean hasDeposit = campaign.getFreeProduct().hasDeposit();
         BigDecimal depositPerUnit = hasDeposit ? campaign.getFreeProduct().getDepositAmount() : BigDecimal.ZERO;
         BigDecimal totalDeposit = depositPerUnit.multiply(BigDecimal.valueOf(eligibleFreeQuantity));
 
@@ -545,13 +607,13 @@ public class CampaignServiceImpl implements CampaignService {
                 .meetsFirstOrderRequirement(context.isMeetsFirstOrderRequirement())
                 .meetsUsageLimitRequirement(context.isMeetsUsageLimitRequirement())
                 .meetsPromoAbsenceRequirement(context.isMeetsPromoAbsenceRequirement())
-                .userUsageCount(context.getUserUsageCount())
+                .customerUsageCount(context.getCustomerUsageCount())
                 .usageRemaining(context.getUsageRemaining())
                 .freeQuantity(context.getFreeQuantity())
                 .freeProductId(campaign.getFreeProduct().getId())
                 .freeProductName(campaign.getFreeProduct().getName())
                 .estimatedBonusValue(context.getEstimatedBonusValue())
-                .userCanUse(context.isValid())
+                .customerCanUse(context.isValid())
                 .build();
     }
 
@@ -611,44 +673,67 @@ public class CampaignServiceImpl implements CampaignService {
         }
     }
 
-    private int getUserCampaignUsageCount(Long userId, String campaignCode) {
-        return campaignUsageRepository.countByUserIdAndCampaignCampaignCode(userId, campaignCode);
+    private int getCustomerCampaignUsageCount(Long customerId, String campaignCode) {
+        return campaignUsageRepository.countByCustomerIdAndCampaignCampaignCode(customerId, campaignCode);
     }
 
-    private boolean isFirstOrder(Long userId) {
-        return orderQueryService.getCompletedOrderCount(userId) == 0;
+    private boolean isFirstOrder(Long customerId) {
+        return orderQueryService.getCompletedOrderCount(customerId) == 0;
     }
 
-    private int getDaysSinceRegistration(User user) {
-        LocalDateTime registrationDate = user.getCreatedAt();
+    private int getDaysSinceRegistration(Customer customer) {
+        LocalDateTime registrationDate = customer.getCreatedAt();
         return (int) ChronoUnit.DAYS.between(registrationDate, LocalDateTime.now());
     }
 
     private BigDecimal calculateBonusValue(Campaign campaign) {
-        if (campaign.getFreeProduct() == null
-                || campaign.getFreeProduct().getPrices() == null
-                || campaign.getFreeProduct().getPrices().isEmpty()) {
+        Product freeProduct = campaign.getFreeProduct();
+        if (freeProduct == null) {
+            log.warn("Campaign {} has free product with no price", campaign.getCampaignCode());
             return BigDecimal.ZERO;
         }
-        return campaign.getFreeProduct().getPrices().getLast().getSellPrice()
-                .multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
+        return productPriceRepository.findActiveByProductId(freeProduct.getId())
+                .map(price -> {
+                    BigDecimal effectivePrice = calculateEffectivePrice(price);
+                    return effectivePrice.multiply(BigDecimal.valueOf(campaign.getFreeQuantity()));
+                })
+                .orElseGet(() -> {
+                    log.warn("Campaign {} free product has no active price", campaign.getCampaignCode());
+                    return BigDecimal.ZERO;
+                });
     }
 
     private BigDecimal getFreeProductPrice(Product product) {
-        if (product == null || product.getPrices() == null || product.getPrices().isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-        return product.getPrices().getLast().getSellPrice();
+        if (product == null) return BigDecimal.ZERO;
+        return productPriceRepository.findActiveByProductId(product.getId())
+                .map(this::calculateEffectivePrice)
+                .orElse(BigDecimal.ZERO);
     }
 
     private int calculateEligibleFreeQuantity(int basketQuantity, int buyQuantity, int freeQuantity) {
         return (basketQuantity / buyQuantity) * freeQuantity;
     }
 
-    private int getProductQuantityFromOrder(Order order, Long productId) {
+    private int getProductQuantityFromOrder(Long orderId, Long productId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
         return order.getOrderDetails().stream()
                 .filter(detail -> detail.getProduct().getId().equals(productId))
                 .mapToInt(OrderDetail::getCount)
                 .sum();
+    }
+
+    private BigDecimal calculateEffectivePrice(ProductPrice price) {
+        if (price.getSellPrice() == null) return BigDecimal.ZERO;
+        if (price.getDiscountPercent() == null
+                || price.getDiscountPercent().compareTo(BigDecimal.ZERO) == 0) {
+            return price.getSellPrice();
+        }
+        BigDecimal multiplier = BigDecimal.ONE
+                .subtract(price.getDiscountPercent()
+                        .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP));
+        return price.getSellPrice()
+                .multiply(multiplier)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

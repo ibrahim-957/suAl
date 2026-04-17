@@ -2,6 +2,7 @@ package com.delivery.SuAl.config;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jspecify.annotations.NonNull;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 
@@ -17,15 +18,15 @@ public class StringToMapConverter implements Converter<String, Map<String, Strin
     }
 
     @Override
-    public Map<String, String> convert(String source) {
-        if (source == null || source.trim().isEmpty()) {
+    public Map<String, String> convert(@NonNull String source) {
+        if (source.trim().isEmpty()) {
             return null;
         }
 
         try {
             String cleanedSource = source.trim();
 
-            return objectMapper.readValue(cleanedSource, new TypeReference<Map<String, String>>() {});
+            return objectMapper.readValue(cleanedSource, new TypeReference<>() {});
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid JSON format for mineralComposition: " + e.getMessage(), e);
         }

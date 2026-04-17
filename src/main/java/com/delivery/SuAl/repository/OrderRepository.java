@@ -2,9 +2,11 @@ package com.delivery.SuAl.repository;
 
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.model.enums.OrderStatus;
+import com.delivery.SuAl.model.enums.StockReservationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -23,23 +25,51 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     boolean existsByDriverIdAndOrderStatusIn(Long driverId, List<OrderStatus> orderStatus);
 
-    @Query(value = "SELECT nextval('order_number_seq')",  nativeQuery = true)
+    @Query(value = "SELECT nextval('order_number_seq')", nativeQuery = true)
     Long getNextOrderSequence();
 
     @Query("SELECT COUNT(o) FROM Order o " +
             "WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay")
     Long countTodayOrders(@Param("startOfDay") LocalDateTime startOfDay,
-                           @Param("endOfDay") LocalDateTime endOfDay);
+                          @Param("endOfDay") LocalDateTime endOfDay);
 
-    @Query("SELECT SUM(o.amount) FROM Order o " +
+    @Query("SELECT SUM(o.totalAmount) FROM Order o " +
             "WHERE o.paymentStatus = 'PAID' AND o.createdAt " +
             "BETWEEN :startDate AND :endDate")
     BigDecimal calculateRevenue(@Param("startDate") LocalDateTime startDate,
                                 @Param("endDate") LocalDateTime endDate);
 
-    Optional<Order> findByUserId(Long userId);
+    @Modifying
+    @Query("UPDATE Order o SET o.address = null WHERE o.address.id = :addressId")
+    void updateAddressToNullByAddressId(@Param("addressId") Long addressId);
 
-    Page<Order> findByUserId(Long userId, Pageable pageable);
+    Page<Order> findByCustomerId(Long customerId, Pageable pageable);
 
-    int countByUserIdAndOrderStatus(Long userId, OrderStatus orderStatus);
+    int countByCustomerIdAndOrderStatus(Long customerId, OrderStatus orderStatus);
+
+    @Query("SELECT DISTINCT o FROM Order o " +
+            "JOIN o.orderDetails od " +
+            "WHERE o.orderStatus = :status " +
+            "AND od.product.company.id = :companyId")
+    Page<Order> findByOrderStatusAndCompanyId(
+            @Param("status") OrderStatus status,
+            @Param("companyId") Long companyId,
+            Pageable pageable
+    );
+
+    @Query("SELECT DISTINCT o FROM Order o " +
+            "JOIN o.orderDetails od " +
+            "WHERE od.product.company.id = :companyId")
+    Page<Order> findByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
+
+    @Query("SELECT o FROM Order o " +
+            "WHERE o.stockReservationType = :reservationType " +
+            "AND o.orderStatus = :status " +
+            "AND o.stockReservationExpiresAt IS NOT NULL " +
+            "AND o.stockReservationExpiresAt < :now")
+    List<Order> findExpiredStockReservations(
+            @Param("reservationType") StockReservationType reservationType,
+            @Param("status") OrderStatus status,
+            @Param("now") LocalDateTime now
+    );
 }

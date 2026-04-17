@@ -15,7 +15,7 @@ public class BottleCollectionExpectation {
     private Long productId;
     private String productName;
     private Integer expectedToCollect;
-    private Integer userHasAvailable;
+    private Integer customerHasAvailable;
     private Integer shortfall;
     private BigDecimal extraDepositPerBottle;
     private BigDecimal totalExtraDeposit;

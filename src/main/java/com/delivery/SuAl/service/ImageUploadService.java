@@ -7,5 +7,7 @@ public interface ImageUploadService {
 
     String uploadImageForCampaign(MultipartFile file);
 
+    String uploadImageForAffordablePackage(MultipartFile file);
+
     void deleteImage(String imageUrl);
 }

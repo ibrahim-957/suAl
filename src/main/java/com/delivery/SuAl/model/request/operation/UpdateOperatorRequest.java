@@ -1,8 +1,8 @@
 package com.delivery.SuAl.model.request.operation;
 
 import com.delivery.SuAl.model.enums.OperatorStatus;
+import com.delivery.SuAl.model.enums.OperatorType;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,6 +22,9 @@ public class UpdateOperatorRequest {
     @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
     private String phoneNumber;
 
-    @NotNull
     private OperatorStatus operatorStatus;
+
+    private OperatorType operatorType;
+
+    private Long companyId;
 }

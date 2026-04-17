@@ -1,6 +1,5 @@
 package com.delivery.SuAl.model.response.companyAndcategory;
 
-import com.delivery.SuAl.model.enums.CategoryType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,7 +13,8 @@ import java.time.LocalDateTime;
 @Builder
 public class CategoryResponse {
     private Long id;
-    private CategoryType categoryType;
+    private String name;
+    private Boolean isActive;
     private Long productCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

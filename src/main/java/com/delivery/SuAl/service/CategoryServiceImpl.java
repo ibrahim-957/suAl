@@ -18,7 +18,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,17 +34,17 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse createCategory(CreateCategoryRequest createCategoryRequest) {
-        log.info("Creating new category with type: {}", createCategoryRequest.getCategoryType());
+        log.info("Creating new category with type: {}", createCategoryRequest.getName());
 
-        categoryRepository.findByCategoryType(createCategoryRequest.getCategoryType())
+        categoryRepository.findByName(createCategoryRequest.getName())
                 .ifPresent(existing -> {
-                    throw new AlreadyExistsException("Category already exists with type: " + createCategoryRequest.getCategoryType());
+                    throw new AlreadyExistsException("Category already exists with type: " + createCategoryRequest.getName());
                 });
 
         Category category = categoryMapper.toEntity(createCategoryRequest);
         Category savedCategory = categoryRepository.save(category);
 
-        log.info("Created category with type: {}", category.getCategoryType());
+        log.info("Created category with type: {}", category.getName());
 
         CategoryResponse categoryResponse = categoryMapper.toResponse(savedCategory);
         categoryResponse.setProductCount(0L);
@@ -62,7 +64,7 @@ public class CategoryServiceImpl implements CategoryService {
         CategoryResponse response = categoryMapper.toResponse(category);
         response.setProductCount(productRepository.countByCategoryId(id));
 
-        log.info("Category found: {}", category.getCategoryType());
+        log.info("Category found: {}", category.getName());
         return response;
     }
 
@@ -107,13 +109,33 @@ public class CategoryServiceImpl implements CategoryService {
 
         Page<Category> categoryPage = categoryRepository.findAll(pageable);
 
+        List<Long> categoryIds = categoryPage.getContent().stream()
+                .map(Category::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, Long> productCountMap = getProductCountsByCategoryIds(categoryIds);
+
         List<CategoryResponse> categoryResponseList = categoryPage.getContent().stream()
                 .map(category -> {
                     CategoryResponse categoryResponse = categoryMapper.toResponse(category);
-                    categoryResponse.setProductCount(productRepository.countByCategoryId(category.getId()));
+                    categoryResponse.setProductCount(productCountMap.getOrDefault(category.getId(), 0L));
                     return categoryResponse;
                 })
                 .collect(Collectors.toList());
         return PageResponse.of(categoryResponseList, categoryPage);
+    }
+
+    private Map<Long, Long> getProductCountsByCategoryIds(List<Long> categoryIds) {
+        if (categoryIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        List<Object[]> results = productRepository.countByCategoryIdGrouped(categoryIds);
+
+        return results.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
     }
 }

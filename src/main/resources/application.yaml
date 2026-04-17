@@ -1,3 +1,9 @@
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 3600000
+  refresh-token:
+    expiration: 604800000
+
 spring:
   application:
     name: SuAl
@@ -21,31 +27,28 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
-    flyway:
-      enabled: true
-      locations: classpath:db/migration
-      baseline-on-migrate: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: false
 
-  springdoc:
-    api-docs:
-      path: /api-docs
-      enabled: true
-    swagger-ui:
-      path: /swagger-ui.html
-      enabled: true
-      tags-sorter: alpha
-      operations-sorter: alpha
-    show-actuator: false
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
 
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}
   api-key: ${CLOUDINARY_API_KEY}
   api-secret: ${CLOUDINARY_API_SECRET}
-
-#firebase:
-#  credentials:
-#    path: ${GOOGLE_APPLICATION_CREDENTIALS}
 
 magnet:
   api:
@@ -60,3 +63,9 @@ magnet:
 
   connection-timeout: ${MAGNET_CONNECTION_TIMEOUT}
   read-timeout: ${MAGNET_READ_TIMEOUT}
+
+sms:
+  login: ${SMS_LOGIN}
+  password: ${SMS_PASSWORD}
+  sender: ${SMS_SENDER}
+  base-url: ${SMS_BASE_URL}

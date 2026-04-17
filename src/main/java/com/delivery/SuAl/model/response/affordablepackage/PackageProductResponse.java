@@ -1,0 +1,22 @@
+package com.delivery.SuAl.model.response.affordablepackage;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class PackageProductResponse {
+    private Long productId;
+    private String productName;
+    private Integer quantity;
+    private BigDecimal pricePerUnit;
+    private BigDecimal depositPerUnit;
+    private String imageUrl;
+    private BigDecimal lineOriginalValue;
+}

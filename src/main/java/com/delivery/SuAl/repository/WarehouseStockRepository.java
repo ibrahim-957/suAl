@@ -19,7 +19,11 @@ public interface WarehouseStockRepository extends JpaRepository<WarehouseStock, 
 
     Optional<WarehouseStock> findByWarehouseIdAndProductId(Long warehouseId, Long productId);
 
-    List<WarehouseStock> findByProductId(Long productId);
+    Optional<WarehouseStock> findByProductId(Long productId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id = :productId")
+    Optional<WarehouseStock> findByProductIdWithLock(@Param("productId") Long productId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT ws FROM WarehouseStock ws WHERE ws.product.id IN :productIds")
@@ -47,4 +51,5 @@ public interface WarehouseStockRepository extends JpaRepository<WarehouseStock, 
             "WHERE ws.warehouse.id = :warehouseId " +
             "AND ws.fullCount = 0")
     List<WarehouseStock> findOutOfStockProductsByWarehouseId(@Param("warehouseId") Long warehouseId);
+
 }

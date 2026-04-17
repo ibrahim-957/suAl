@@ -20,6 +20,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "promos")
@@ -50,8 +51,8 @@ public class Promo {
     @Column(name = "max_discount", precision = 10, scale = 2)
     private BigDecimal maxDiscount;
 
-    @Column(name = "max_uses_per_user")
-    private Integer maxUsesPerUser;
+    @Column(name = "max_uses_per_customer")
+    private Integer maxUsesPerCustomer;
 
     @Column(name = "max_total_uses")
     private Integer maxTotalUses;
@@ -77,45 +78,74 @@ public class Promo {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
-    public boolean isActive(){
-        LocalDate now = LocalDate.now();
+    public boolean isActive() {
+        LocalDate now = LocalDate.now(ZoneOffset.UTC);
         return promoStatus == PromoStatus.ACTIVE
                 && !now.isAfter(validTo)
                 && !now.isBefore(validFrom);
     }
 
-    public boolean hasReachedTotalLimit(){
+    public boolean hasReachedTotalLimit() {
         return maxTotalUses != null && currentTotalUses >= maxTotalUses;
     }
 
-    public void incrementUses(){
+    public void incrementUses() {
         this.currentTotalUses++;
     }
 
-    public BigDecimal calculateDiscount(BigDecimal orderAmount){
-        if (orderAmount.compareTo(minOrderAmount) < 0){
-            throw  new IllegalArgumentException("Order amount must be greater than minimum amount");
+    public BigDecimal calculateDiscount(BigDecimal orderAmount) {
+        if (!isActive()) {
+            throw new IllegalStateException("Promo is not active");
+        }
+        if (!canBeUsed()) {
+            throw new IllegalStateException("Promo usage limit exceeded");
+        }
+
+        if (orderAmount.compareTo(minOrderAmount) < 0) {
+            throw new IllegalArgumentException(
+                    "Order amount " + orderAmount + " is less than minimum " + minOrderAmount
+            );
         }
 
         BigDecimal discount;
-        if (discountType == DiscountType.PERCENTAGE){
+        if (discountType == DiscountType.PERCENTAGE) {
             discount = orderAmount.multiply(discountValue).divide(BigDecimal.valueOf(100));
 
-            if (maxDiscount != null && discount.compareTo(maxDiscount) > 0){
+            if (maxDiscount != null && discount.compareTo(maxDiscount) > 0) {
                 discount = maxDiscount;
             }
         } else {
             discount = discountValue;
         }
         return discount;
+    }
+
+    public boolean canBeUsed() {
+        if (maxTotalUses == null) {
+            return true;
+        }
+        return currentTotalUses < maxTotalUses;
+    }
+
+    public void decrementUses() {
+        if (this.currentTotalUses > 0) {
+            this.currentTotalUses--;
+        }
+    }
+
+    public Integer getRemainingUses() {
+        if (maxTotalUses == null) {
+            return null;
+        }
+        return Math.max(0, maxTotalUses - currentTotalUses);
     }
 }

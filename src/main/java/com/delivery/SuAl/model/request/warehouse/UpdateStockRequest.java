@@ -14,9 +14,6 @@ public class UpdateStockRequest {
     private Long productId;
 
     @Min(value = 0)
-    private Integer fullCount;
-
-    @Min(value = 0)
     private Integer emptyCount;
 
     @Min(value = 0)

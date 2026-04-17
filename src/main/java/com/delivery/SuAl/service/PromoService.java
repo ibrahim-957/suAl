@@ -27,4 +27,6 @@ public interface PromoService {
     ApplyPromoResponse applyPromo(ApplyPromoRequest request);
 
     Promo getPromoEntityByCode(String promoCode);
+
+    void releasePromoUsageByOrder(Long orderId);
 }

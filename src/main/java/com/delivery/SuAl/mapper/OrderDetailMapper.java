@@ -2,23 +2,24 @@ package com.delivery.SuAl.mapper;
 
 import com.delivery.SuAl.entity.OrderDetail;
 import com.delivery.SuAl.model.request.cart.CartItem;
-import com.delivery.SuAl.model.request.order.OrderItemRequest;
 import com.delivery.SuAl.model.response.order.OrderDetailResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OrderDetailMapper {
     @Mapping(target = "count", source = "quantity")
     OrderDetail toEntity(CartItem cartItem);
 
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "companyName", source = "company.name")
-    @Mapping(target = "size", source = "product.size")
+    @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "size", source = "product.size.label")
     @Mapping(target = "quantity", source = "count")
-    @Mapping(target = "categoryType", source = "category.categoryType")
     OrderDetailResponse toResponse(OrderDetail orderDetail);
 
     List<OrderDetailResponse> toResponseList(List<OrderDetail> orderDetails);

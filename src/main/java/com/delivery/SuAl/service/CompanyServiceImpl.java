@@ -18,7 +18,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -101,13 +103,33 @@ public class CompanyServiceImpl implements CompanyService {
 
         Page<Company> companyPage = companyRepository.findAll(pageable);
 
+        List<Long> companyIds = companyPage.getContent().stream()
+                .map(Company::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, Long> productCountMap = getProductCountsByCompanyIds(companyIds);
+
         List<CompanyResponse> responses = companyPage.getContent().stream()
                 .map(company -> {
                     CompanyResponse companyResponse = companyMapper.toResponse(company);
-                    companyResponse.setProductCount(productRepository.countByCompanyId(company.getId()));
+                    companyResponse.setProductCount(productCountMap.getOrDefault(company.getId(), 0L));
                     return companyResponse;
                 })
                 .collect(Collectors.toList());
         return PageResponse.of(responses, companyPage);
+    }
+
+    private Map<Long, Long> getProductCountsByCompanyIds(List<Long> companyIds) {
+        if (companyIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        List<Object[]> results = productRepository.countByCompanyIdGrouped(companyIds);
+
+        return results.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
     }
 }

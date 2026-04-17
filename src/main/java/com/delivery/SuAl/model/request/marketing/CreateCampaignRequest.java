@@ -2,6 +2,8 @@ package com.delivery.SuAl.model.request.marketing;
 
 import com.delivery.SuAl.model.enums.CampaignType;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
@@ -29,22 +32,27 @@ public class CreateCampaignRequest {
     @NotNull(message = "Campaign type is required")
     private CampaignType campaignType;
 
-    @NotNull(message = "Buy product ID is required")
     private Long buyProductId;
 
     @Min(value = 1, message = "Buy quantity must be at least 1")
-    private int buyQuantity;
+    private Integer buyQuantity;
 
-    @NotNull(message = "Free product ID is required")
     private Long freeProductId;
 
     @Min(value = 1, message = "Free quantity must be at least 1")
-    private int freeQuantity;
+    private Integer freeQuantity;
+
+    @DecimalMin(value = "0.01", message = "Bonus amount must be greater than 0")
+    private BigDecimal bonusAmount;
+
+    @DecimalMin(value = "0.01", message = "Bonus percentage must be greater than 0")
+    @DecimalMax(value = "100.00", message = "Bonus percentage cannot exceed 100%")
+    private BigDecimal bonusPercentage;
 
     private Boolean firstOrderOnly;
 
     @Min(0)
-    private Integer minDatsSinceRegistration;
+    private Integer minDaysSinceRegistration;
 
     private Boolean requiresPromoAbsence;
 

@@ -16,6 +16,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class OrderCalculationService {
+    private static final int DECIMAL_SCALE = 2;
+    private static final RoundingMode ROUNDING_MODE = RoundingMode.HALF_UP;
+
     public OrderCalculationResult calculateOrderTotals(List<OrderDetail> orderDetails) {
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal totalDepositCharged = BigDecimal.ZERO;
@@ -61,12 +64,18 @@ public class OrderCalculationService {
         orderDetail.setSubtotal(subtotal);
         orderDetail.setDepositCharged(depositCharged);
         orderDetail.setLineTotal(
-                subtotal.add(depositCharged).subtract(depositRefunded)
+                subtotal.add(depositCharged)
+                        .subtract(depositRefunded)
+                        .setScale(2, RoundingMode.HALF_UP)
         );
     }
 
     public void recalculateOrderFinancials(Order order) {
         OrderCalculationResult calculation = calculateOrderTotals(order.getOrderDetails());
+
+        if (calculation.getSubtotal() == null) {
+            throw new IllegalStateException("Subtotal cannot be null");
+        }
 
         order.setTotalItems(calculation.getTotalCount());
         order.setSubtotal(calculation.getSubtotal());
@@ -77,11 +86,16 @@ public class OrderCalculationService {
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal totalAmount = order.getSubtotal().add(order.getNetDeposit());
-
         BigDecimal amount = order.getSubtotal()
                 .subtract(promoDiscount)
-                .add(order.getNetDeposit());
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal totalAmount = amount
+                .add(order.getNetDeposit())
+                .setScale(2, RoundingMode.HALF_UP);
+
+        order.setAmount(amount);
+        order.setTotalAmount(totalAmount);
 
         order.setTotalAmount(totalAmount);
         order.setAmount(amount);
@@ -94,6 +108,10 @@ public class OrderCalculationService {
         log.info("Recalculating deposits for order {} based on actual collection",
                 order.getOrderNumber());
 
+        if (order.getOrderDetails() == null || order.getOrderDetails().isEmpty()) {
+            log.warn("No order details to recalculate deposits for order {}", order.getOrderNumber());
+            return;
+        }
         BigDecimal actualDepositRefunded = BigDecimal.ZERO;
 
         for (OrderDetail detail : order.getOrderDetails()) {
@@ -102,34 +120,35 @@ public class OrderCalculationService {
 
             BigDecimal refundForDetail = detail.getDepositPerUnit()
                     .multiply(BigDecimal.valueOf(actualCollected))
-                    .setScale(2, RoundingMode.HALF_UP);
+                    .setScale(DECIMAL_SCALE, ROUNDING_MODE);
 
             detail.setDepositRefunded(refundForDetail);
             actualDepositRefunded = actualDepositRefunded.add(refundForDetail);
 
-            detail.setLineTotal(
-                    detail.getSubtotal()
-                            .add(detail.getDepositCharged())
-                            .subtract(detail.getDepositRefunded())
-            );
+            BigDecimal lineTotal = detail.getSubtotal()
+                    .add(detail.getDepositCharged())
+                    .subtract(refundForDetail)
+                    .setScale(DECIMAL_SCALE, ROUNDING_MODE);
+
+            detail.setLineTotal(lineTotal);
 
             log.debug("Product {}: Delivered={}, Collected={}, DepositCharged={}, DepositRefunded={}, LineTotal={}",
-                    detail.getProduct().getId(),
-                    delivered,
-                    actualCollected,
-                    detail.getDepositCharged(),
-                    refundForDetail,
-                    detail.getLineTotal());
+                    detail.getProduct().getId(), delivered, actualCollected,
+                    detail.getDepositCharged(), refundForDetail, lineTotal);
         }
 
-        order.setTotalDepositRefunded(actualDepositRefunded);
-        order.setNetDeposit(order.getTotalDepositCharged().subtract(actualDepositRefunded));
+        order.setTotalDepositRefunded(actualDepositRefunded.setScale(DECIMAL_SCALE, ROUNDING_MODE));
+        order.setNetDeposit(
+                order.getTotalDepositCharged()
+                        .subtract(actualDepositRefunded)
+                        .setScale(DECIMAL_SCALE, ROUNDING_MODE));
 
         BigDecimal promoDiscount = Optional.ofNullable(order.getPromoDiscount())
                 .orElse(BigDecimal.ZERO);
 
         BigDecimal amount = order.getSubtotal()
-                .subtract(promoDiscount);
+                .subtract(promoDiscount)
+                .setScale(DECIMAL_SCALE, ROUNDING_MODE);
 
         BigDecimal totalAmount = amount.add(order.getNetDeposit());
 

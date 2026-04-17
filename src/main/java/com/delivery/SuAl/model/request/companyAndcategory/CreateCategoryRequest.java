@@ -1,6 +1,5 @@
 package com.delivery.SuAl.model.request.companyAndcategory;
 
-import com.delivery.SuAl.model.enums.CategoryType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,5 +8,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CreateCategoryRequest {
-    public CategoryType categoryType;
+    private String name;
 }

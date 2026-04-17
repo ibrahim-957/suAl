@@ -4,6 +4,7 @@ import com.delivery.SuAl.model.enums.ProductStatus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,24 +21,21 @@ public class UpdateProductRequest {
     private String name;
 
     private Long companyId;
-
     private Long categoryId;
-
-    private String size;
-
-    private BigDecimal buyPrice;
-
-    private BigDecimal sellPrice;
+    private Long sizeId;
 
     @Size(max = 2000)
     private String description;
 
     private Map<String, String> mineralComposition;
 
-    @DecimalMin(value = "0.0", inclusive = true, message = "Deposit amount cannot be negative")
-    @DecimalMax(value = "999.99", message = "Deposit amount is too large")
-    @Digits(integer = 3, fraction = 2, message = "Deposit amount must have at most 3 digits before decimal and 2 after")
+    @DecimalMin("0.0") @DecimalMax("999.99") @Digits(integer = 3, fraction = 2)
     private BigDecimal depositAmount;
 
-    private ProductStatus  productStatus;
+    private ProductStatus productStatus;
+
+    private Boolean returnable;
+
+    @Min(value = 1)
+    private Integer minimumStockAlert;
 }

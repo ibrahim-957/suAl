@@ -1,9 +1,9 @@
 package com.delivery.SuAl.service;
 
+import com.delivery.SuAl.entity.Customer;
 import com.delivery.SuAl.entity.Order;
 import com.delivery.SuAl.entity.Promo;
 import com.delivery.SuAl.entity.PromoUsage;
-import com.delivery.SuAl.entity.User;
 import com.delivery.SuAl.exception.AlreadyExistsException;
 import com.delivery.SuAl.exception.NotFoundException;
 import com.delivery.SuAl.exception.NotValidException;
@@ -17,28 +17,32 @@ import com.delivery.SuAl.model.request.marketing.ValidatePromoRequest;
 import com.delivery.SuAl.model.response.marketing.ApplyPromoResponse;
 import com.delivery.SuAl.model.response.marketing.PromoResponse;
 import com.delivery.SuAl.model.response.marketing.ValidatePromoResponse;
+import com.delivery.SuAl.repository.CustomerRepository;
 import com.delivery.SuAl.repository.PromoRepository;
 import com.delivery.SuAl.repository.PromoUsageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-@Transactional
 public class PromoServiceImpl implements PromoService {
     private final PromoRepository promoRepository;
     private final PromoUsageRepository promoUsageRepository;
+    private final CustomerRepository customerRepository;
     private final PromoMapper promoMapper;
 
     @Override
+    @Transactional
     public PromoResponse createPromo(CreatePromoRequest request) {
         log.info("Creating promo with code: {}", request.getPromoCode());
 
@@ -53,28 +57,40 @@ public class PromoServiceImpl implements PromoService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PromoResponse getPromoById(Long id) {
         log.info("Getting promo with id: {}", id);
 
         Promo promo = promoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Promo not found with id: " + id));
 
-        checkAndUpdateExpiredStatus(promo);
-        return promoMapper.toResponse(promo);
+        PromoResponse response = promoMapper.toResponse(promo);
+
+        if (promo.getPromoStatus() == PromoStatus.ACTIVE && isExpired(promo)) {
+            response.setPromoStatus(PromoStatus.EXPIRED);
+        }
+        return response;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<PromoResponse> getAllPromos(Pageable pageable) {
         log.info("Getting all promos with page: {}", pageable);
 
         Page<Promo> promos = promoRepository.findAll(pageable);
 
-        promos.getContent().forEach(this::checkAndUpdateExpiredStatus);
+        return promos.map(promo -> {
+            PromoResponse response = promoMapper.toResponse(promo);
 
-        return promos.map(promoMapper::toResponse);
+            if (promo.getPromoStatus() == PromoStatus.ACTIVE && isExpired(promo)) {
+                response.setPromoStatus(PromoStatus.EXPIRED);
+            }
+            return response;
+        });
     }
 
     @Override
+    @Transactional
     public PromoResponse updatePromo(Long id, UpdatePromoRequest request) {
         log.info("Updating promo with id: {}", id);
 
@@ -90,9 +106,9 @@ public class PromoServiceImpl implements PromoService {
             LocalDate newValidFrom = request.getValidFrom() != null ? request.getValidFrom() : oldValidFrom;
             LocalDate newValidTo = request.getValidTo() != null ? request.getValidTo() : oldValidTo;
 
-            if (promo.getPromoStatus() == PromoStatus.EXPIRED){
+            if (promo.getPromoStatus() == PromoStatus.EXPIRED) {
                 LocalDate now = LocalDate.now();
-                if (!now.isBefore(newValidFrom) && !now.isAfter(newValidTo)){
+                if (!now.isBefore(newValidFrom) && !now.isAfter(newValidTo)) {
                     promo.setPromoStatus(PromoStatus.ACTIVE);
                     log.info("Promo {} reactivated due to valid date range", id);
                 }
@@ -106,6 +122,7 @@ public class PromoServiceImpl implements PromoService {
     }
 
     @Override
+    @Transactional
     public void deletePromoById(Long id) {
         log.info("Soft deleting promo with id: {}", id);
 
@@ -121,20 +138,20 @@ public class PromoServiceImpl implements PromoService {
     @Override
     @Transactional(readOnly = true)
     public ValidatePromoResponse validatePromo(ValidatePromoRequest request) {
-        log.info("Validation promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
+        log.info("Validation promo code: {} for customer: {}", request.getPromoCode(), request.getCustomerId());
 
-        try{
+        try {
             Promo promo = promoRepository.findByPromoCode(request.getPromoCode())
                     .orElseThrow(() -> new NotFoundException("Promo not found with code: " + request.getPromoCode()));
 
-            validatePromoEligibility(promo, request.getUserId(), request.getOrderAmount());
+            validatePromoEligibility(promo, request.getCustomerId(), request.getOrderAmount());
 
             BigDecimal estimatedDiscount = promo.calculateDiscount(request.getOrderAmount());
 
-            Integer userUsageCount = promoUsageRepository.countUsagesByUserAndPromo(
-                    request.getUserId(), promo.getId());
+            Integer customerUsageCount = promoUsageRepository.countUsagesByCustomerAndPromo(
+                    request.getCustomerId(), promo.getId());
 
-            Boolean userCanUse = promo.getMaxUsesPerUser() == null || userUsageCount < promo.getMaxUsesPerUser();
+            Boolean customerCanUse = promo.getMaxUsesPerCustomer() == null || customerUsageCount < promo.getMaxUsesPerCustomer();
 
             log.info("Promo validation successful. Estimated discount: {}", estimatedDiscount);
 
@@ -143,64 +160,46 @@ public class PromoServiceImpl implements PromoService {
                     .message("Promo code is valid")
                     .promoResponse(promoMapper.toResponse(promo))
                     .estimatedDiscount(estimatedDiscount)
-                    .userCanUse(userCanUse)
-                    .userUsageCount(userUsageCount)
+                    .customerCanUse(customerCanUse)
+                    .customerUsageCount(customerUsageCount)
                     .build();
         } catch (NotFoundException e) {
             log.warn("Promo not found: {}", e.getMessage());
-            return ValidatePromoResponse.builder()
-                    .isValid(false)
-                    .message(e.getMessage())
-                    .promoResponse(null)
-                    .estimatedDiscount(BigDecimal.ZERO)
-                    .userCanUse(false)
-                    .userUsageCount(0)
-                    .build();
+            return buildFailureResponse(e.getMessage());
         } catch (NotValidException | PromoUsageLimitExceededException e) {
             log.warn("Promo validation failed: {}", e.getMessage());
-            return ValidatePromoResponse.builder()
-                    .isValid(false)
-                    .message(e.getMessage())
-                    .promoResponse(null)
-                    .estimatedDiscount(BigDecimal.ZERO)
-                    .userCanUse(false)
-                    .userUsageCount(0)
-                    .build();
+            return buildFailureResponse(e.getMessage());
         } catch (IllegalArgumentException e) {
             log.warn("Promo calculation error: {}", e.getMessage());
-            return ValidatePromoResponse.builder()
-                    .isValid(false)
-                    .message(e.getMessage())
-                    .promoResponse(null)
-                    .estimatedDiscount(BigDecimal.ZERO)
-                    .userCanUse(false)
-                    .userUsageCount(0)
-                    .build();
+            return buildFailureResponse(e.getMessage());
         }
     }
 
     @Override
+    @Transactional
     public ApplyPromoResponse applyPromo(ApplyPromoRequest request) {
-        log.info("Applying promo code: {} for user: {}", request.getPromoCode(), request.getUserId());
+        log.info("Applying promo code: {} for customer: {}", request.getPromoCode(), request.getCustomerId());
 
-        Promo promo = promoRepository.findByPromoCode(request.getPromoCode())
-                .orElseThrow(() -> new NotFoundException("Promo not found with code: " + request.getPromoCode()));
+        Promo promo = promoRepository.findByPromoCodeWithLock(request.getPromoCode())
+                .orElseThrow(() -> new NotFoundException("Promo not found"));
 
-        validatePromoEligibility(promo, request.getUserId(), request.getOrderAmount());
+        if (!promo.canBeUsed()) {
+            throw new PromoUsageLimitExceededException("Promo usage limit exceeded");
+        }
+
+        validatePromoEligibility(promo, request.getCustomerId(), request.getOrderAmount());
 
         BigDecimal discountAmount;
-
-        try{
+        try {
             discountAmount = promo.calculateDiscount(request.getOrderAmount());
-        }catch (IllegalArgumentException e){
+        } catch (IllegalArgumentException e) {
             throw new NotValidException(e.getMessage());
         }
 
         PromoUsage promoUsage = new PromoUsage();
 
-        User user = new User();
-        user.setId(request.getUserId());
-        promoUsage.setUser(user);
+        Customer customer = customerRepository.getReferenceById(request.getCustomerId());
+        promoUsage.setCustomer(customer);
 
         if (request.getOrderId() != null) {
             Order order = new Order();
@@ -218,7 +217,11 @@ public class PromoServiceImpl implements PromoService {
 
         BigDecimal finalAmount = request.getOrderAmount().subtract(discountAmount);
 
-        log.info("Promo applied successfully. Discount: {}, Final amount: {}", discountAmount, finalAmount);
+        log.info("Promo applied successfully. Total uses: {}/{}, Discount: {}, Final amount: {}",
+                promo.getCurrentTotalUses(),
+                promo.getMaxTotalUses(),
+                discountAmount,
+                finalAmount);
 
         return ApplyPromoResponse.builder()
                 .success(true)
@@ -232,57 +235,131 @@ public class PromoServiceImpl implements PromoService {
     }
 
     @Override
+    @Transactional
+    public void releasePromoUsageByOrder(Long orderId) {
+        log.info("Releasing promo usages for order ID: {}", orderId);
+
+        List<PromoUsage> usages = promoUsageRepository.findByOrderId(orderId);
+
+        if (usages.isEmpty()) {
+            log.debug("No promo usages found for order {}", orderId);
+            return;
+        }
+
+        log.info("Found {} promo usage(s) to release for order {}", usages.size(), orderId);
+
+        for (PromoUsage usage : usages) {
+            releasePromoUsage(usage.getPromo().getId());
+        }
+
+        int deletedCount = promoUsageRepository.deleteByOrderId(orderId);
+        log.info("Released and deleted {} promo usage records for order {}", deletedCount, orderId);
+    }
+
+    @Transactional
+    public void releasePromoUsage(Long promoId) {
+        log.info("Releasing promo usage for promo ID: {}", promoId);
+
+        promoRepository.findByIdWithLock(promoId)
+                .ifPresentOrElse(
+                        promo -> {
+                            promo.decrementUses();
+                            promoRepository.save(promo);
+                            log.info("Released promo {} usage. Current uses: {}/{}",
+                                    promoId, promo.getCurrentTotalUses(), promo.getMaxTotalUses());
+                        },
+                        () -> log.warn("Cannot release promo {} - not found", promoId)
+                );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Promo getPromoEntityByCode(String promoCode) {
         return promoRepository.findByPromoCode(promoCode)
                 .orElseThrow(() -> new NotFoundException("Promo not found with code: " + promoCode));
     }
 
-    private void checkAndUpdateExpiredStatus(Promo promo) {
-        if (promo.getPromoStatus() == PromoStatus.ACTIVE){
-            LocalDate now = LocalDate.now();
-            if (now.isAfter(promo.getValidTo())){
-                promo.setPromoStatus(PromoStatus.EXPIRED);
-                promoRepository.save(promo);
-                log.info("Promo {} status changed to EXPIRED", promo.getPromoCode());
-            }
-        }
-    }
+    @Scheduled(cron = "0 0 1 * * *")
+    @Transactional
+    public void expireOldPromos() {
+        log.info("Running scheduled promo expiration job");
 
-    private void validatePromoEligibility(Promo promo, Long userId, BigDecimal orderAmount) {
         LocalDate now = LocalDate.now();
 
+        List<Promo> promosToExpire = promoRepository
+                .findByPromoStatusAndValidToBefore(PromoStatus.ACTIVE, LocalDate.now());
+
+        if (promosToExpire.isEmpty()) {
+            log.info("No promos to expire");
+            return;
+        }
+
+        promosToExpire.forEach(promo -> {
+            promo.setPromoStatus(PromoStatus.EXPIRED);
+            log.info("Expired promo: {} (valid until {})",
+                    promo.getPromoCode(), promo.getValidTo());
+        });
+
+        promoRepository.saveAll(promosToExpire);
+
+        log.info("Expired {} promo(s) automatically", promosToExpire.size());
+    }
+
+    private boolean isExpired(Promo promo) {
         if (promo.getPromoStatus() != PromoStatus.ACTIVE){
+            return true;
+        }
+        LocalDate now = LocalDate.now();
+        return now.isAfter(promo.getValidTo());
+    }
+
+    private void validatePromoEligibility(Promo promo, Long customerId, BigDecimal orderAmount) {
+        LocalDate now = LocalDate.now();
+
+        if (promo.getPromoStatus() != PromoStatus.ACTIVE) {
             throw new NotValidException("Promo status is not ACTIVE. Current status: " + promo.getPromoStatus());
         }
 
-
-        if (now.isBefore(promo.getValidFrom())){
+        if (now.isBefore(promo.getValidFrom())) {
             throw new NotValidException("Promo is not yet valid. Valid from: " + promo.getValidFrom());
         }
 
-        if (now.isAfter(promo.getValidTo())){
+        if (now.isAfter(promo.getValidTo())) {
             throw new NotValidException("Promo has expired. Valid until: " + promo.getValidTo());
         }
 
-        if (promo.hasReachedTotalLimit())
+        if (!promo.canBeUsed()) {
+            log.warn("Promo {} has reached total usage limit: {}/{}",
+                    promo.getPromoCode(), promo.getCurrentTotalUses(), promo.getMaxTotalUses());
             throw new PromoUsageLimitExceededException("Promo has reached the maximum total limit.");
+        }
 
-
-        if (promo.getMaxUsesPerUser() != null){
-            Integer userUsageCount = promoUsageRepository.countUsagesByUserAndPromo(userId, promo.getId());
-            if (userUsageCount >= promo.getMaxUsesPerUser()){
+        if (promo.getMaxUsesPerCustomer() != null) {
+            Integer customerUsageCount = promoUsageRepository.countUsagesByCustomerAndPromo(customerId, promo.getId());
+            if (customerUsageCount >= promo.getMaxUsesPerCustomer()) {
                 throw new PromoUsageLimitExceededException(
                         String.format("You have already used this promo %d times. Maximum allowed: %d",
-                                userUsageCount, promo.getMaxUsesPerUser())
+                                customerUsageCount, promo.getMaxUsesPerCustomer())
                 );
             }
         }
 
-        if (orderAmount.compareTo(promo.getMinOrderAmount()) < 0){
+        if (orderAmount.compareTo(promo.getMinOrderAmount()) < 0) {
             throw new NotValidException(
                     String.format("Order amount %.2f is below minimum required amount %.2f",
                             orderAmount, promo.getMinOrderAmount())
             );
         }
+    }
+
+    private ValidatePromoResponse buildFailureResponse(String message) {
+        return ValidatePromoResponse.builder()
+                .isValid(false)
+                .message(message)
+                .promoResponse(null)
+                .estimatedDiscount(BigDecimal.ZERO)
+                .customerCanUse(false)
+                .customerUsageCount(0)
+                .build();
     }
 }

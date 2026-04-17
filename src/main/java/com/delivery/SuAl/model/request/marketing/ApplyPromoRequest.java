@@ -20,7 +20,7 @@ public class ApplyPromoRequest {
     private BigDecimal orderAmount;
 
     @NotNull
-    private Long userId;
+    private Long customerId;
 
     private Long orderId;
 }

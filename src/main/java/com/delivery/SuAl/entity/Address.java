@@ -19,6 +19,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "addresses")
@@ -42,8 +43,8 @@ public class Address {
     @Column(name = "apartment_number")
     private String apartmentNumber;
 
-    @Column(name = "postal_code")
-    private String postalCode;
+    @Column(name = "district")
+    private String district;
 
     @Column(precision = 10, scale = 8)
     private BigDecimal latitude;
@@ -52,12 +53,9 @@ public class Address {
     private BigDecimal longitude;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "customer_id", nullable = false)
     @JsonBackReference("addresses")
-    private User user;
-
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
+    private Customer customer;
 
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
@@ -67,13 +65,13 @@ public class Address {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     public String getFullAddress() {
@@ -84,7 +82,7 @@ public class Address {
         }
 
         if (street != null && !street.isBlank()) {
-            if (fullAddress.length() > 0) fullAddress.append(", ");
+            if (!fullAddress.isEmpty()) fullAddress.append(", ");
             fullAddress.append(street);
         }
 
@@ -97,12 +95,12 @@ public class Address {
         }
 
         if (city != null && !city.isBlank()) {
-            if (fullAddress.length() > 0) fullAddress.append(", ");
+            if (!fullAddress.isEmpty()) fullAddress.append(", ");
             fullAddress.append(city);
         }
 
-        if (postalCode != null && !postalCode.isBlank()) {
-            fullAddress.append(", ").append(postalCode);
+        if (district != null && !district.isBlank()) {
+            fullAddress.append(", ").append(district);
         }
 
         return fullAddress.toString();

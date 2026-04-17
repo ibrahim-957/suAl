@@ -1,21 +1,22 @@
 package com.delivery.SuAl.service;
 
-import com.delivery.SuAl.model.request.address.CreateAddressRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByCustomerRequest;
+import com.delivery.SuAl.model.request.address.CreateAddressByOperatorRequest;
 import com.delivery.SuAl.model.request.address.UpdateAddressRequest;
 import com.delivery.SuAl.model.response.address.AddressResponse;
 
 import java.util.List;
 
 public interface AddressService {
-    AddressResponse createAddressByUser(String phoneNumber, CreateAddressRequest request);
+    AddressResponse createAddressByCustomer(String phoneNumber, CreateAddressByCustomerRequest request);
 
-    AddressResponse createAddress(Long userId, CreateAddressRequest createAddressRequest);
+    AddressResponse createAddress(CreateAddressByOperatorRequest createAddressByOperatorRequest);
 
-    AddressResponse getAddressById(Long userId, Long addressId);
+    AddressResponse getAddressById(Long customerId, Long addressId);
 
-    AddressResponse updateAddress(Long userId, Long addressId, UpdateAddressRequest updateAddressRequest);
+    AddressResponse updateAddress(Long customerId, Long addressId, UpdateAddressRequest updateAddressRequest);
 
     void deleteAddress(Long id);
 
-    List<AddressResponse> getUserAddresses(Long userId);
+    List<AddressResponse> getCustomerAddresses(Long customerId);
 }

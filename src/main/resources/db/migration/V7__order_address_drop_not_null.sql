@@ -1,0 +1,2 @@
+ALTER TABLE orders
+    ALTER COLUMN address_id DROP NOT NULL;
